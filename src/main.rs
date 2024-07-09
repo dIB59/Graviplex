@@ -1,15 +1,17 @@
+use bevy::prelude::*;
+use bevy::sprite::Wireframe2dPlugin;
+
+use crate::camera::CameraPlugin;
+use crate::debug::DebugPlugin;
+use crate::movement::MovementPlugin;
+use crate::particle::ParticlePlugin;
+use crate::spaceship::SpaceShipPlugin;
+
 mod camera;
 mod debug;
 mod movement;
 mod spaceship;
-
-use bevy::prelude::*;
-use bevy::sprite::Wireframe2dPlugin;
-use crate::camera::CameraPlugin;
-use crate::debug::DebugPlugin;
-use crate::movement::MovementPlugin;
-use crate::spaceship::SpaceShipPlugin;
-
+mod particle;
 
 fn main() {
     App::new()
@@ -18,5 +20,6 @@ fn main() {
         .add_plugins(SpaceShipPlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(DebugPlugin)
+        .add_plugins(ParticlePlugin)
         .run();
 }
