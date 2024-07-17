@@ -1,69 +1,32 @@
-use bevy::color::palettes::basic::BLACK;
-use bevy::color::palettes::css::{DARK_CYAN, WHITE};
+use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy::sprite::Wireframe2dConfig;
-use bevy_prototype_lyon::prelude::{Fill, GeometryBuilder, ShapeBundle, Stroke};
-use bevy_prototype_lyon::shapes;
-
-use crate::movement::Velocity;
 
 pub struct ParticlePlugin;
 
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_system);
-        app.add_systems(Update, toggle_wireframe);
-        app.add_systems(Update, draw_particle);
+        app.add_systems(Update, spawn_particle);
     }
 }
 
-fn setup_system(mut commands: Commands) {
+#[derive(Component)]
+pub struct Particle;
 
-    let circle = shapes::Circle{
-        radius: 100.0,
-        center: Default::default(),
-    } ;
-
+fn spawn_particle(mut commands: Commands) {
     commands.spawn((
-        ShapeBundle {
-            path: GeometryBuilder::build_as(&circle),
-            ..default()
-        },
-        Fill::color(WHITE),
-        Stroke::new(WHITE, 10.0),
-    ));
-}
-
-fn draw_particle(query: Query<(&Velocity, &mut Transform)>, mut commands: Commands) {
-    let circle = shapes::Circle{
-        radius: 100.0,
-        center: Vec2::ZERO,
-    } ;
-
-    commands.spawn((
-        GeometryBuilder::build_as(&circle),
-        Stroke::new(Color::WHITE, 1.0)
-    ));
-    
-    for (_velocity, transform) in query.iter() {
-        Transform::from_xyz(transform.translation.x,transform.translation.y, 0.0);
-        commands.spawn((
-            ShapeBundle {
-                path: GeometryBuilder::build_as(&circle),
+        SpriteBundle {
+            transform: Transform {
+                translation: vec3(0., 0., 0.),
                 ..default()
             },
-            Fill::color(DARK_CYAN),
-            Stroke::new(BLACK, 10.0),
-        ));
-    }
-}
-
-
-fn toggle_wireframe(
-    mut wireframe_config: ResMut<Wireframe2dConfig>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        wireframe_config.global = !wireframe_config.global;
-    }
+            sprite: Sprite {
+                color: Color::srgb(0.7, 0.3, 0.7),
+                custom_size: Some(Vec2::new( 2.0, 2.0)),
+                ..default()
+            },
+            ..default()
+        },
+        Particle,
+    ));
 }
