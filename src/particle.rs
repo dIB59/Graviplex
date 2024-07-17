@@ -11,8 +11,8 @@ impl Plugin for ParticlePlugin {
     }
 }
 
-#[derive(Component)]
-pub struct Particle;
+// #[derive(Component)]
+// pub struct Particle;
 
 fn spawn_particle(mut commands: Commands) {
     let mut rng = rand::thread_rng();
@@ -26,14 +26,14 @@ fn spawn_particle(mut commands: Commands) {
             },
             sprite: Sprite {
                 color: Color::srgb(0.7, 0.3, 0.7),
-                custom_size: Some(Vec2::new( 2.0, 2.0)),
+                // custom_size: Some(Vec2::new( 2.0, 2.0)),
                 ..default()
             },
             ..default()
         },
-        Particle,
+        // Particle,
         Velocity {
-            value: Vec2::new(0.1, 0.1), // Initial velocity, customize as needed
+            value: random_velocity,
         },
     ));
 }
