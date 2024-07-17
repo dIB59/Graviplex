@@ -20,7 +20,7 @@ const PADDLE_COLOR: Color = Color::srgb(0.3, 0.3, 0.7);
 
 
 #[derive(Component)]
-struct Paddle;
+pub struct Paddle;
 
 fn spawn_paddle(mut commands: Commands) {
     
