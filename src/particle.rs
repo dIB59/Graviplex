@@ -1,12 +1,13 @@
 use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy::sprite::Wireframe2dConfig;
+use rand::Rng;
+use crate::movement::Velocity;
 
 pub struct ParticlePlugin;
 
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_particle);
+        app.add_systems(Startup, spawn_particle);
     }
 }
 
@@ -14,6 +15,9 @@ impl Plugin for ParticlePlugin {
 pub struct Particle;
 
 fn spawn_particle(mut commands: Commands) {
+    let mut rng = rand::thread_rng();
+    let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
+
     commands.spawn((
         SpriteBundle {
             transform: Transform {
@@ -28,5 +32,8 @@ fn spawn_particle(mut commands: Commands) {
             ..default()
         },
         Particle,
+        Velocity {
+            value: Vec2::new(0.1, 0.1), // Initial velocity, customize as needed
+        },
     ));
 }
