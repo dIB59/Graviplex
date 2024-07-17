@@ -142,7 +142,6 @@ fn fps_text_update_system(
                 Color::srgb(1.0, 0.0, 0.0)
             }
         } else {
-            // display "N/A" if we can't get a FPS measurement
             // add an extra space to preserve alignment
             text.sections[1].value = " N/A".into();
             text.sections[1].style.color = Color::WHITE;
