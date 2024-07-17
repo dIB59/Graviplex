@@ -107,9 +107,6 @@ fn fps_text_update_system(
     diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut Text, With<FpsText>>,
 ) {
-    // for (entity, position, _ve) in query.iter() {
-    //     info!("Entity {:?} is at position {:?},", entity, position);
-    // }
     for mut text in &mut query {
 
         // try to get a "smoothed" FPS value from Bevy
@@ -160,7 +157,6 @@ fn fps_counter_showhide(
     kbd: Res<ButtonInput<KeyCode>>,
 ) {
     if kbd.just_pressed(KeyCode::F12) {
-        info!("F12 PRESSED000");
         let mut vis = q.single_mut();
         *vis = match *vis {
             Visibility::Hidden => Visibility::Visible,
