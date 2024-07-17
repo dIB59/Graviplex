@@ -19,10 +19,12 @@ impl Plugin for MovementPlugin{
     }
 }
 
-fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
+fn update_position(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<Time<Fixed>>
+) {
+    let dt = time_step.delta_seconds() * 100f32;
     for (velocity, mut transform) in query.iter_mut() {
-        transform.translation.x += velocity.value.x;
-        transform.translation.y += velocity.value.y;
+        transform.translation.x += velocity.value.x * dt;
+        transform.translation.y += velocity.value.y * dt;
     }
 }
 
@@ -43,7 +45,7 @@ fn move_paddle(
     }
 
     let new_x =
-        paddle_transform.translation.x + direction * 0.005 * time_step.wrap_period().as_secs_f32();
+        paddle_transform.translation.x + direction * time_step.delta_seconds() * 300f32;
     paddle_transform.translation.x = new_x;
 }
 
