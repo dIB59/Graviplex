@@ -1,10 +1,12 @@
 use bevy::app::{App, Plugin, Update};
-use bevy::prelude::{Entity, info, Query, Transform};
+use bevy::input::ButtonInput;
+use bevy::prelude::{AppExit, Entity, EventWriter, info, KeyCode, Query, Res, Transform};
 
 use crate::movement::Velocity;
 
 pub struct DebugPlugin;
 
+#[cfg(debug_assertions)]
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, print_position);
@@ -12,7 +14,7 @@ impl Plugin for DebugPlugin {
 }
 
 fn print_position(query: Query<(Entity, &Transform, &Velocity)>) {
-    for (entity, position, _ve) in query.iter() {
-        info!("Entity {:?} is at position {:?},", entity, position);
-    }
+    // for (entity, position, _ve) in query.iter() {
+    //     info!("Entity {:?} is at position {:?},", entity, position);
+    // }
 }
