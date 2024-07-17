@@ -13,7 +13,6 @@ use bevy::app::{App, Startup};
 use bevy::color::Color;
 use bevy::diagnostic::DiagnosticsStore;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::log::info;
 use bevy::prelude::{ButtonInput, Commands, Component, KeyCode, Plugin, Query, Res, Update, Val, Visibility, With};
 use bevy::prelude::Alpha;
 use bevy::prelude::BuildChildren;
