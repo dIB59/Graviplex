@@ -13,7 +13,6 @@ impl Plugin for PaddlePlugin {
     }
 }
 
-const PADDLE_START_Y: f32 = 0.0;
 const PADDLE_SIZE: Vec2 = Vec2::new(120.0, 20.0);
 const PADDLE_COLOR: Color = Color::srgb(0.3, 0.3, 0.7);
 
