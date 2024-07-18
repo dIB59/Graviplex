@@ -21,14 +21,6 @@ impl Plugin for UserInputPlugin {
     }
 }
 
-fn mouse_button_input(
-    buttons: Res<ButtonInput<MouseButton>>,
-) {
-    if buttons.just_pressed(MouseButton::Left) {
-    }
-
-}
-
 fn spawn_particle_cursor(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
