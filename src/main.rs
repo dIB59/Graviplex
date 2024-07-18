@@ -4,6 +4,7 @@ use bevy::sprite::Wireframe2dPlugin;
 use crate::camera::CameraPlugin;
 use crate::debug::DebugPlugin;
 use crate::fps::FpsPlugin;
+use crate::input::UserInputPlugin;
 use crate::movement::MovementPlugin;
 use crate::paddle::PaddlePlugin;
 use crate::particle::ParticlePlugin;
@@ -14,6 +15,7 @@ mod movement;
 mod paddle;
 mod particle;
 mod fps;
+mod input;
 
 fn main() {
     App::new()
@@ -24,5 +26,6 @@ fn main() {
         .add_plugins(DebugPlugin)
         .add_plugins(ParticlePlugin)
         .add_plugins(FpsPlugin)
+        .add_plugins(UserInputPlugin)
         .run();
 }
