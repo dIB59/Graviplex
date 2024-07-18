@@ -4,13 +4,14 @@ use bevy::color::Color;
 use bevy::input::ButtonInput;
 use bevy::log::warn;
 use bevy::math::{Vec2, vec3};
-use bevy::prelude::{Circle, ColorMaterial, Commands, default, Mesh, MouseButton, Plugin, Query, Res, ResMut, Transform, Window, With};
+use bevy::prelude::{Camera, Circle, ColorMaterial, Commands, default, GlobalTransform, info, Mesh, MouseButton, Plugin, Query, Res, ResMut, Transform, Window, With};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
-use bevy::utils::info;
 use bevy::window::PrimaryWindow;
 use rand::Rng;
+use crate::camera::MainCamera;
 use crate::movement::Velocity;
 use crate::particle::Particle;
+use crate::world::camera_to_world_coordinate;
 
 pub struct UserInputPlugin;
 
@@ -34,20 +35,23 @@ fn spawn_particle_cursor(
     mut materials: ResMut<Assets<ColorMaterial>>,
     buttons: Res<ButtonInput<MouseButton>>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
+    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
 
     if !buttons.just_pressed(MouseButton::Left) {
         return;
     }
 
-    let position = match q_windows.single().cursor_position() {
+    let (camera, camera_transform) = q_camera.single();
+    let window = q_windows.single();
+
+    let position = match camera_to_world_coordinate(camera, camera_transform, window) {
         Some(vec2) => vec2,
         None => {
             warn!("Cursor click position was not found");
             return;
         }
     };
-
 
     let mut rng = rand::thread_rng();
     let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));

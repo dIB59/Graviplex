@@ -10,15 +10,10 @@ impl Plugin for CameraPlugin{
 }
 
 #[derive(Component)]
-struct MyCameraMarker;
+pub struct MainCamera;
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
-        Camera2dBundle {
-            transform: Transform::from_xyz(100.0, 200.0, 0.0),
-            ..default()
-        },
-        MyCameraMarker,
+        Camera2dBundle::default(), MainCamera,
     ));
-    
 }
