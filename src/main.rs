@@ -8,7 +8,6 @@ use crate::input::UserInputPlugin;
 use crate::movement::MovementPlugin;
 use crate::paddle::PaddlePlugin;
 use crate::particle::ParticlePlugin;
-use crate::world::WorldPlugin;
 
 mod camera;
 mod debug;
