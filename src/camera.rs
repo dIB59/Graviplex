@@ -1,5 +1,5 @@
 use bevy::app::{App, Plugin, Startup};
-use bevy::prelude::{Camera2dBundle, Commands, Component, default, Transform};
+use bevy::prelude::{Camera2dBundle, Commands, Component};
 
 pub struct CameraPlugin;
 
