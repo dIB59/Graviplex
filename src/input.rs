@@ -31,6 +31,8 @@ fn spawn_particle_cursor(
 
     let (camera, camera_transform) = q_camera.single();
     let window = q_windows.single();
+    let mut rng = rand::thread_rng();
+    let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
 
     match camera_to_world_coordinate(camera, camera_transform, window) {
         Some(vec2) =>
