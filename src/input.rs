@@ -1,10 +1,5 @@
-use bevy::app::{App, Update};
-use bevy::asset::Assets;
-use bevy::color::Color;
-use bevy::input::ButtonInput;
-use bevy::log::warn;
-use bevy::math::{Vec2, vec3};
-use bevy::prelude::{Camera, Circle, ColorMaterial, Commands, default, GlobalTransform, info, Mesh, MouseButton, Plugin, Query, Res, ResMut, Transform, Window, With};
+use bevy::math::vec3;
+use bevy::prelude::*;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
 use rand::Rng;
