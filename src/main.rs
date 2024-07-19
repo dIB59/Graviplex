@@ -7,7 +7,6 @@ use crate::fps::FpsPlugin;
 use crate::input::UserInputPlugin;
 use crate::movement::MovementPlugin;
 use crate::paddle::PaddlePlugin;
-use crate::particle::ParticlePlugin;
 
 mod camera;
 mod debug;
@@ -25,7 +24,6 @@ fn main() {
         .add_plugins(PaddlePlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(DebugPlugin)
-        .add_plugins(ParticlePlugin)
         .add_plugins(FpsPlugin)
         .add_plugins(UserInputPlugin)
         .run();
