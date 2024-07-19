@@ -32,30 +32,30 @@ fn spawn_particle_cursor(
     let (camera, camera_transform) = q_camera.single();
     let window = q_windows.single();
 
-    let position = match camera_to_world_coordinate(camera, camera_transform, window) {
-        Some(vec2) => vec2,
+    match camera_to_world_coordinate(camera, camera_transform, window) {
+        Some(vec2) =>
+            commands.spawn((
+            Particle::new(Vec3::new(vec2.x, vec2.y, 0.0),
+                          5.0,
+                          Default::default(),
+                          &mut meshes,
+                          &mut materials
+            ),
+            Particle,
+            Velocity {
+                value: random_velocity,
+            },
+        )),
         None => {
             warn!("Cursor click position was not found");
+            commands.spawn((
+                Particle::default(&mut meshes, &mut materials),
+                Particle,
+                Velocity {
+                    value: random_velocity
+                }
+            ));
             return;
         }
     };
-
-    let mut rng = rand::thread_rng();
-    let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
-
-    commands.spawn((
-        MaterialMesh2dBundle {
-            transform: Transform {
-                translation: vec3(position.x, position.y, 0.),
-                ..default()
-            },
-            mesh: Mesh2dHandle(meshes.add(Circle { radius: 10.0 })),
-            material: materials.add(Color::WHITE),
-            ..default()
-        },
-        Velocity {
-            value: random_velocity,
-        },
-        Particle,
-    ));
 }
