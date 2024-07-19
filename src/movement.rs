@@ -10,6 +10,14 @@ pub struct Velocity {
     pub value: Vec2,
 }
 
+impl Velocity {
+    pub fn default() -> Velocity {
+        Velocity {
+            value: Vec2::ZERO
+        }
+    }
+}
+
 pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin{
