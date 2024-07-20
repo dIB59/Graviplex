@@ -1,6 +1,5 @@
 use bevy::app::{App, Plugin, Update};
-use bevy::input::ButtonInput;
-use bevy::prelude::{AppExit, Entity, EventWriter, info, KeyCode, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
+use bevy::prelude::{Entity, info, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
 
 use crate::movement::Velocity;
 

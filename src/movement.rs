@@ -1,7 +1,7 @@
 use bevy::app::{App, Plugin, Update};
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
-use bevy::prelude::{Component, Entity, KeyCode, Query, Res, Time, Transform, With};
+use bevy::prelude::{Component, KeyCode, Query, Res, Time, Transform, With};
 use bevy::time::Fixed;
 use crate::paddle::Paddle;
 use crate::particle::Particle;
@@ -37,7 +37,7 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res
     }
 }
 
-fn handle_collisions(mut particle: Query<&mut Transform, With<Particle>>)
+fn handle_collisions(particle: Query<&mut Transform, With<Particle>>)
 {
 }
 

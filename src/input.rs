@@ -1,6 +1,4 @@
-use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 use crate::camera::MainCamera;
