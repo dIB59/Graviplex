@@ -39,7 +39,7 @@ fn spawn_particle_cursor(
             commands.spawn((
             Particle::new(Vec3::new(vec2.x, vec2.y, 0.0),
                           5.0,
-                          Default::default(),
+                          Color::WHITE,
                           &mut meshes,
                           &mut materials
             ),
