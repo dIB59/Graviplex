@@ -1,16 +1,21 @@
+use std::sync::Arc;
 use bevy::asset::Assets;
 use bevy::color::Color;
-use bevy::math::Vec3;
-use bevy::prelude::{Circle, Component, default, Mesh, ResMut, Transform};
-use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle};
+use bevy::log::info;
+use bevy::math::{Vec2, Vec3};
+use bevy::prelude::{Circle, Component, default, GlobalTransform, Handle, Mesh, ResMut, Transform, UntypedHandle, Visibility};
+use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle, Mesh2d, Mesh2dHandle};
 
 #[derive(Component)]
-pub struct Particle;
+pub struct Particle {
+    pub bundle: MaterialMesh2dBundle<ColorMaterial>,
+}
 
 impl Particle {
+
     pub fn new(
         position: Vec3,
-        radius: f32,
+        r: f32,
         color: Color,
         meshes: &mut ResMut<Assets<Mesh>>,
         materials: &mut ResMut<Assets<ColorMaterial>>,
@@ -20,15 +25,14 @@ impl Particle {
                 translation: position,
                 ..default()
             },
-            mesh: meshes.add(Mesh::from(Circle { radius })).into(),
+            mesh: meshes.add(Mesh::from(Circle { radius: r })).into(),
             material: materials.add(ColorMaterial::from(color)),
             ..default()
         }
     }
 
-    pub fn default(
-        meshes: &mut ResMut<Assets<Mesh>>,
-        materials: &mut ResMut<Assets<ColorMaterial>>,
+    pub fn default(meshes: &mut ResMut<Assets<Mesh>>,
+                   materials: &mut ResMut<Assets<ColorMaterial>>,
     ) -> MaterialMesh2dBundle<ColorMaterial> {
         MaterialMesh2dBundle {
             transform: default(),

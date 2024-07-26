@@ -16,6 +16,7 @@ mod particle;
 mod fps;
 mod input;
 mod world;
+mod window;
 
 fn main() {
     App::new()

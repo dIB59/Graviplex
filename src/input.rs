@@ -3,7 +3,7 @@ use bevy::window::PrimaryWindow;
 use rand::Rng;
 use crate::camera::MainCamera;
 use crate::movement::Velocity;
-use crate::particle::Particle;
+use crate::particle::{Particle};
 use crate::world::camera_to_world_coordinate;
 
 pub struct UserInputPlugin;
@@ -41,7 +41,6 @@ fn spawn_particle_cursor(
                           &mut meshes,
                           &mut materials
             ),
-            Particle,
             Velocity {
                 value: random_velocity,
             },
@@ -49,8 +48,9 @@ fn spawn_particle_cursor(
         None => {
             warn!("Cursor click position was not found");
             commands.spawn((
-                Particle::default(&mut meshes, &mut materials),
-                Particle,
+                Particle::default(
+                    &mut meshes,
+                    &mut materials),
                 Velocity {
                     value: random_velocity
                 }
