@@ -1,10 +1,8 @@
-use std::sync::Arc;
 use bevy::asset::Assets;
 use bevy::color::Color;
-use bevy::log::info;
-use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Circle, Component, default, GlobalTransform, Handle, Mesh, ResMut, Transform, UntypedHandle, Visibility};
-use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle, Mesh2d, Mesh2dHandle};
+use bevy::math::{Vec3};
+use bevy::prelude::{Circle, Component, default, Mesh, ResMut, Transform};
+use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle};
 
 #[derive(Component)]
 pub struct Particle {

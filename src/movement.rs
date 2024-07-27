@@ -1,15 +1,10 @@
-use std::slice::Windows;
 use bevy::app::{App, Plugin, Update};
-use bevy::asset::ron::Value::Option;
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
-use bevy::prelude::{Camera, Component, GlobalTransform, info, KeyCode, Mut, Query, Res, Time, Transform, Window, With};
+use bevy::prelude::{Component, info, KeyCode, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
-use bevy::utils::info;
 use bevy::window::PrimaryWindow;
 use crate::paddle::Paddle;
-use crate::particle::{Particle};
-use crate::world::{camera_to_world_coordinate};
 
 #[derive(Component, Debug)]
 pub struct Velocity {
