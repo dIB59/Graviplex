@@ -21,6 +21,7 @@ pub struct FpsPlugin;
 
 impl Plugin for FpsPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(FrameTimeDiagnosticsPlugin::default());
         app.add_systems(Startup, setup_fps_counter);
         app.add_systems(Update, (
             fps_text_update_system,
@@ -29,11 +30,9 @@ impl Plugin for FpsPlugin {
     }
 }
 
-/// Marker to find the container entity so we can show/hide the FPS counter
 #[derive(Component)]
 struct FpsRoot;
 
-/// Marker to find the text entity so we can update it
 #[derive(Component)]
 struct FpsText;
 
