@@ -1,4 +1,4 @@
-use bevy::app::{App, Plugin, Update};
+use bevy::app::{App, FixedUpdate, Plugin, PreUpdate, Update};
 use bevy::input::ButtonInput;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, info, KeyCode, Query, Res, Time, Transform, Window, With};
@@ -23,14 +23,13 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin{
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_position);
-        app.add_systems(Update, move_paddle);
-        app.add_systems(Update, handle_collisions);
+        app.add_systems(FixedUpdate, apply_velocity);
+        app.add_systems(PreUpdate, handle_collisions);
         app.add_systems(Update, border_hit);
     }
 }
 
-fn update_position(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<Time<Fixed>>
+fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<Time<Fixed>>
 ) {
     let dt = time_step.delta_seconds() * 100f32;
     for (velocity, mut transform) in query.iter_mut() {
@@ -45,7 +44,6 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
 
         let (left, right) = particles.split_at_mut(i + 1);
         let (transform1, velocity1) = &mut left[i];
-        // border_hit(transform1);
         for j in 0..right.len() {
             let (transform2, velocity2) = &mut right[j];
 
@@ -59,21 +57,24 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
                 // Resolve the collision
                 let normal = (pos2 - pos1).normalize();
                 let relative_velocity = velocity2.value - velocity1.value;
-               let speed = relative_velocity.dot(Vec2::new(normal.x, normal.y));
+                let speed = relative_velocity.dot(Vec2::new(normal.x, normal.y));
 
                 if speed > 0.0 {
-                    let impulse = 2.0 * speed / (10.);
+                    info!(speed);
+                    let mass1 = 1.0; // Assuming mass of particle 1
+                    let mass2 = 1.0; // Assuming mass of particle 2
+                    let total_mass = mass1 + mass2;
+
+                    let impulse = 2.0 * speed / total_mass;
                     let impulse_vec = impulse * Vec2::new(normal.x, normal.y);
 
-                    velocity1.value -= impulse_vec * 5.;
-                    velocity2.value += impulse_vec * 5.;
+                    velocity1.value -= impulse_vec * (mass2 / total_mass);
+                    velocity2.value += impulse_vec * (mass1 / total_mass);
+                }
 
-                    // // Reposition the balls to avoid overlap
-                    // let penetration = sum_of_radii - distance;
-                    // let correction = normal * penetration / 2.0;
-
-                    // transform1.translation -= correction;
-                    // transform2.translation += correction;
+                if speed > 10.0 {
+                    velocity1.value = velocity1.value * 1./speed;
+                    velocity2.value = velocity2.value * 1./speed;
                 }
             }
         }
@@ -89,7 +90,6 @@ fn border_hit(mut particles: Query<(&mut Transform, &mut Velocity)>, windows: Qu
 
     for (mut transform, _velocity) in particles.iter_mut() {
         let new_position = transform.translation;
-        info!("{:?}", new_position);
 
         if new_position.x > window_width / 2.0 || new_position.x < -window_width / 2.0 {
             transform.translation.x = -transform.translation.x;

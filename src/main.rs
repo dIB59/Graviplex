@@ -17,6 +17,7 @@ mod fps;
 mod input;
 mod world;
 mod window;
+mod grid;
 
 fn main() {
     App::new()
