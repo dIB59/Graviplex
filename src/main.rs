@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use bevy::sprite::Wireframe2dPlugin;
+use bevy::render::RenderPlugin;
+use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
 
 use crate::camera::CameraPlugin;
 use crate::debug::DebugPlugin;
@@ -17,12 +18,19 @@ mod fps;
 mod input;
 mod world;
 mod window;
+mod vulkan_render;
 mod grid;
 
 fn main() {
     App::new()
+        .add_plugins(DefaultPlugins.set(RenderPlugin {
+            render_creation: RenderCreation::Automatic(WgpuSettings {
+                backends: Some(Backends::VULKAN),
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(CameraPlugin)
-        .add_plugins((DefaultPlugins, Wireframe2dPlugin))
         .add_plugins(PaddlePlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(DebugPlugin)
