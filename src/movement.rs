@@ -4,7 +4,6 @@ use bevy::math::Vec2;
 use bevy::prelude::{Component, info, KeyCode, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
 use bevy::window::PrimaryWindow;
-use crate::paddle::Paddle;
 
 #[derive(Component, Debug)]
 pub struct Velocity {
@@ -100,25 +99,5 @@ fn border_hit(mut particles: Query<(&mut Transform, &mut Velocity)>, windows: Qu
     }
 }
 
-fn move_paddle(
-    input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Transform, With<Paddle>>,
-    time_step: Res<Time<Fixed>>
-) {
-    let mut paddle_transform = query.single_mut();
-    let mut direction = 0.0;
-
-    if input.pressed(KeyCode::ArrowLeft){
-        direction -= 1.0;
-    }
-
-    if input.pressed(KeyCode::ArrowRight){
-        direction += 1.0;
-    }
-
-    let new_x =
-        paddle_transform.translation.x + direction * time_step.delta_seconds() * 300f32;
-    paddle_transform.translation.x = new_x;
-}
 
 
