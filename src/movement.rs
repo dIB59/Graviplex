@@ -58,7 +58,6 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
                 let speed = relative_velocity.dot(Vec2::new(normal.x, normal.y));
 
                 if speed > 0.0 {
-                    info!(speed);
                     let mass1 = 1.0; // Assuming mass of particle 1
                     let mass2 = 1.0; // Assuming mass of particle 2
                     let total_mass = mass1 + mass2;
@@ -70,7 +69,7 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
                     velocity2.value += impulse_vec * (mass1 / total_mass);
                 }
 
-                if speed > 10.0 {
+                if speed > 2.0 {
                     velocity1.value = velocity1.value * 1./speed;
                     velocity2.value = velocity2.value * 1./speed;
                 }
