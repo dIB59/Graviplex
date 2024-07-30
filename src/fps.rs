@@ -1,21 +1,6 @@
-use bevy::prelude::default;
-use bevy::prelude::TextStyle;
-use bevy::prelude::TextSection;
-use bevy::prelude::Text;
-use bevy::prelude::TextBundle;
-use bevy::prelude::UiRect;
-use bevy::prelude::PositionType;
-use bevy::prelude::Style;
-use bevy::prelude::ZIndex;
-use bevy::prelude::BackgroundColor;
-use bevy::prelude::NodeBundle;
-use bevy::app::{App, Startup};
-use bevy::color::Color;
-use bevy::diagnostic::DiagnosticsStore;
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-use bevy::prelude::{ButtonInput, Commands, Component, KeyCode, Plugin, Query, Res, Update, Val, Visibility, With};
-use bevy::prelude::Alpha;
-use bevy::prelude::BuildChildren;
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
+use bevy::prelude::*;
+
 
 pub struct FpsPlugin;
 
@@ -39,47 +24,32 @@ struct FpsText;
 fn setup_fps_counter(
     mut commands: Commands,
 ) {
-    // create our UI root node
-    // this is the wrapper/container for the text
     let root = commands.spawn((
         FpsRoot,
         NodeBundle {
-            // give it a dark background for readability
             background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
-            // make it "always on top" by setting the Z index to maximum
-            // we want it to be displayed over all other UI
             z_index: ZIndex::Global(i32::MAX),
             style: Style {
                 position_type: PositionType::Absolute,
-                // position it at the top-right corner
-                // 1% away from the top window edge
                 right: Val::Percent(1.),
                 top: Val::Percent(1.),
-                // set bottom/left to Auto, so it can be
-                // automatically sized depending on the text
                 bottom: Val::Auto,
                 left: Val::Auto,
-                // give it some padding for readability
                 padding: UiRect::all(Val::Px(4.0)),
                 ..Default::default()
             },
             ..Default::default()
         },
     )).id();
-    // create our text
     let text_fps = commands.spawn((
         FpsText,
         TextBundle {
-            // use two sections, so it is easy to update just the number
             text: Text::from_sections([
                 TextSection {
                     value: "FPS: ".into(),
                     style: TextStyle {
                         font_size: 16.0,
                         color: Color::WHITE,
-                        // if you want to use your game's font asset,
-                        // uncomment this and provide the handle:
-                        // font: my_font_handle
                         ..default()
                     }
                 },
@@ -88,9 +58,6 @@ fn setup_fps_counter(
                     style: TextStyle {
                         font_size: 16.0,
                         color: Color::WHITE,
-                        // if you want to use your game's font asset,
-                        // uncomment this and provide the handle:
-                        // font: my_font_handle
                         ..default()
                     }
                 },
@@ -107,18 +74,12 @@ fn fps_text_update_system(
 ) {
     for mut text in &mut query {
 
-        // try to get a "smoothed" FPS value from Bevy
         if let Some(value) = diagnostics
             .get(&FrameTimeDiagnosticsPlugin::FPS)
             .and_then(|fps| fps.smoothed())
         {
-            // Format the number as to leave space for 4 digits, just in case,
-            // right-aligned and rounded. This helps readability when the
-            // number changes rapidly.
             text.sections[1].value = format!("{value:>4.0}");
 
-            // Let's make it extra fancy by changing the color of the
-            // text according to the FPS value:
             text.sections[1].style.color = if value >= 120.0 {
                 // Above 120 FPS, use green color
                 Color::srgb(0.0, 1.0, 0.0)
