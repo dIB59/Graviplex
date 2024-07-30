@@ -52,8 +52,7 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
             let distance = pos1.distance(pos2);
             let sum_of_radii = 10.;
 
-            if distance < sum_of_radii {
-                // Resolve the collision
+            if distance < sum_of_radii + 1. {
                 let normal = (pos2 - pos1).normalize();
                 let relative_velocity = velocity2.value - velocity1.value;
                 let speed = relative_velocity.dot(Vec2::new(normal.x, normal.y));
