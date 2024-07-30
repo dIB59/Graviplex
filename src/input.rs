@@ -64,7 +64,6 @@ fn spawn_particle_cursor(
                     value: random_velocity
                 }
             ));
-            return;
         }
-    };
+    }
 }

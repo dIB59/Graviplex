@@ -1,7 +1,6 @@
 use bevy::app::{App, FixedUpdate, Plugin, PreUpdate, Update};
-use bevy::input::ButtonInput;
 use bevy::math::Vec2;
-use bevy::prelude::{Component, info, KeyCode, Query, Res, Time, Transform, Window, With};
+use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
 use bevy::window::PrimaryWindow;
 
