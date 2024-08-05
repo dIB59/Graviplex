@@ -21,7 +21,7 @@ impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, apply_velocity);
         app.add_systems(PreUpdate, handle_collisions);
-        app.add_systems(Update, border_hit);
+        app.add_systems(PostUpdate, border_hit);
     }
 }
 

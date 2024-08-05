@@ -1,7 +1,7 @@
 use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::math::Vec3;
-use bevy::prelude::{Circle, Component, default, Mesh, ResMut, Transform};
+use bevy::prelude::{default, Circle, Component, Mesh, ResMut, Transform};
 use bevy::sprite::{ColorMaterial, MaterialMesh2dBundle};
 
 #[derive(Component)]
