@@ -1,12 +1,10 @@
-use bevy::app::{App, Plugin, PluginGroup};
-use bevy::DefaultPlugins;
-use bevy::render::RenderPlugin;
-use bevy::render::settings::{Backends, RenderCreation, WgpuSettings};
+use bevy::app::{App, Plugin};
 
-pub struct VulkanRenderPlugin;
+pub struct CustomRenderPlugin;
 
-impl Plugin for VulkanRenderPlugin {
+impl Plugin for CustomRenderPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(target_os = "windows")]
         app.add_plugins(DefaultPlugins.set(RenderPlugin {
             render_creation: RenderCreation::Automatic(WgpuSettings {
                 backends: Some(Backends::VULKAN),
