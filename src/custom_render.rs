@@ -3,9 +3,9 @@ use bevy::DefaultPlugins;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::*;
 
-pub struct CustomRenderPlugin;
+pub struct CustomDefaultPlugin;
 
-impl Plugin for CustomRenderPlugin {
+impl Plugin for CustomDefaultPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(target_os = "windows")]
         app.add_plugins(DefaultPlugins.set(RenderPlugin {

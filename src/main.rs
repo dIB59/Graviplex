@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::utils::info;
 
 use crate::camera::CameraPlugin;
-use crate::custom_render::CustomRenderPlugin;
+use crate::custom_render::CustomDefaultPlugin;
 use crate::debug::DebugPlugin;
 use crate::fps::FpsPlugin;
 use crate::input::UserInputPlugin;
@@ -20,8 +20,7 @@ mod world;
 
 fn main() {
     App::new()
-        .add_plugins(CustomRenderPlugin)
-        // .add_plugins(DefaultPlugins)
+        .add_plugins(CustomDefaultPlugin)
         .add_plugins(CameraPlugin)
         .add_plugins(MovementPlugin)
         .add_plugins(DebugPlugin)
