@@ -3,20 +3,20 @@ use bevy::prelude::*;
 use bevy::utils::info;
 
 use crate::camera::CameraPlugin;
-use crate::platform_adaptive::PlatformAdaptiveDefaultPlugin;
 use crate::debug::DebugPlugin;
 use crate::fps::FpsPlugin;
 use crate::input::UserInputPlugin;
 use crate::movement::MovementPlugin;
+use crate::platform_adaptive::PlatformAdaptiveDefaultPlugin;
 
 mod camera;
-mod platform_adaptive;
 mod debug;
 mod fps;
 mod input;
 mod movement;
 mod particle;
 mod world;
+mod platform_adaptive;
 
 fn main() {
     App::new()
