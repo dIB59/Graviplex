@@ -16,7 +16,11 @@ impl Plugin for DebugPlugin {
 #[derive(Resource)]
 struct PrintTimer(Timer);
 
-fn print_position(time: Res<Time>, timer: ResMut<PrintTimer>, query: Query<(Entity, &Transform, &Velocity)>) {
+fn print_position(
+    time: Res<Time>,
+    timer: ResMut<PrintTimer>,
+    query: Query<(Entity, &Transform, &Velocity)>,
+) {
     // if timer.0.tick(time.delta()).just_finished() {
     //     for (entity, transform, _velocity) in query.iter() {
     //         info!("Entity {:?} is at position {:?}", entity, transform);
@@ -24,6 +28,10 @@ fn print_position(time: Res<Time>, timer: ResMut<PrintTimer>, query: Query<(Enti
     // }
 }
 
-fn print_number_particles(time: Res<Time>, timer: ResMut<PrintTimer>, query: Query<(Entity, &Transform, &Velocity)>) {
+fn print_number_particles(
+    time: Res<Time>,
+    timer: ResMut<PrintTimer>,
+    query: Query<(Entity, &Transform, &Velocity)>,
+) {
     // info!("{}" ,query.len());
 }

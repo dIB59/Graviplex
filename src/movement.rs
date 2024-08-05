@@ -1,4 +1,4 @@
-use bevy::app::{App, FixedUpdate, Plugin, PreUpdate, Update};
+use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate};
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
@@ -11,15 +11,13 @@ pub struct Velocity {
 
 impl Velocity {
     pub fn default() -> Velocity {
-        Velocity {
-            value: Vec2::ZERO
-        }
+        Velocity { value: Vec2::ZERO }
     }
 }
 
 pub struct MovementPlugin;
 
-impl Plugin for MovementPlugin{
+impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, apply_velocity);
         app.add_systems(PreUpdate, handle_collisions);
@@ -27,8 +25,7 @@ impl Plugin for MovementPlugin{
     }
 }
 
-fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<Time<Fixed>>
-) {
+fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<Time<Fixed>>) {
     let dt = time_step.delta_seconds() * 100f32;
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += velocity.value.x * dt;
@@ -39,7 +36,6 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<
 fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
     let mut particles = query.iter_mut().collect::<Vec<_>>();
     for i in 0..particles.len() {
-
         let (left, right) = particles.split_at_mut(i + 1);
         let (transform1, velocity1) = &mut left[i];
         for j in 0..right.len() {
@@ -69,20 +65,21 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
                 }
 
                 if speed > 2.0 {
-                    velocity1.value = velocity1.value * 1./speed;
-                    velocity2.value = velocity2.value * 1./speed;
+                    velocity1.value = velocity1.value * 1. / speed;
+                    velocity2.value = velocity2.value * 1. / speed;
                 }
             }
         }
     }
 }
 
-fn border_hit(mut particles: Query<(&mut Transform, &mut Velocity)>, windows: Query<&Window, With<PrimaryWindow>>) {
-
-    let window = windows.single();
-
-    let window_width = window.width();
-    let window_height = window.height();
+fn border_hit(
+    mut particles: Query<(&mut Transform, &mut Velocity)>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = windows.get_single().expect("Window should exist");
+    let mut window_width = window.width();
+    let mut window_height = window.height();
 
     for (mut transform, _velocity) in particles.iter_mut() {
         let new_position = transform.translation;
@@ -95,6 +92,3 @@ fn border_hit(mut particles: Query<(&mut Transform, &mut Velocity)>, windows: Qu
         }
     }
 }
-
-
-

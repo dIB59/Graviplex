@@ -9,12 +9,12 @@ use crate::vulkan_render::VulkanRenderPlugin;
 
 mod camera;
 mod debug;
-mod movement;
-mod particle;
 mod fps;
 mod input;
-mod world;
+mod movement;
+mod particle;
 mod vulkan_render;
+mod world;
 
 fn main() {
     App::new()
