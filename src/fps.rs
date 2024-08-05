@@ -104,6 +104,7 @@ fn fps_counter_showhide(
     kbd: Res<ButtonInput<KeyCode>>,
 ) {
     if kbd.just_pressed(KeyCode::F12) {
+        trace!("FPS {:?}", q.single());
         let mut vis = q.single_mut();
         *vis = match *vis {
             Visibility::Hidden => Visibility::Visible,
