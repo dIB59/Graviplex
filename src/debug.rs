@@ -1,5 +1,5 @@
 use bevy::app::{App, Plugin, Update};
-use bevy::prelude::{Entity, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
+use bevy::prelude::{Entity, info, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
 
 use crate::movement::Velocity;
 
@@ -9,7 +9,8 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PrintTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
-            .add_systems(Update, print_position);
+            .add_systems(Update, print_position)
+            .add_systems(Update, print_number_particles);
     }
 }
 
@@ -30,8 +31,11 @@ fn print_position(
 
 fn print_number_particles(
     time: Res<Time>,
-    timer: ResMut<PrintTimer>,
+    mut timer: ResMut<PrintTimer>,
     query: Query<(Entity, &Transform, &Velocity)>,
 ) {
-    // info!("{}" ,query.len());
+    if timer.0.tick(time.delta()).just_finished() {
+        info!("{}", query.iter().count())
+    }
 }
+
