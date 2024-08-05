@@ -1,4 +1,7 @@
-use bevy::app::{App, Plugin};
+use bevy::app::*;
+use bevy::DefaultPlugins;
+use bevy::render::RenderPlugin;
+use bevy::render::settings::*;
 
 pub struct CustomRenderPlugin;
 
@@ -12,5 +15,7 @@ impl Plugin for CustomRenderPlugin {
             }),
             ..Default::default()
         }));
+        #[cfg(target_os = "macos")]
+        app.add_plugins(DefaultPlugins);
     }
 }
