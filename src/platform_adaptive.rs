@@ -3,9 +3,9 @@ use bevy::DefaultPlugins;
 use bevy::render::RenderPlugin;
 use bevy::render::settings::*;
 
-pub struct CustomRenderPlugin;
+pub struct PlatformAdaptiveDefaultPlugin;
 
-impl Plugin for CustomRenderPlugin {
+impl Plugin for PlatformAdaptiveDefaultPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(target_os = "windows")]
         app.add_plugins(DefaultPlugins.set(RenderPlugin {
@@ -17,5 +17,8 @@ impl Plugin for CustomRenderPlugin {
         }));
         #[cfg(target_os = "macos")]
         app.add_plugins(DefaultPlugins);
+        #[cfg(target_os = "linux")]
+        app.add_plugins(DefaultPlugins);
+
     }
 }
