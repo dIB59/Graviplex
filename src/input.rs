@@ -41,33 +41,29 @@ fn spawn_particle_cursor(
     match camera_to_world_coordinate(camera, camera_transform, window.expect("sometrihng")) {
         Some(vec2) => {
             let mut rng = rand::thread_rng();
-            for _ in 0..100 {
+            for _ in 0..1000 {
                 let offset_x = rng.gen_range(-20.0..20.0);
                 let offset_y = rng.gen_range(-20.0..20.0);
                 let particle_position = Vec3::new(vec2.x + offset_x, vec2.y + offset_y, 0.0);
 
                 commands.spawn((
+                    Velocity { value: random_velocity }
+                )).insert(
                     Particle::new(
                         particle_position,
                         4.0,
                         Color::WHITE,
                         &mut meshes,
                         &mut materials,
-                    ),
-                    Velocity {
-                        value: random_velocity,
-                    },
-                ));
+                    ));
             }
         }
         None => {
             warn!("Cursor click position was not found");
             commands.spawn((
-                Particle::default(&mut meshes, &mut materials),
-                Velocity {
-                    value: random_velocity,
-                },
-            ));
+                Velocity { value: random_velocity }
+            )).insert(Particle::default(&mut meshes, &mut materials))
+            ;
         }
     }
 }
