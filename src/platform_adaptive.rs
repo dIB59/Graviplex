@@ -1,7 +1,7 @@
 use bevy::app::*;
-use bevy::DefaultPlugins;
-use bevy::render::RenderPlugin;
 use bevy::render::settings::*;
+use bevy::render::RenderPlugin;
+use bevy::DefaultPlugins;
 
 pub struct PlatformAdaptiveDefaultPlugin;
 
@@ -19,6 +19,5 @@ impl Plugin for PlatformAdaptiveDefaultPlugin {
         app.add_plugins(DefaultPlugins);
         #[cfg(target_os = "linux")]
         app.add_plugins(DefaultPlugins);
-
     }
 }
