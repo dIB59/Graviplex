@@ -15,8 +15,8 @@ mod fps;
 mod input;
 mod movement;
 mod particle;
-mod world;
 mod platform_adaptive;
+mod world;
 
 fn main() {
     App::new()
