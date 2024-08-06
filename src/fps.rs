@@ -1,13 +1,17 @@
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 
+use crate::movement::Velocity;
+
 pub struct FpsPlugin;
 
 impl Plugin for FpsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(FrameTimeDiagnosticsPlugin);
         app.add_systems(Startup, setup_fps_counter);
+        app.add_systems(Startup, setup_entity_count);
         app.add_systems(Update, (fps_text_update_system, fps_counter_showhide));
+        app.add_systems(Update, entity_count_update_system);
     }
 }
 
@@ -17,30 +21,34 @@ struct FpsRoot;
 #[derive(Component)]
 struct FpsText;
 
+#[derive(Component)]
+struct EntityCountRoot;
+
+#[derive(Component)]
+struct EntityCountText;
+
 fn setup_fps_counter(mut commands: Commands) {
     let root = commands
-        .spawn((
-            FpsRoot,
-            NodeBundle {
-                background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
-                z_index: ZIndex::Global(i32::MAX),
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    right: Val::Percent(1.),
-                    top: Val::Percent(1.),
-                    bottom: Val::Auto,
-                    left: Val::Auto,
-                    padding: UiRect::all(Val::Px(4.0)),
-                    ..Default::default()
-                },
+        .spawn((NodeBundle {
+            background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
+            z_index: ZIndex::Global(i32::MAX),
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Percent(1.),
+                top: Val::Percent(1.),
+                bottom: Val::Auto,
+                left: Val::Auto,
+                padding: UiRect::all(Val::Px(4.0)),
                 ..Default::default()
             },
-        ))
+            ..Default::default()
+        }),
+        )
+        .insert(FpsRoot)
         .id();
     let text_fps = commands
-        .spawn((
-            FpsText,
-            TextBundle {
+        .spawn(
+            (TextBundle {
                 text: Text::from_sections([
                     TextSection {
                         value: "FPS: ".into(),
@@ -60,8 +68,9 @@ fn setup_fps_counter(mut commands: Commands) {
                     },
                 ]),
                 ..Default::default()
-            },
-        ))
+            }),
+        )
+        .insert(FpsText)
         .id();
     commands.entity(root).push_children(&[text_fps]);
 }
@@ -95,6 +104,69 @@ fn fps_text_update_system(
             text.sections[1].value = " N/A".into();
             text.sections[1].style.color = Color::WHITE;
         }
+    }
+}
+
+fn setup_entity_count(mut commands: Commands) {
+    let root = commands
+        .spawn(
+            (NodeBundle {
+                background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
+                z_index: ZIndex::Global(i32::MAX),
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    right: Val::Percent(1.0),
+                    top: Val::Percent(4.3),
+                    bottom: Val::Auto,
+                    left: Val::Auto,
+                    padding: UiRect::all(Val::Px(4.0)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        )
+        .insert(EntityCountRoot)
+        .id();
+    let entity_count = commands
+        .spawn(
+            (TextBundle {
+                text: Text::from_sections([
+                    TextSection {
+                        value: "ENT: ".into(),
+                        style: TextStyle {
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                            ..default()
+                        },
+                    },
+                    TextSection {
+                        value: " N/A".into(),
+                        style: TextStyle {
+                            font_size: 16.0,
+                            color: Color::WHITE,
+                            ..default()
+                        },
+                    },
+                ]),
+                ..Default::default()
+            }),
+        )
+        .insert(EntityCountText)
+        .id();
+    commands.entity(root).push_children(&[entity_count]);
+}
+
+fn entity_count_update_system(
+    mut query: ParamSet<(
+        Query<&mut Text, With<EntityCountText>>,
+    )>,
+    query2: Query<(Entity, &Transform, &Velocity)>,
+) {
+    let some = query2.iter().count();
+    let mut text_query = query.p0();
+    for mut text in text_query.iter_mut() {
+        text.sections[1].value = format!("{some:>4.0}");
+        text.sections[1].style.color = Color::WHITE;
     }
 }
 
