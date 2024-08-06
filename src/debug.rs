@@ -1,5 +1,5 @@
 use bevy::app::{App, Plugin, Update};
-use bevy::prelude::{Entity, info, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
+use bevy::prelude::{Entity, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
 
 use crate::movement::Velocity;
 
@@ -28,14 +28,3 @@ fn print_position(
     //     }
     // }
 }
-
-fn print_number_particles(
-    time: Res<Time>,
-    mut timer: ResMut<PrintTimer>,
-    query: Query<(Entity, &Transform, &Velocity)>,
-) {
-    if timer.0.tick(time.delta()).just_finished() {
-        info!("{}", query.iter().count())
-    }
-}
-
