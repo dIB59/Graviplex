@@ -9,8 +9,7 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PrintTimer(Timer::from_seconds(1.0, TimerMode::Repeating)))
-            .add_systems(Update, print_position)
-            .add_systems(Update, print_number_particles);
+            .add_systems(Update, print_position);
     }
 }
 
