@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use bevy::app::*;
 use bevy::render::settings::*;
 use bevy::render::RenderPlugin;
