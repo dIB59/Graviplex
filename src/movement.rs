@@ -1,4 +1,5 @@
 use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate};
+use bevy::log::warn;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
@@ -9,9 +10,15 @@ pub struct Velocity {
     pub value: Vec2,
 }
 
-impl Velocity {
-    pub fn default() -> Velocity {
-        Velocity { value: Vec2::ZERO }
+impl From<Vec2> for Velocity {
+    fn from(value: Vec2) -> Self {
+        Self { value }
+    }
+}
+
+impl Default for Velocity {
+    fn default() -> Self {
+        Self { value: Vec2::ZERO }
     }
 }
 
@@ -75,11 +82,17 @@ fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
 
 fn border_hit(
     mut particles: Query<(&mut Transform, &mut Velocity)>,
-    windows: Query<&Window, With<PrimaryWindow>>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let window = windows.get_single().expect("Window should exist");
-    let mut window_width = window.width();
-    let mut window_height = window.height();
+    let window = match q_windows.get_single() {
+        Ok(window) => window,
+        Err(_) => {
+            warn!("Primary window not found");
+            return;
+        }
+    };
+    let window_width = window.width();
+    let window_height = window.height();
 
     for (mut transform, _velocity) in particles.iter_mut() {
         let new_position = transform.translation;

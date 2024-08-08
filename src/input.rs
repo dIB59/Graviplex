@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 
@@ -11,7 +12,7 @@ pub struct UserInputPlugin;
 
 impl Plugin for UserInputPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_particle_cursor);
+        app.add_systems(Last, spawn_particle_cursor);
     }
 }
 
@@ -28,42 +29,67 @@ fn spawn_particle_cursor(
     }
 
     let (camera, camera_transform) = q_camera.single();
-    let window = q_windows.get_single();
-
-    if window.is_err() {
-        error!("Window does not exitst");
-        return;
-    }
+    let window = match q_windows.get_single() {
+        Ok(window) => window,
+        Err(_) => {
+            warn!("Primary window not found");
+            return;
+        }
+    };
 
     let mut rng = rand::thread_rng();
-    let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
 
-    match camera_to_world_coordinate(camera, camera_transform, window.expect("sometrihng")) {
+    match camera_to_world_coordinate(camera, camera_transform, window) {
         Some(vec2) => {
-            let mut rng = rand::thread_rng();
             for _ in 0..1000 {
+                let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
                 let offset_x = rng.gen_range(-20.0..20.0);
                 let offset_y = rng.gen_range(-20.0..20.0);
                 let particle_position = Vec3::new(vec2.x + offset_x, vec2.y + offset_y, 0.0);
-
-                commands.spawn((
-                    Velocity { value: random_velocity }
-                )).insert(
-                    Particle::new(
-                        particle_position,
-                        4.0,
-                        Color::WHITE,
-                        &mut meshes,
-                        &mut materials,
-                    ));
+                spawn_particles(
+                    &mut commands,
+                    particle_position,
+                    &mut meshes,
+                    &mut materials,
+                    random_velocity,
+                );
             }
         }
         None => {
             warn!("Cursor click position was not found");
-            commands.spawn((
-                Velocity { value: random_velocity }
-            )).insert(Particle::default(&mut meshes, &mut materials))
-            ;
+            for _ in 0..10 {
+                let offset_x = rng.gen_range(-20.0..20.0);
+                let offset_y = rng.gen_range(-20.0..20.0);
+                let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
+
+                let particle_position = Vec3::new(offset_x, offset_y, 0.0);
+                spawn_particles(
+                    &mut commands,
+                    particle_position,
+                    &mut meshes,
+                    &mut materials,
+                    random_velocity,
+                );
+            }
         }
     }
+}
+
+fn spawn_particles(
+    commands: &mut Commands,
+    particle_position: Vec3,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    random_velocity: Vec2,
+) {
+    commands.spawn((
+        MaterialMesh2dBundle {
+            transform: Transform::from_translation(particle_position),
+            mesh: Mesh2dHandle(meshes.add(Circle::new(5.0))),
+            material: materials.add(Color::WHITE),
+            ..default()
+        },
+        Particle,
+        Velocity::from(random_velocity),
+    ));
 }
