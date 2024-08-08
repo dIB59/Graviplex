@@ -1,6 +1,4 @@
-use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use bevy::utils::info;
 
 use crate::camera::CameraPlugin;
 use crate::debug::DebugPlugin;
