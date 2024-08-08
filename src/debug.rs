@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables)]
+
 use bevy::app::{App, Plugin, Update};
 use bevy::prelude::{Entity, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
 
