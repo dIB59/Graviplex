@@ -1,11 +1,9 @@
 use bevy::prelude::*;
-use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 
 use crate::camera::MainCamera;
-use crate::movement::Velocity;
-use crate::particle::Particle;
+use crate::particle::{Particle, Spawnable};
 use crate::world::camera_to_world_coordinate;
 
 pub struct UserInputPlugin;
@@ -46,7 +44,7 @@ fn spawn_particle_cursor(
                 let offset_x = rng.gen_range(-20.0..20.0);
                 let offset_y = rng.gen_range(-20.0..20.0);
                 let particle_position = Vec3::new(vec2.x + offset_x, vec2.y + offset_y, 0.0);
-                spawn_particles(
+                Particle::spawn(
                     &mut commands,
                     particle_position,
                     &mut meshes,
@@ -63,7 +61,7 @@ fn spawn_particle_cursor(
                 let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
 
                 let particle_position = Vec3::new(offset_x, offset_y, 0.0);
-                spawn_particles(
+                Particle::spawn(
                     &mut commands,
                     particle_position,
                     &mut meshes,
@@ -73,23 +71,4 @@ fn spawn_particle_cursor(
             }
         }
     }
-}
-
-fn spawn_particles(
-    commands: &mut Commands,
-    particle_position: Vec3,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    random_velocity: Vec2,
-) {
-    commands.spawn((
-        MaterialMesh2dBundle {
-            transform: Transform::from_translation(particle_position),
-            mesh: Mesh2dHandle(meshes.add(Circle::new(5.0))),
-            material: materials.add(Color::WHITE),
-            ..default()
-        },
-        Particle,
-        Velocity::from(random_velocity),
-    ));
 }
