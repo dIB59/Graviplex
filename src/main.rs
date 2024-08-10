@@ -1,9 +1,9 @@
 use bevy::prelude::*;
-use grid::GridPlugin;
 
 use crate::camera::CameraPlugin;
 use crate::debug::DebugPlugin;
 use crate::fps::FpsPlugin;
+use crate::grid::SpatialGridPlugin;
 use crate::input::UserInputPlugin;
 use crate::movement::MovementPlugin;
 use crate::platform_adaptive::PlatformAdaptiveDefaultPlugin;
@@ -26,7 +26,7 @@ fn main() {
         .add_plugins(DebugPlugin)
         .add_plugins(FpsPlugin)
         .add_plugins(UserInputPlugin)
-        .add_plugins(GridPlugin)
+        .add_plugins(SpatialGridPlugin)
         .add_systems(Update, exit_on_esc_system)
         .run();
 }
