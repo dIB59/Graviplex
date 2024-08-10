@@ -29,7 +29,7 @@ struct EntityCountText;
 
 fn setup_fps_counter(mut commands: Commands) {
     let root = commands
-        .spawn((NodeBundle {
+        .spawn(NodeBundle {
             background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
             z_index: ZIndex::Global(i32::MAX),
             style: Style {
@@ -42,34 +42,31 @@ fn setup_fps_counter(mut commands: Commands) {
                 ..Default::default()
             },
             ..Default::default()
-        }),
-        )
+        })
         .insert(FpsRoot)
         .id();
     let text_fps = commands
-        .spawn(
-            (TextBundle {
-                text: Text::from_sections([
-                    TextSection {
-                        value: "FPS: ".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            ..default()
-                        },
+        .spawn(TextBundle {
+            text: Text::from_sections([
+                TextSection {
+                    value: "FPS: ".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
                     },
-                    TextSection {
-                        value: " N/A".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            ..default()
-                        },
+                },
+                TextSection {
+                    value: " N/A".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
                     },
-                ]),
-                ..Default::default()
-            }),
-        )
+                },
+            ]),
+            ..Default::default()
+        })
         .insert(FpsText)
         .id();
     commands.entity(root).push_children(&[text_fps]);
@@ -109,57 +106,51 @@ fn fps_text_update_system(
 
 fn setup_entity_count(mut commands: Commands) {
     let root = commands
-        .spawn(
-            (NodeBundle {
-                background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
-                z_index: ZIndex::Global(i32::MAX),
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    right: Val::Percent(1.0),
-                    top: Val::Percent(4.3),
-                    bottom: Val::Auto,
-                    left: Val::Auto,
-                    padding: UiRect::all(Val::Px(4.0)),
-                    ..Default::default()
-                },
+        .spawn(NodeBundle {
+            background_color: BackgroundColor(Color::BLACK.with_alpha(0.5)),
+            z_index: ZIndex::Global(i32::MAX),
+            style: Style {
+                position_type: PositionType::Absolute,
+                right: Val::Percent(1.0),
+                top: Val::Percent(4.3),
+                bottom: Val::Auto,
+                left: Val::Auto,
+                padding: UiRect::all(Val::Px(4.0)),
                 ..Default::default()
-            }),
-        )
+            },
+            ..Default::default()
+        })
         .insert(EntityCountRoot)
         .id();
     let entity_count = commands
-        .spawn(
-            (TextBundle {
-                text: Text::from_sections([
-                    TextSection {
-                        value: "ENT: ".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            ..default()
-                        },
+        .spawn(TextBundle {
+            text: Text::from_sections([
+                TextSection {
+                    value: "ENT: ".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
                     },
-                    TextSection {
-                        value: " N/A".into(),
-                        style: TextStyle {
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                            ..default()
-                        },
+                },
+                TextSection {
+                    value: " N/A".into(),
+                    style: TextStyle {
+                        font_size: 16.0,
+                        color: Color::WHITE,
+                        ..default()
                     },
-                ]),
-                ..Default::default()
-            }),
-        )
+                },
+            ]),
+            ..Default::default()
+        })
         .insert(EntityCountText)
         .id();
     commands.entity(root).push_children(&[entity_count]);
 }
 
 fn entity_count_update_system(
-    mut query: ParamSet<(
-        Query<&mut Text, With<EntityCountText>>,
-    )>,
+    mut query: ParamSet<(Query<&mut Text, With<EntityCountText>>,)>,
     query2: Query<(Entity, &Transform, &Velocity)>,
 ) {
     let some = query2.iter().count();

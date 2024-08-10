@@ -1,4 +1,4 @@
-use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate};
+use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::log::warn;
 use bevy::math::Vec2;
 use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
@@ -26,9 +26,9 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, apply_velocity);
-        app.add_systems(PreUpdate, handle_collisions);
-        app.add_systems(PostUpdate, border_hit);
+        app.add_systems(Update, apply_velocity);
+        app.add_systems(Update, handle_collisions);
+        app.add_systems(Update, border_hit);
     }
 }
 
