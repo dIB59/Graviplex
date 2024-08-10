@@ -17,7 +17,3 @@ opt-level = 3
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!
-
-[toolchain]
-channel = "nightly"
-
