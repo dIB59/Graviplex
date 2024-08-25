@@ -1,6 +1,6 @@
 use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::log::warn;
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
 use bevy::time::Fixed;
 use bevy::window::PrimaryWindow;
@@ -94,14 +94,14 @@ fn border_hit(
     let window_width = window.width();
     let window_height = window.height();
 
-    for (mut transform, _velocity) in particles.iter_mut() {
+    for (transform, mut velocity) in particles.iter_mut() {
         let new_position = transform.translation;
 
         if new_position.x > window_width / 2.0 || new_position.x < -window_width / 2.0 {
-            transform.translation.x = -transform.translation.x;
+            velocity.value.x = -velocity.value.x;
         }
         if new_position.y > window_height / 2.0 || new_position.y < -window_height / 2.0 {
-            transform.translation.y = -transform.translation.y;
+            velocity.value.y = -velocity.value.y;
         }
     }
 }

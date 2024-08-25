@@ -1,17 +1,15 @@
 use bevy::log::{error, info};
 use bevy::math::Vec2;
-use bevy::prelude::{Camera, GlobalTransform, Window};
+use bevy::prelude::{Camera, GlobalTransform};
 
 pub fn camera_to_world_coordinate(
     camera: &Camera,
     camera_transform: &GlobalTransform,
-    window: &Window,
+    coordinate: Option<Vec2>,
 ) -> Option<Vec2> {
-    info!("ORIGINAL: {:?}", window.cursor_position());
+    info!("ORIGINAL: {:?}", coordinate);
 
-    let cursor_pos = window.cursor_position();
-
-    match cursor_pos {
+    match coordinate {
         Some(pos) => {
             let world_pos = camera.viewport_to_world_2d(camera_transform, pos);
             info!("Transformed world position: {:?}", world_pos);
@@ -19,7 +17,7 @@ pub fn camera_to_world_coordinate(
         }
         None => {
             error!("Cursor position is not available in the window.");
-            cursor_pos
+            coordinate
         }
     }
 }

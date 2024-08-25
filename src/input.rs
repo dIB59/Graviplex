@@ -36,8 +36,9 @@ fn spawn_particle_cursor(
     };
 
     let mut rng = rand::thread_rng();
+    let coordinate = window.cursor_position();
 
-    match camera_to_world_coordinate(camera, camera_transform, window) {
+    match camera_to_world_coordinate(camera, camera_transform, coordinate) {
         Some(vec2) => {
             for _ in 0..1000 {
                 let random_velocity = Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
