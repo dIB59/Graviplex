@@ -40,6 +40,15 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<
     }
 }
 
+fn handle_grid_collisions(
+    grid: Res<SpatialHashGrid>,
+    mut query: Query<(Entity, &mut Transform, &mut Velocity)>,
+) {
+    let mut particles = query.iter_mut().collect::<Vec<_>>();
+
+    grid.grid.iter().for_each(|e| log::info!("{:?}", e.1))
+}
+
 fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
     let mut particles = query.iter_mut().collect::<Vec<_>>();
     for i in 0..particles.len() {
