@@ -1,9 +1,13 @@
 use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
-use bevy::log::warn;
+use bevy::log;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, Query, Res, Time, Transform, Window, With};
+use bevy::prelude::Entity;
+use bevy::prelude::{Component, Query, Res, SystemSet, Time, Transform, Window, With};
 use bevy::time::Fixed;
+use bevy::utils::info;
 use bevy::window::PrimaryWindow;
+
+use crate::grid::SpatialHashGrid;
 
 #[derive(Component, Debug)]
 pub struct Velocity {
@@ -26,9 +30,9 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, apply_velocity);
-        app.add_systems(Update, handle_collisions);
-        app.add_systems(Update, border_hit);
+        app.add_systems(FixedUpdate, apply_velocity);
+        app.add_systems(FixedUpdate, handle_collisions);
+        app.add_systems(FixedUpdate, border_hit);
     }
 }
 
@@ -96,7 +100,7 @@ fn border_hit(
     let window = match q_windows.get_single() {
         Ok(window) => window,
         Err(_) => {
-            warn!("Primary window not found");
+            log::warn!("Primary window not found");
             return;
         }
     };
