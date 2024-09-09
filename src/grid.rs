@@ -1,5 +1,6 @@
+use bevy::log;
 use bevy::prelude::*;
-use std::collections::HashMap;
+use std::{borrow::BorrowMut, cell, collections::HashMap};
 
 pub struct SpatialGridPlugin;
 
@@ -62,7 +63,7 @@ impl SpatialHashGrid {
         }
     }
 
-    fn get_entities_in_cell(&self, x: i32, y: i32) -> Option<&Vec<Entity>> {
+    pub fn get_entities_in_cell(&self, x: i32, y: i32) -> Option<&Vec<Entity>> {
         self.grid.get(&(x, y))
     }
 
@@ -99,7 +100,7 @@ mod tests {
         let mut world = World::default();
         let entity = world.spawn_empty().id();
 
-        let mut grid = SpatialHashGrid::new(32.0);
+        let mut grid = SpatialHashGrid::new(32);
         grid.insert(entity, Vec2::new(0.0, 0.0));
         info!("{:?}", grid.get_neighbouring_cells(0, 0));
         let neighbours = grid.get_neighbouring_cells(0, 0);
@@ -110,7 +111,7 @@ mod tests {
     fn test_visualize() {
         let mut world = World::default();
 
-        let mut grid = SpatialHashGrid::new(32.0);
+        let mut grid = SpatialHashGrid::new(32);
         for i in 0..10 {
             let entity = world.spawn_empty().id();
             let position = Vec2::new(i as f32 * 32.0, i as f32 * 32.0);
@@ -123,7 +124,7 @@ mod tests {
     #[test]
     fn test_insert_and_query() {
         let mut world = World::default();
-        let mut grid = SpatialHashGrid::new(32.0);
+        let mut grid = SpatialHashGrid::new(32);
 
         // Create an entity
         let entity = world.spawn_empty().id();
@@ -145,7 +146,7 @@ mod tests {
     #[test]
     fn test_remove() {
         let mut world = World::default();
-        let mut grid = SpatialHashGrid::new(32.0);
+        let mut grid = SpatialHashGrid::new(32);
 
         let entity = world.spawn_empty().id();
         let position = Vec2::new(15.0, 25.0);
@@ -161,7 +162,7 @@ mod tests {
     #[test]
     fn test_get_entities_in_cell() {
         let mut world = World::default();
-        let mut grid = SpatialHashGrid::new(32.0);
+        let mut grid = SpatialHashGrid::new(32);
 
         let entity = world.spawn_empty().id();
         let position = Vec2::new(15.0, 25.0);
