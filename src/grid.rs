@@ -38,20 +38,18 @@ impl SpatialHashGrid {
         self.grid.clear();
     }
 
-    fn world_to_grid_coords(&self, position: Vec2) -> (i32, i32) {
-        (
-            (position.x / self.cell_size).floor() as i32,
-            (position.y / self.cell_size).floor() as i32,
-        )
+    pub fn insert(&mut self, entity: Entity, position: Vec2) {
+        let cell = self.grid.get_mut((&(self.hash_from_coor(&position))));
+        match cell {
+            Some(cell) => cell.push(entity),
+            None => log::info!("No cell found"),
+        }
     }
 
-    // Insert an entity into the grid
-    pub fn insert(&mut self, entity: Entity, position: Vec2) {
-        let coords = self.world_to_grid_coords(position);
-        self.grid
-            .entry(coords)
-            .or_insert_with(Vec::new)
-            .push(entity);
+    pub fn insert_bulk(&mut self, entities: Vec<Entity>, positions: Vec<Vec2>) {
+        for (entity, position) in entities.iter().zip(positions.iter()) {
+            self.insert(*entity, *position);
+        }
     }
 
     // Remove an entity from the grid
