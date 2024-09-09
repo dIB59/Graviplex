@@ -10,17 +10,17 @@ impl Plugin for SpatialGridPlugin {
 }
 
 fn setup_grid(mut commands: Commands) {
-    commands.insert_resource(SpatialHashGrid::new(100.0));
+    commands.insert_resource(SpatialHashGrid::new(100));
 }
 
 #[derive(Debug, Clone, Resource)]
 pub struct SpatialHashGrid {
-    cell_size: f32,
-    grid: HashMap<(i32, i32), Vec<Entity>>,
+    cell_size: i32,
+    pub grid: HashMap<(i32, i32), Vec<Entity>>,
 }
 
 impl SpatialHashGrid {
-    pub fn new(cell_size: f32) -> Self {
+    pub fn new(cell_size: i32) -> Self {
         Self {
             cell_size,
             grid: HashMap::new(),
@@ -57,10 +57,6 @@ impl SpatialHashGrid {
     pub fn remove(&mut self, entity: Entity, position: Vec2) {
         let mut en = self.grid.get_mut(&(position.x as i32, position.y as i32));
 
-    // Query entities in the cell corresponding to a given position
-    pub fn query(&self, position: Vec2) -> Option<&Vec<Entity>> {
-        let coords = self.world_to_grid_coords(position);
-        self.grid.get(&coords)
         match en {
             Some(en) => en.retain(|en| en.index() != entity.index()),
             None => log::info!("Entity does not exist within this cell"),
