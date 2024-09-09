@@ -27,10 +27,11 @@ impl SpatialHashGrid {
         }
     }
 
-    fn insert_bulk(&mut self, entities: Vec<Entity>, positions: Vec<Vec2>) {
-        for (entity, position) in entities.iter().zip(positions.iter()) {
-            self.insert(*entity, *position);
-        }
+    fn hash_from_coor(&self, position: &Vec2) -> (i32, i32) {
+        return (
+            position.x as i32 / self.cell_size,
+            position.y as i32 / self.cell_size,
+        );
     }
 
     fn clear(&mut self) {
