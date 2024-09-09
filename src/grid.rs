@@ -55,19 +55,16 @@ impl SpatialHashGrid {
 
     // Remove an entity from the grid
     pub fn remove(&mut self, entity: Entity, position: Vec2) {
-        let coords = self.world_to_grid_coords(position);
-        if let Some(entities) = self.grid.get_mut(&coords) {
-            entities.retain(|&e| e != entity);
-            if entities.is_empty() {
-                self.grid.remove(&coords);
-            }
-        }
-    }
+        let mut en = self.grid.get_mut(&(position.x as i32, position.y as i32));
 
     // Query entities in the cell corresponding to a given position
     pub fn query(&self, position: Vec2) -> Option<&Vec<Entity>> {
         let coords = self.world_to_grid_coords(position);
         self.grid.get(&coords)
+        match en {
+            Some(en) => en.retain(|en| en.index() != entity.index()),
+            None => log::info!("Entity does not exist within this cell"),
+        }
     }
 
     fn get_entities_in_cell(&self, x: i32, y: i32) -> Option<&Vec<Entity>> {
