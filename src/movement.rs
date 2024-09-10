@@ -2,6 +2,7 @@ use bevy::app::{App, FixedUpdate, Plugin, PostUpdate, PreUpdate, Update};
 use bevy::log;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::Entity;
+use bevy::prelude::Mut;
 use bevy::prelude::{Component, Query, Res, SystemSet, Time, Transform, Window, With};
 use bevy::time::Fixed;
 use bevy::utils::info;
@@ -31,7 +32,7 @@ pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, apply_velocity);
-        app.add_systems(FixedUpdate, handle_collisions);
+        app.add_systems(FixedUpdate, handle_grid_collisions);
         app.add_systems(FixedUpdate, border_hit);
     }
 }
@@ -46,11 +47,60 @@ fn apply_velocity(mut query: Query<(&Velocity, &mut Transform)>, time_step: Res<
 
 fn handle_grid_collisions(
     grid: Res<SpatialHashGrid>,
-    mut query: Query<(Entity, &mut Transform, &mut Velocity)>,
+    mut query: Query<(&mut Transform, &mut Velocity)>,
 ) {
-    let mut particles = query.iter_mut().collect::<Vec<_>>();
+    for (cell_pos, entities_in_cell) in grid.grid.iter() {
+        if let Some(particles_in_cell) = grid.get_entities_in_cell(cell_pos.0, cell_pos.1) {
+            // Collect particle transforms and velocities in this cell
+            let mut particles = particles_in_cell
+                .iter()
+                .filter_map(|&entity| query.get_mut(entity).ok()) // Get the Transform and Velocity components
+                .collect::<Vec<_>>();
 
-    grid.grid.iter().for_each(|e| log::info!("{:?}", e.1))
+            if particles.len() > 1 {
+                handle_collisions_2(&mut particles);
+            }
+        }
+    }
+}
+
+fn handle_collisions_2(particles: Vec<(Entity, Mut<'_, Transform>, Mut<'_, Velocity>)>) {
+    for i in 0..particles.len() {
+        let (left, right) = particles.split_at_mut(i + 1);
+        let (transform1, velocity1) = &mut left[i];
+        for j in 0..right.len() {
+            let (transform2, velocity2) = &mut right[j];
+
+            let pos1 = transform1.translation;
+            let pos2 = transform2.translation;
+
+            let distance = pos1.distance(pos2);
+            let sum_of_radii = 10.;
+
+            if distance < sum_of_radii + 1. {
+                let normal = (pos2 - pos1).normalize();
+                let relative_velocity = velocity2.value - velocity1.value;
+                let speed = relative_velocity.dot(Vec2::new(normal.x, normal.y));
+
+                if speed > 0.0 {
+                    let mass1 = 1.0; // Assuming mass of particle 1
+                    let mass2 = 1.0; // Assuming mass of particle 2
+                    let total_mass = mass1 + mass2;
+
+                    let impulse = 2.0 * speed / total_mass;
+                    let impulse_vec = impulse * Vec2::new(normal.x, normal.y);
+
+                    velocity1.value -= impulse_vec * (mass2 / total_mass);
+                    velocity2.value += impulse_vec * (mass1 / total_mass);
+                }
+
+                if speed > 2.0 {
+                    velocity1.value = velocity1.value * 1. / speed;
+                    velocity2.value = velocity2.value * 1. / speed;
+                }
+            }
+        }
+    }
 }
 
 fn handle_collisions(mut query: Query<(&mut Transform, &mut Velocity)>) {
