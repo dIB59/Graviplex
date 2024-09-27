@@ -1,8 +1,8 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables, unused_imports, unused_mut)]
 
 use std::borrow::Borrow;
 
-use bevy::app::{App, Plugin, PreUpdate, Update};
+use bevy::app::{App, Plugin, PreUpdate};
 use bevy::log::info;
 use bevy::prelude::{Entity, Query, Res, ResMut, Resource, Time, Timer, TimerMode, Transform};
 

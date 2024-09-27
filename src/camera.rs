@@ -1,4 +1,4 @@
-use bevy::app::{App, Plugin, PreStartup, Startup};
+use bevy::app::{App, Plugin, PreStartup};
 use bevy::prelude::{Camera2dBundle, Commands, Component};
 
 pub struct CameraPlugin;

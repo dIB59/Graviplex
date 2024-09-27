@@ -2,7 +2,7 @@ use bevy::{
     asset::Assets,
     color::Color,
     math::{Vec2, Vec3},
-    prelude::{default, Circle, Commands, Component, Entity, Mesh, ResMut, Transform},
+    prelude::{Circle, Commands, Component, default, Entity, Mesh, ResMut, Transform},
     sprite::{ColorMaterial, MaterialMesh2dBundle, Mesh2dHandle},
 };
 
@@ -30,16 +30,16 @@ impl Spawnable<Entity> for Particle {
         random_velocity: Vec2,
     ) -> Entity {
         commands
-            .spawn((
+            .spawn(
                 MaterialMesh2dBundle {
                     transform: Transform::from_translation(particle_position),
                     mesh: Mesh2dHandle(meshes.add(Circle::new(5.0))),
                     material: materials.add(Color::WHITE),
                     ..default()
-                },
-                Particle,
-                Velocity::from(random_velocity),
-            ))
+                }
+            )
+            .insert(Particle)
+            .insert(Velocity::from(random_velocity))
             .id()
     }
 }

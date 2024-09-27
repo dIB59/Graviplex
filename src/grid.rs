@@ -1,7 +1,7 @@
+use std::collections::HashMap;
+
 use bevy::log;
 use bevy::prelude::*;
-use bevy::reflect::List;
-use std::{borrow::BorrowMut, cell, collections::HashMap};
 
 pub struct SpatialGridPlugin;
 
@@ -17,8 +17,8 @@ fn setup_grid(mut commands: Commands) {
 
 #[derive(Debug, Clone, Resource)]
 pub struct SpatialHashGrid {
-    cell_size: i32,
-    pub grid: HashMap<(i32, i32), Vec<Entity>>,
+    pub(crate) cell_size: i32,
+    pub cells: HashMap<(i32, i32), Vec<Entity>>,
 }
 
 pub fn grid_hash_from_coor(cell_size: &i32, position: &Vec2) -> (i32, i32) {
@@ -29,23 +29,23 @@ impl SpatialHashGrid {
     pub fn new(cell_size: i32) -> Self {
         Self {
             cell_size,
-            grid: HashMap::new(),
+            cells: HashMap::new(),
         }
     }
 
     pub fn clear(&mut self) {
-        self.grid.clear();
+        self.cells.clear();
     }
 
     pub fn insert(&mut self, entity: Entity, position: Vec2) {
         let key = grid_hash_from_coor(&self.cell_size, &position);
-        let cell = self.grid.get_mut((&key));
+        let cell = self.cells.get_mut(&key);
         match cell {
             Some(cell) => cell.push(entity),
             None => {
                 let mut vec = Vec::new();
                 vec.push(entity);
-                self.grid.insert(key, vec);
+                self.cells.insert(key, vec);
             }
         }
     }
@@ -59,7 +59,7 @@ impl SpatialHashGrid {
     // Remove an entity from the grid
     pub fn remove(&mut self, entity: Entity, position: Vec2) {
         let mut en = self
-            .grid
+            .cells
             .get_mut(&grid_hash_from_coor(&self.cell_size, &position));
 
         match en {
@@ -69,11 +69,11 @@ impl SpatialHashGrid {
     }
 
     pub fn get_entities_in_cell(&self, x: i32, y: i32) -> Option<&Vec<Entity>> {
-        self.grid.get(&(x, y))
+        self.cells.get(&(x, y))
     }
 
     fn visualize(&self) {
-        for (coords, entities) in &self.grid {
+        for (coords, entities) in &self.cells {
             println!("Cell {:?}: {:?}", coords, entities);
         }
     }
@@ -97,8 +97,9 @@ impl SpatialHashGrid {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bevy::ecs::world::World;
+
+    use super::*;
 
     #[test]
     fn test_get_neighbouring_cells() {
@@ -146,7 +147,7 @@ mod tests {
         let key = grid_hash_from_coor(&32, &position);
         let result = grid.get_entities_in_cell(key.0, key.1);
 
-        println!("{:?}", grid.grid.values());
+        println!("{:?}", grid.cells.values());
         assert!(result.is_some());
         assert_eq!(result.unwrap().len(), 2);
         assert_eq!(result.unwrap()[0], entity);
@@ -167,8 +168,8 @@ mod tests {
         println!("{:?}", key);
         // Query the grid at the same position
         let result = grid.get_entities_in_cell(key.0, key.1);
-        println!("{:?}", grid.grid.values());
-        println!("{:?}", grid.grid.get_key_value(&key));
+        println!("{:?}", grid.cells.values());
+        println!("{:?}", grid.cells.get_key_value(&key));
         assert!(result.expect("No entities in cell").is_empty());
     }
 
