@@ -1,4 +1,4 @@
-use bevy::app::{App, FixedUpdate, Plugin, Update};
+use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::log;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Component, Query, Res, SystemSet, Time, Transform, Window, With};
@@ -56,6 +56,7 @@ fn handle_cell_collisions(
 ) {
     let dt = time_step.delta_seconds() * 100f32;
     //iterate over all cells
+
     for (entity) in grid.cells.keys() {
         let mut particles_in_cell = grid.get_entities_in_cell(entity.0, entity.1);
         if particles_in_cell.is_none() {
@@ -71,10 +72,9 @@ fn handle_cell_collisions(
 
         //use window method to get the other particles in the cell
         available_particles_in_cell.windows(2).for_each(|particle| {
-            let particle_1: (Entity, Mut<'_, Transform, >, Mut<'_, Velocity, >) = particles.get_mut(particle[0])
-                .expect("Particle 1 does not exist");
-            let particle_2: (Entity, Mut<'_, Transform, >, Mut<'_, Velocity, >) = particles.get_mut(particle[1])
-                .expect("Particle 2 does not exist");
+            let [mut particle_1, mut particle_2]: [(_, Mut<'_, Transform>, Mut<'_, Velocity>); 2] = particles
+                .get_many_mut([particle[0], particle[1]])
+                .expect("One or both particles do not exist");
 
             collide_two_particles(particle_1, particle_2);
         });
@@ -82,17 +82,20 @@ fn handle_cell_collisions(
 }
 
 fn collide_two_particles(
-    particle: (Entity, Mut<Transform>, Mut<Velocity>),
-    other_particle: (Entity, Mut<Transform>, Mut<Velocity>),
+    mut particle: (Entity, Mut<Transform>, Mut<Velocity>),
+    mut other_particle: (Entity, Mut<Transform>, Mut<Velocity>),
 ) {
-    let (entity1, transform1, velocity1) = particle;
-    let (entity2, transform2, velocity2) = other_particle;
+    let (entity1, transform1, mut velocity1) = particle;
+    let (entity2, transform2, mut velocity2) = other_particle;
 
     let distance = transform1.translation.distance(transform2.translation);
 
     if distance > 1.0 {
         return;
     }
+
+    log::info!("Collision detected");
+
     let collision_vector = transform1.translation - transform2.translation;
     let collision_vector = collision_vector.normalize();
     let collision_vector = collision_vector * 0.5;
