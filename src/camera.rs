@@ -13,5 +13,5 @@ impl Plugin for CameraPlugin {
 pub struct MainCamera;
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn((Camera2dBundle::default(), MainCamera));
+    commands.spawn(Camera2dBundle::default()).insert(MainCamera);
 }
