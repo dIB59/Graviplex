@@ -1,7 +1,7 @@
 use bevy::app::{App, FixedUpdate, Plugin};
 use bevy::log;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Component, Query, Res, SystemSet, Time, Transform, Window, With};
+use bevy::prelude::{Component, Query, Res, ResMut, SystemSet, Time, Transform, Window, With};
 use bevy::prelude::Entity;
 use bevy::prelude::Mut;
 use bevy::render::render_resource::encase::private::RuntimeSizedArray;
@@ -51,11 +51,19 @@ type GridParticles<'a> = Vec<(Entity, Mut<'a, Transform>, Mut<'a, Velocity>)>;
 
 fn handle_cell_collisions(
     mut particles: Query<(Entity, &mut Transform, &mut Velocity)>,
-    grid: Res<SpatialHashGrid>,
+    mut grid: ResMut<SpatialHashGrid>,
     time_step: Res<Time<Fixed>>,
 ) {
     let dt = time_step.delta_seconds() * 100f32;
     //iterate over all cells
+
+    //get all particles in query
+    let particles_in_query = particles.iter().collect::<Vec<_>>();
+    //update grid with all particles
+    let particle_positions = particles_in_query.iter().map(|(_, transform, _)| Vec2::new(transform.translation.x, transform.translation.y)).collect();
+    grid.update(particles_in_query.iter()
+                    .map(|(entity, _, _)| *entity).collect(), particle_positions);
+    
 
     for (entity) in grid.cells.keys() {
         let mut particles_in_cell = grid.get_entities_in_cell(entity.0, entity.1);

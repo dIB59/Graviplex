@@ -37,6 +37,13 @@ impl SpatialHashGrid {
         self.cells.clear();
     }
 
+    pub fn update(&mut self, entities: Vec<Entity>, positions: Vec<Vec2>) {
+        self.clear();
+        for (entity, position) in entities.iter().zip(positions.iter()) {
+            self.insert(*entity, *position);
+        }
+    }
+
     pub fn insert(&mut self, entity: Entity, position: Vec2) {
         let key = grid_hash_from_coor(&self.cell_size, &position);
         let cell = self.cells.get_mut(&key);
