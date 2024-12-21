@@ -1,18 +1,9 @@
 [package]
 name = "graviplex"
 version = "0.1.0"
-edition = "2021"
 
 [dependencies]
-
-bevy = { version = "0.14.1", default-features = false, features = ["dynamic_linking", "default_font", "bevy_debug_stepping", "bevy_winit", "bevy_render", "bevy_sprite", "bevy_ui", "bevy_dynamic_plugin"] }
 rand = "0.8.5"
-
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
 
 [workspace]
 resolver = "2" # Important! wgpu/Bevy needs this!
