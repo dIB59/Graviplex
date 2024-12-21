@@ -1,9 +1,11 @@
 [package]
 name = "graviplex"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
+wgpu = "23.0.1"
+winit = "0.30.6"
 #rand = "0.8.5"
 
 [workspace]
