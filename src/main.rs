@@ -3,7 +3,7 @@ mod app;
 use std::borrow::Cow;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ActiveEventLoop, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowAttributes},
 };
 

@@ -1,4 +1,3 @@
-use log::info;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
