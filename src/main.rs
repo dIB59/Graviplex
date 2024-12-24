@@ -1,7 +1,9 @@
+mod app;
+
 use std::borrow::Cow;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowAttributes},
 };
 
@@ -122,7 +124,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                                         view: &view,
                                         resolve_target: None,
                                         ops: wgpu::Operations {
-                                            load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                                             store: wgpu::StoreOp::Store,
                                         },
                                     })],
