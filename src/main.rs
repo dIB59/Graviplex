@@ -1,6 +1,7 @@
 mod app;
 
 use std::borrow::Cow;
+use wgpu::SurfaceConfiguration;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -98,46 +99,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             {
                 match event {
                     WindowEvent::Resized(new_size) => {
-                        // Reconfigure the surface with the new size
-                        config.width = new_size.width.max(1);
-                        config.height = new_size.height.max(1);
-                        surface.configure(&device, &config);
-                        // On macos the window needs to be redrawn manually after resizing
-                        window.request_redraw();
+                        handle_resize(&surface, &device, &mut config, window, new_size)
                     }
                     WindowEvent::RedrawRequested => {
-                        let frame = surface
-                            .get_current_texture()
-                            .expect("Failed to acquire next swap chain texture");
-                        let view = frame
-                            .texture
-                            .create_view(&wgpu::TextureViewDescriptor::default());
-                        let mut encoder =
-                            device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                                label: None,
-                            });
-                        {
-                            let mut rpass =
-                                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                                    label: None,
-                                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                        view: &view,
-                                        resolve_target: None,
-                                        ops: wgpu::Operations {
-                                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                                            store: wgpu::StoreOp::Store,
-                                        },
-                                    })],
-                                    depth_stencil_attachment: None,
-                                    timestamp_writes: None,
-                                    occlusion_query_set: None,
-                                });
-                            rpass.set_pipeline(&render_pipeline);
-                            rpass.draw(0..3, 0..1);
-                        }
-
-                        queue.submit(Some(encoder.finish()));
-                        frame.present();
+                        handle_redraw(&surface, &device, &queue, &render_pipeline)
                     }
                     WindowEvent::CloseRequested => target.exit(),
                     _ => {}
@@ -145,6 +110,57 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
             }
         })
         .unwrap();
+}
+
+fn handle_redraw(
+    surface: &wgpu::Surface<'_>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    render_pipeline: &wgpu::RenderPipeline,
+) {
+    let frame = surface
+        .get_current_texture()
+        .expect("Failed to acquire next swap chain texture");
+    let view = frame
+        .texture
+        .create_view(&wgpu::TextureViewDescriptor::default());
+    let mut encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    {
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        rpass.set_pipeline(&render_pipeline);
+        rpass.draw(0..3, 0..1);
+    }
+
+    queue.submit(Some(encoder.finish()));
+    frame.present();
+}
+
+fn handle_resize(
+    surface: &wgpu::Surface<'_>,
+    device: &wgpu::Device,
+    config: &mut SurfaceConfiguration,
+    window: &Window,
+    new_size: winit::dpi::PhysicalSize<u32>,
+) {
+    config.width = new_size.width.max(1);
+    config.height = new_size.height.max(1);
+    surface.configure(device, &config);
+    // On macos the window needs to be redrawn manually after resizing
+    window.request_redraw();
 }
 
 pub fn main() {
