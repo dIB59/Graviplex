@@ -1,26 +1,38 @@
 use std::sync::Arc;
 
-use env_logger::fmt::style::Color;
 use pollster::FutureExt;
-use wgpu::DepthStencilState;
+use wgpu::hal::metal::BindGroup;
+use wgpu::hal::DepthStencilAttachment;
+use wgpu::{
+    DepthStencilState, Device, DeviceDescriptor, Instance, Limits, Operations, PowerPreference,
+    Queue, RenderPipeline, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
+};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct App {
-    window: Arc<Option<Window>>,
+    window: Option<Arc<Window>>,
+    surface: Option<Surface<'static>>,
+    queue: Option<Queue>,
+    device: Option<Device>,
+    config: Option<SurfaceConfiguration>,
+    render_pipeline: Option<RenderPipeline>,
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_none() {
             let win_attr = Window::default_attributes().with_title("winit example");
-            let window = event_loop
-                .create_window(win_attr)
-                .expect("create window err.");
-            self.window = Arc::new(Some(window))
+
+            let window = Arc::new(
+                event_loop
+                    .create_window(win_attr)
+                    .expect("Unable to create window"),
+            );
+            self.window = Some(window);
         }
 
         let size = self
@@ -29,20 +41,16 @@ impl ApplicationHandler for App {
             .as_ref()
             .expect("No window found")
             .inner_size();
+        self.window = Some(self.window.as_ref().expect("window not found").clone());
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = Instance::new(wgpu::InstanceDescriptor::default());
 
         let surface = instance
-            .create_surface(
-                self.window
-                    .as_ref()
-                    .as_ref()
-                    .expect("Window not found for surface"),
-            )
+            .create_surface(self.window.clone().expect("window not found"))
             .expect("Unable to create surface");
 
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
+        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
+            power_preference: PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))
@@ -50,9 +58,9 @@ impl ApplicationHandler for App {
 
         let (device, queue) = adapter
             .request_device(
-                &wgpu::DeviceDescriptor {
+                &DeviceDescriptor {
                     label: None,
-                    required_limits: wgpu::Limits::default(),
+                    required_limits: Limits::default(),
                     ..Default::default()
                 },
                 None,
@@ -62,7 +70,7 @@ impl ApplicationHandler for App {
 
         let format: wgpu::TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
-        let mut surface_config = wgpu::SurfaceConfiguration {
+        let mut surface_config = SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             width: size.width,
             height: size.height,
@@ -113,6 +121,12 @@ impl ApplicationHandler for App {
             multiview: Default::default(),
             cache: Default::default(),
         });
+
+        self.queue = Some(queue);
+        self.device = Some(device);
+        self.render_pipeline = Some(render_pipline);
+        self.config = Some(surface_config);
+        self.surface = Some(surface);
     }
 
     fn window_event(
@@ -124,6 +138,42 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
+            }
+            WindowEvent::RedrawRequested => {
+                if let (Some(surface), Some(device), Some(queue), Some(config), Some(pipeline)) = (
+                    &self.surface,
+                    &self.device,
+                    &self.queue,
+                    &self.config,
+                    &self.render_pipeline,
+                ) {
+                    let frame = surface.get_current_texture().expect("Unable to get frame");
+                    let view = frame
+                        .texture
+                        .create_view(&wgpu::TextureViewDescriptor::default());
+                    let mut encoder = device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                    {
+                        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                            label: None,
+                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                view: &view,
+                                resolve_target: None,
+                                ops: Operations {
+                                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                    store: StoreOp::Store,
+                                },
+                            })],
+                            depth_stencil_attachment: None,
+                            timestamp_writes: Default::default(),
+                            occlusion_query_set: None,
+                        });
+                        rpass.set_pipeline(pipeline);
+                    }
+
+                    queue.submit(std::iter::once(encoder.finish()));
+                    frame.present();
+                }
             }
             _ => (),
         }
