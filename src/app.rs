@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
 use pollster::FutureExt;
-use wgpu::hal::metal::BindGroup;
-use wgpu::hal::DepthStencilAttachment;
 use wgpu::{
     DepthStencilState, Device, DeviceDescriptor, Instance, Limits, Operations, PowerPreference,
     Queue, RenderPipeline, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
@@ -59,7 +57,7 @@ impl ApplicationHandler for App {
         let (device, queue) = adapter
             .request_device(
                 &DeviceDescriptor {
-                    label: None,
+                    label: Some("Device Descriptor"),
                     required_limits: Limits::default(),
                     ..Default::default()
                 },
@@ -84,18 +82,19 @@ impl ApplicationHandler for App {
         surface.configure(&device, &surface_config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
+            label: Some("Pipeline Layout"),
             bind_group_layouts: &[],
+
             push_constant_ranges: &[],
         });
 
         let render_pipline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
+            label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -106,17 +105,15 @@ impl ApplicationHandler for App {
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
-                targets: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(DepthStencilState {
-                format,
-                depth_write_enabled: Default::default(),
-                depth_compare: wgpu::CompareFunction::Always,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: Default::default(),
             cache: Default::default(),
@@ -151,23 +148,28 @@ impl ApplicationHandler for App {
                     let view = frame
                         .texture
                         .create_view(&wgpu::TextureViewDescriptor::default());
-                    let mut encoder = device
-                        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+                    let mut encoder =
+                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("Render Encoder"),
+                        });
+
                     {
                         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: None,
+                            label: Some("Render Pass"),
                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                view: &view,
+                                view: &view, // Make sure this view uses the surface format
                                 resolve_target: None,
-                                ops: Operations {
+                                ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                                    store: StoreOp::Store,
+                                    store: wgpu::StoreOp::Store,
                                 },
                             })],
                             depth_stencil_attachment: None,
                             timestamp_writes: Default::default(),
-                            occlusion_query_set: None,
+                            occlusion_query_set: Default::default(),
                         });
+
                         rpass.set_pipeline(pipeline);
                     }
 
