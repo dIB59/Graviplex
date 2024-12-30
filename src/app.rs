@@ -30,13 +30,7 @@ impl ApplicationHandler for App {
             self.window = Some(window);
         }
 
-        let size = self
-            .window
-            .as_ref()
-            .as_ref()
-            .expect("No window found")
-            .inner_size();
-        self.window = Some(self.window.as_ref().expect("window not found").clone());
+        let size = self.window.as_ref().expect("window not found").inner_size();
 
         let instance = Instance::new(InstanceDescriptor::default());
 
@@ -86,7 +80,6 @@ impl ApplicationHandler for App {
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
             bind_group_layouts: &[],
-
             push_constant_ranges: &[],
         });
 
