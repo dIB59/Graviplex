@@ -38,7 +38,7 @@ impl ApplicationHandler for App {
             .inner_size();
         self.window = Some(self.window.as_ref().expect("window not found").clone());
 
-        let instance = Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = Instance::new(InstanceDescriptor::default());
 
         let surface = instance
             .create_surface(self.window.clone().expect("window not found"))
@@ -63,7 +63,7 @@ impl ApplicationHandler for App {
             .block_on()
             .expect("Unable to create device");
 
-        let format: wgpu::TextureFormat = surface.get_capabilities(&adapter).formats[0];
+        let format: TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
         let mut surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
@@ -83,17 +83,17 @@ impl ApplicationHandler for App {
             source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
             bind_group_layouts: &[],
 
             push_constant_ranges: &[],
         });
 
-        let render_pipline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let render_pipline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
+            vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 buffers: &[],
