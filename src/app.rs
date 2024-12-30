@@ -59,7 +59,7 @@ impl ApplicationHandler for App {
 
         let format: TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
-        let mut surface_config = SurfaceConfiguration {
+        let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             width: size.width,
             height: size.height,
