@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use env_logger::fmt::style::Color;
 use pollster::FutureExt;
+use wgpu::DepthStencilState;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -65,7 +66,7 @@ impl ApplicationHandler for App {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Fifo,
             format,
             desired_maximum_frame_latency: Default::default(),
             alpha_mode: Default::default(),
@@ -101,7 +102,13 @@ impl ApplicationHandler for App {
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            depth_stencil: Some(DepthStencilState {
+                format,
+                depth_write_enabled: Default::default(),
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: Default::default(),
             cache: Default::default(),
