@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -5,7 +7,7 @@ use winit::window::{Window, WindowId};
 
 #[derive(Default)]
 pub struct App {
-    window: Option<Window>,
+    window: Arc<Option<Window>>,
 }
 
 impl ApplicationHandler for App {
@@ -15,7 +17,7 @@ impl ApplicationHandler for App {
             let window = event_loop
                 .create_window(win_attr)
                 .expect("create window err.");
-            self.window = Some(window);
+            self.window = Arc::new(Some(window))
         }
     }
 
