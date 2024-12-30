@@ -164,6 +164,7 @@ impl ApplicationHandler for App {
                             occlusion_query_set: Default::default(),
                         });
                         rpass.set_pipeline(pipeline);
+                        rpass.draw(0..3, 0..1);
                     }
 
                     queue.submit(std::iter::once(encoder.finish()));
