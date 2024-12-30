@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use pollster::FutureExt;
-use wgpu::{
-    DepthStencilState, Device, DeviceDescriptor, Instance, Limits, Operations, PowerPreference,
-    Queue, RenderPipeline, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
-};
+use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -69,10 +66,10 @@ impl ApplicationHandler for App {
         let format: wgpu::TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
         let mut surface_config = SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: TextureUsages::RENDER_ATTACHMENT,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: PresentMode::Fifo,
             format,
             desired_maximum_frame_latency: Default::default(),
             alpha_mode: Default::default(),
@@ -81,9 +78,9 @@ impl ApplicationHandler for App {
 
         surface.configure(&device, &surface_config);
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -102,19 +99,19 @@ impl ApplicationHandler for App {
                 buffers: &[],
                 compilation_options: Default::default(),
             },
-            fragment: Some(wgpu::FragmentState {
+            fragment: Some(FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
+                targets: &[Some(ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::all(),
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::all(),
                 })],
                 compilation_options: Default::default(),
             }),
-            primitive: wgpu::PrimitiveState::default(),
+            primitive: PrimitiveState::default(),
             depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
+            multisample: MultisampleState::default(),
             multiview: Default::default(),
             cache: Default::default(),
         });
@@ -145,24 +142,21 @@ impl ApplicationHandler for App {
                     &self.render_pipeline,
                 ) {
                     let frame = surface.get_current_texture().expect("Unable to get frame");
-                    let view = frame
-                        .texture
-                        .create_view(&wgpu::TextureViewDescriptor::default());
+                    let view = frame.texture.create_view(&TextureViewDescriptor::default());
 
-                    let mut encoder =
-                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                            label: Some("Render Encoder"),
-                        });
+                    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                        label: Some("Render Encoder"),
+                    });
 
                     {
-                        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                             label: Some("Render Pass"),
-                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            color_attachments: &[Some(RenderPassColorAttachment {
                                 view: &view, // Make sure this view uses the surface format
                                 resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                                    store: wgpu::StoreOp::Store,
+                                ops: Operations {
+                                    load: LoadOp::Clear(Color::TRANSPARENT),
+                                    store: StoreOp::Store,
                                 },
                             })],
                             depth_stencil_attachment: None,
