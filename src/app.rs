@@ -141,37 +141,50 @@ impl ApplicationHandler for App {
                     &self.config,
                     &self.render_pipeline,
                 ) {
-                    let frame = surface.get_current_texture().expect("Unable to get frame");
-                    let view = frame.texture.create_view(&TextureViewDescriptor::default());
-
-                    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-                        label: Some("Render Encoder"),
-                    });
-
-                    {
-                        let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-                            label: Some("Render Pass"),
-                            color_attachments: &[Some(RenderPassColorAttachment {
-                                view: &view, // Make sure this view uses the surface format
-                                resolve_target: None,
-                                ops: Operations {
-                                    load: LoadOp::Clear(Color::BLACK),
-                                    store: StoreOp::Store,
-                                },
-                            })],
-                            depth_stencil_attachment: None,
-                            timestamp_writes: Default::default(),
-                            occlusion_query_set: Default::default(),
-                        });
-                        rpass.set_pipeline(pipeline);
-                        rpass.draw(0..3, 0..1);
-                    }
-
-                    queue.submit(std::iter::once(encoder.finish()));
-                    frame.present();
+                    self.render_frame(surface, device, queue, pipeline);
                 }
             }
             _ => (),
         }
+    }
+}
+
+impl App {
+    fn render_frame(
+        &self,
+        surface: &Surface,
+        device: &Device,
+        queue: &Queue,
+        pipeline: &RenderPipeline,
+    ) {
+        let frame = surface.get_current_texture().expect("Unable to get frame");
+        let view = frame.texture.create_view(&TextureViewDescriptor::default());
+
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
+
+        {
+            let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: Default::default(),
+                occlusion_query_set: Default::default(),
+            });
+
+            rpass.set_pipeline(pipeline);
+            rpass.draw(0..3, 0..1);
+        }
+
+        queue.submit(std::iter::once(encoder.finish()));
+        frame.present();
     }
 }
