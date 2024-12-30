@@ -126,12 +126,20 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
+            WindowEvent::Resized(size) => {
+                if let Some(surface) = &self.surface {
+                    let mut config = self.config.as_ref().unwrap().clone();
+                    config.width = size.width;
+                    config.height = size.height;
+                    surface.configure(&self.device.as_ref().unwrap(), &config);
+                    self.config = Some(config);
+                }
+            }
             WindowEvent::RedrawRequested => {
-                if let (Some(surface), Some(device), Some(queue), Some(config), Some(pipeline)) = (
+                if let (Some(surface), Some(device), Some(queue), Some(pipeline)) = (
                     &self.surface,
                     &self.device,
                     &self.queue,
-                    &self.config,
                     &self.render_pipeline,
                 ) {
                     self.render_frame(surface, device, queue, pipeline);
