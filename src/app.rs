@@ -155,7 +155,7 @@ impl ApplicationHandler for App {
                                 view: &view, // Make sure this view uses the surface format
                                 resolve_target: None,
                                 ops: Operations {
-                                    load: LoadOp::Clear(Color::TRANSPARENT),
+                                    load: LoadOp::Clear(Color::BLACK),
                                     store: StoreOp::Store,
                                 },
                             })],
@@ -163,7 +163,6 @@ impl ApplicationHandler for App {
                             timestamp_writes: Default::default(),
                             occlusion_query_set: Default::default(),
                         });
-
                         rpass.set_pipeline(pipeline);
                     }
 
