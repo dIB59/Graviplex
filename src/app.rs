@@ -182,7 +182,7 @@ impl App {
             });
 
             rpass.set_pipeline(pipeline);
-            rpass.draw(0..3, 0..1);
+            rpass.draw(0..9, 0..3);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
