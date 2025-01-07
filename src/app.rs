@@ -172,7 +172,12 @@ impl App {
                     view: &view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.02,
+                            g: 0.02,
+                            b: 0.02,
+                            a: 1.0,
+                        }),
                         store: StoreOp::Store,
                     },
                 })],
@@ -182,7 +187,7 @@ impl App {
             });
 
             rpass.set_pipeline(pipeline);
-            rpass.draw(0..9, 0..3);
+            rpass.draw(0..3, 0..1);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
