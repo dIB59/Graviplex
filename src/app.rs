@@ -4,17 +4,97 @@ use pollster::FutureExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<'static>>,
-    queue: Option<Queue>,
-    device: Option<Device>,
     config: Option<SurfaceConfiguration>,
-    render_pipeline: Option<RenderPipeline>,
+    queue: Queue,
+    device: Device,
+    render_pipeline: RenderPipeline,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let event_loop = EventLoop::new().unwrap();
+        let win_attr = Window::default_attributes().with_title("winit example");
+
+        let window = Arc::new(
+            event_loop
+                .create_window(win_attr)
+                .expect("Unable to create window"),
+        );
+
+        let instance = Instance::new(InstanceDescriptor::default());
+
+        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
+            power_preference: PowerPreference::LowPower,
+            force_fallback_adapter: false,
+            compatible_surface: None,
+        }))
+        .expect("Unable to create adapter");
+
+        let (device, queue) = adapter
+            .request_device(
+                &DeviceDescriptor {
+                    label: Some("Device Descriptor"),
+                    required_limits: Limits::default(),
+                    ..Default::default()
+                },
+                None,
+            )
+            .block_on()
+            .expect("Unable to create device");
+
+        let shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Pipeline Layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(ColorTargetState {
+                    format: TextureFormat::Bgra8UnormSrgb,
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::all(),
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            multiview: Default::default(),
+            cache: Default::default(),
+        });
+
+        return Self {
+            window: Some(window),
+            surface: None,
+            config: None,
+            queue,
+            device,
+            render_pipeline,
+        };
+    }
 }
 
 impl ApplicationHandler for App {
@@ -39,7 +119,7 @@ impl ApplicationHandler for App {
             .expect("Unable to create surface");
 
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::HighPerformance,
+            power_preference: PowerPreference::LowPower,
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))
@@ -109,9 +189,9 @@ impl ApplicationHandler for App {
             cache: Default::default(),
         });
 
-        self.queue = Some(queue);
-        self.device = Some(device);
-        self.render_pipeline = Some(render_pipline);
+        self.queue = queue;
+        self.device = device;
+        self.render_pipeline = render_pipline;
         self.config = Some(surface_config);
         self.surface = Some(surface);
     }
@@ -131,12 +211,12 @@ impl ApplicationHandler for App {
                     let mut config = self.config.as_ref().unwrap().clone();
                     config.width = size.width;
                     config.height = size.height;
-                    surface.configure(&self.device.as_ref().unwrap(), &config);
+                    surface.configure(&self.device, &config);
                     self.config = Some(config);
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let (Some(surface), Some(device), Some(queue), Some(pipeline)) = (
+                if let (Some(surface), device, queue, pipeline) = (
                     &self.surface,
                     &self.device,
                     &self.queue,
