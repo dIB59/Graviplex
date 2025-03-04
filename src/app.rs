@@ -19,15 +19,6 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let event_loop = EventLoop::new().unwrap();
-        let win_attr = Window::default_attributes().with_title("winit example");
-
-        let window = Arc::new(
-            event_loop
-                .create_window(win_attr)
-                .expect("Unable to create window"),
-        );
-
         let instance = Instance::new(InstanceDescriptor::default());
 
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
@@ -87,7 +78,7 @@ impl Default for App {
         });
 
         return Self {
-            window: Some(window),
+            window: None,
             surface: None,
             config: None,
             queue,
