@@ -1,13 +1,16 @@
 use std::sync::Arc;
 
+use crate::render;
+use crate::render::View;
 use pollster::FutureExt;
+use ultraviolet::Vec2;
+use wgpu::util::DeviceExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
-#[derive(Debug)]
 pub struct App {
     window: Option<Arc<Window>>,
     surface: Option<Surface<'static>>,
@@ -15,18 +18,32 @@ pub struct App {
     queue: Queue,
     device: Device,
     render_pipeline: RenderPipeline,
+    vertices: u32,
+    vertex_buffer: wgpu::Buffer,
+    instances: u32,
+    instance_buffer: wgpu::Buffer,
+    view: View,
+    view_buffer: wgpu::Buffer,
+    view_bind_group: wgpu::BindGroup,
 }
 
 impl Default for App {
     fn default() -> Self {
         let instance = Instance::new(InstanceDescriptor::default());
 
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: 0,
+            y: 0,
+        };
+
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::LowPower,
             force_fallback_adapter: false,
             compatible_surface: None,
         }))
-        .expect("Unable to create adapter");
+            .expect("Unable to create adapter");
 
         let (device, queue) = adapter
             .request_device(
@@ -45,11 +62,38 @@ impl Default for App {
             source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
 
+        let view_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("View Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("View Buffer"),
+            contents: bytemuck::cast_slice(&[View {
+                position: Vec2::zero(),
+                scale: 1.0,
+                x: 0,
+                y: 0,
+            }]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&view_bind_group_layout],
             push_constant_ranges: &[],
         });
+
 
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -77,14 +121,70 @@ impl Default for App {
             cache: Default::default(),
         });
 
-        return Self {
+        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("View Buffer"),
+            contents: bytemuck::cast_slice(&[view]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+
+        let view_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("View Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
+        });
+
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
+        });
+
+        let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("View Bind Group"),
+            layout: &view_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: view_buffer.as_entire_binding(),
+            }],
+        });
+
+        Self {
             window: None,
             surface: None,
             config: None,
             queue,
             device,
             render_pipeline,
-        };
+            vertices: 0,
+            vertex_buffer,
+            instances: 0,
+            instance_buffer,
+            view,
+            view_buffer,
+            view_bind_group,
+        }
     }
 }
 
@@ -114,7 +214,7 @@ impl ApplicationHandler for App {
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))
-        .expect("Unable to create adapter");
+            .expect("Unable to create adapter");
 
         let (device, queue) = adapter
             .request_device(
@@ -123,10 +223,47 @@ impl ApplicationHandler for App {
                     required_limits: Limits::default(),
                     ..Default::default()
                 },
-                None,
+                Option::None,
             )
             .block_on()
             .expect("Unable to create device");
+
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: self.config.as_ref().expect("").width as u16,
+            y: self.config.as_ref().expect("").height as u16,
+        };
+
+        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("View Buffer"),
+            contents: bytemuck::cast_slice(&[view]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let view_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("View Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("View Bind Group"),
+            layout: &view_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: view_buffer.as_entire_binding(),
+            }],
+        });
 
         let format: TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
@@ -150,7 +287,7 @@ impl ApplicationHandler for App {
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&view_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -160,7 +297,7 @@ impl ApplicationHandler for App {
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[],
+                buffers: &[render::Instance::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(FragmentState {
@@ -178,6 +315,28 @@ impl ApplicationHandler for App {
             multisample: MultisampleState::default(),
             multiview: Default::default(),
             cache: Default::default(),
+        });
+
+        let vertices = 0;
+
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
+        });
+
+        let instances = 0;
+
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
 
         self.queue = queue;

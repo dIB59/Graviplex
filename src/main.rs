@@ -2,7 +2,8 @@ use crate::app::App;
 use winit::error::EventLoopError;
 use winit::event_loop::{ControlFlow, EventLoop};
 
-mod app;
+pub mod app;
+pub mod render;
 
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();
