@@ -35,9 +35,8 @@ impl<'a> State<'a> {
 
         let device_descriptor = wgpu::DeviceDescriptor {
             required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
             label: Some("Device"),
-            memory_hints: Default::default(),
+            ..Default::default()
         };
         let (device, queue) = adapter
             .request_device(&device_descriptor, None)
@@ -151,7 +150,7 @@ async fn run() {
     glfw.window_hint(WindowHint::ClientApi(ClientApiHint::NoApi));
     let (mut window, events) =
         glfw.create_window(
-            800, 600, "It's WGPU time.",
+            800, 800, "It's WGPU time.",
             glfw::WindowMode::Windowed).unwrap();
 
     let mut state = State::new(&mut window).await;
