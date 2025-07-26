@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use crate::render;
@@ -29,7 +30,7 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let instance = Instance::new(InstanceDescriptor::default());
+        let instance = Instance::new(&InstanceDescriptor::default());
 
         let view = View {
             position: Vec2::zero(),
@@ -43,17 +44,14 @@ impl Default for App {
             force_fallback_adapter: false,
             compatible_surface: None,
         }))
-            .expect("Unable to create adapter");
+        .expect("Unable to create adapter");
 
         let (device, queue) = adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: Some("Device Descriptor"),
-                    required_limits: Limits::default(),
-                    ..Default::default()
-                },
-                None,
-            )
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                ..Default::default()
+            })
             .block_on()
             .expect("Unable to create device");
 
@@ -88,47 +86,43 @@ impl Default for App {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Pipeline Layout"),
-                bind_group_layouts: &[&view_bind_group_layout],
-                push_constant_ranges: &[],
-            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Pipeline Layout"),
+            bind_group_layouts: &[&view_bind_group_layout],
+            push_constant_ranges: &[],
+        });
 
-
-        let render_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("Render Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    buffers: &[render::Instance::desc()],
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(FragmentState {
-                    module: &shader,
-                    entry_point: Some("fs_main"),
-                    targets: &[Some(ColorTargetState {
-                        format: TextureFormat::Bgra8UnormSrgb,
-                        blend: Some(BlendState::REPLACE),
-                        write_mask: ColorWrites::all(),
-                    })],
-                    compilation_options: Default::default(),
-                }),
-                primitive: PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: MultisampleState::default(),
-                multiview: Default::default(),
-                cache: Default::default(),
-            });
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[render::Instance::desc()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(ColorTargetState {
+                    format: TextureFormat::Bgra8UnormSrgb,
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::all(),
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            multiview: Default::default(),
+            cache: Default::default(),
+        });
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
             contents: bytemuck::cast_slice(&[view]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-
 
         let view_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -183,9 +177,9 @@ impl Default for App {
             queue,
             device,
             render_pipeline,
-            vertices: 0,
+            vertices: 3,
             vertex_buffer,
-            instances: 0,
+            instances: 1,
             instance_buffer,
             view,
             view_buffer,
@@ -209,7 +203,7 @@ impl ApplicationHandler for App {
 
         let size = self.window.as_ref().expect("window not found").inner_size();
 
-        let instance = Instance::new(InstanceDescriptor::default());
+        let instance = Instance::new(&InstanceDescriptor::default());
 
         let surface = instance
             .create_surface(self.window.clone().expect("window not found"))
@@ -220,17 +214,14 @@ impl ApplicationHandler for App {
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
         }))
-            .expect("Unable to create adapter");
+        .expect("Unable to create adapter");
 
         let (device, queue) = adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: Some("Device Descriptor"),
-                    required_limits: Limits::default(),
-                    ..Default::default()
-                },
-                Option::None,
-            )
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                ..Default::default()
+            })
             .block_on()
             .expect("Unable to create device");
 
@@ -303,8 +294,11 @@ impl App {
         pipeline: &RenderPipeline,
     ) {
         let frame = surface.get_current_texture().expect("Unable to get frame");
-        let view = frame.texture.create_view(&TextureViewDescriptor::default());
-
+        let tex_view = TextureViewDescriptor {
+            label: Some("CUSTOME TEXTURE VIEW DES"),
+            ..Default::default()
+        };
+        let view: TextureView = frame.texture.create_view(&tex_view);
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -313,6 +307,7 @@ impl App {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
+                    depth_slice: None,
                     view: &view,
                     resolve_target: None,
                     ops: Operations {
@@ -334,7 +329,6 @@ impl App {
             rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
             rpass.draw(0..3, 0..1);
         }
-
         queue.submit(std::iter::once(encoder.finish()));
         frame.present();
     }
