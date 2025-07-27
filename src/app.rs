@@ -9,7 +9,7 @@ use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window, WindowId};
+use winit::window::{self, Window, WindowId};
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -73,17 +73,6 @@ impl Default for App {
                     count: None,
                 }],
             });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("View Buffer"),
-            contents: bytemuck::cast_slice(&[View {
-                position: Vec2::zero(),
-                scale: 1.0,
-                x: 0,
-                y: 0,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
@@ -245,31 +234,6 @@ impl ApplicationHandler for App {
         };
 
         surface.configure(&device, &surface_config);
-
-        let instance = Instance::new(&InstanceDescriptor::default());
-
-        let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800,
-            y: 800,
-        };
-
-        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::LowPower,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        }))
-        .expect("Unable to create adapter");
-
-        let (device, queue) = adapter
-            .request_device(&DeviceDescriptor {
-                label: Some("Device Descriptor"),
-                required_limits: Limits::default(),
-                ..Default::default()
-            })
-            .block_on()
-            .expect("Unable to create device");
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -473,6 +437,7 @@ impl App {
             });
 
             rpass.set_pipeline(pipeline);
+            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
             rpass.draw(0..3, 0..1);
         }
