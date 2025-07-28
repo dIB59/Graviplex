@@ -1,5 +1,6 @@
 use ::ultraviolet::Vec2;
 use bytemuck::{NoUninit, Pod, Zeroable};
+use rand::Rng;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -17,12 +18,10 @@ unsafe impl Pod for View {}
 #[derive(Clone, Copy, NoUninit)]
 pub struct Vertex {
     pub pos: [f32; 2],
-    pub color: [u8; 4],
 }
 
 impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x2, 1 => Unorm8x4];
+    const ATTRIBS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
@@ -50,6 +49,20 @@ impl Instance {
             array_stride: std::mem::size_of::<Instance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
+        }
+    }
+
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        Instance {
+            position: [rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)],
+            radius: rng.gen_range(0.01..0.1),
+            color: [
+                rng.gen_range(0..=255),
+                rng.gen_range(0..=255),
+                rng.gen_range(0..=255),
+                255, // Fully opaque
+            ],
         }
     }
 }

@@ -17,7 +17,6 @@ var<uniform> view: View;
 
 struct VertexInput {
     @location(0) vertex_pos: vec2<f32>,         // Vertex.pos
-    @location(1) vertex_color: vec4<f32>,       // Vertex.color (Unorm8x4 → vec4<f32>)
 };
 
 struct InstanceInput {

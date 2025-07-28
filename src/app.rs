@@ -3,13 +3,14 @@ use std::sync::Arc;
 use crate::render::View;
 use crate::render::{self, Vertex};
 use pollster::FutureExt;
+use rand::Rng;
 use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{self, Window, WindowId};
+use winit::window::{Window, WindowId};
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -81,7 +82,7 @@ impl Default for App {
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("Render Pipeline Init"),
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &shader,
@@ -396,6 +397,28 @@ impl ApplicationHandler for App {
     }
 }
 
+pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
+    let mut rng = rand::rng();
+
+    // Base equilateral triangle around origin
+    let base_vertices = [
+        [0.0, size],
+        [size * 0.866, -size * 0.5], // 60° rotated
+        [-size * 0.866, -size * 0.5],
+    ];
+
+    let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
+
+    for (i, base) in base_vertices.iter().enumerate() {
+        let mut jitter = |v: f32| v + rng.random_range(-0.05..0.05);
+        let x = jitter(base[0]) + center[0];
+        let y = jitter(base[1]) + center[1];
+
+        vertices[i] = Vertex { pos: [x, y] };
+    }
+
+    vertices
+}
 impl App {
     fn render_frame(
         &self,
@@ -404,25 +427,15 @@ impl App {
         queue: &Queue,
         pipeline: &RenderPipeline,
     ) {
-        let vertices: &[Vertex] = &[
-            Vertex {
-                pos: [0.0, 0.5],
-                color: [1, 0, 0, 1],
-            },
-            Vertex {
-                pos: [0.5, -0.5],
-                color: [0, 1, 0, 1],
-            },
-            Vertex {
-                pos: [-0.5, -0.5],
-                color: [0, 0, 1, 1],
-            },
-        ];
-        let instances = &[render::Instance {
-            position: [0.0, 0.0],
-            radius: 1.0,
-            color: [1, 1, 1, 1],
-        }];
+        let mut vertices = Vec::new();
+        for _ in 0..100 {
+            vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
+        }
+        let mut instances = Vec::new();
+
+        for _ in 0..100 {
+            instances.push(render::Instance::random());
+        }
         let frame = surface.get_current_texture().expect("Unable to get frame");
         let tex_view = TextureViewDescriptor {
             label: Some("CUSTOME TEXTURE VIEW DES"),
@@ -455,13 +468,13 @@ impl App {
                 occlusion_query_set: Default::default(),
             });
 
-            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instances));
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
             rpass.set_pipeline(pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_vertex_buffer(1, self.instance_buffer.slice(..)); // per-instance
             rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
-            rpass.draw(0..3, 0..1);
+            rpass.draw(0..vertices.len() as u32, 0..instances.len() as u32);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
