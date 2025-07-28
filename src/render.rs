@@ -1,5 +1,5 @@
-use bytemuck::{Pod, Zeroable};
 use ::ultraviolet::Vec2;
+use bytemuck::{NoUninit, Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -14,9 +14,9 @@ unsafe impl Zeroable for View {}
 unsafe impl Pod for View {}
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, NoUninit)]
 pub struct Vertex {
-    pub pos: Vec2,
+    pub pos: [f32; 2],
     pub color: [u8; 4],
 }
 
@@ -24,7 +24,7 @@ impl Vertex {
     const ATTRIBS: [wgpu::VertexAttribute; 2] =
         wgpu::vertex_attr_array![0 => Float32x2, 1 => Unorm8x4];
 
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -34,16 +34,16 @@ impl Vertex {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, NoUninit, Debug)]
 pub struct Instance {
-    pub position: Vec2,
+    pub position: [f32; 2],
     pub radius: f32,
     pub color: [u8; 4],
 }
 
 impl Instance {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32, 2 => Unorm8x4];
+        wgpu::vertex_attr_array![2 => Float32x2, 3 => Float32, 4 => Unorm8x4];
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {

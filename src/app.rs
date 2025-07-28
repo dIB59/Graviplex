@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::render;
 use crate::render::View;
+use crate::render::{self, Vertex};
 use pollster::FutureExt;
 use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
@@ -86,7 +86,7 @@ impl Default for App {
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[render::Instance::desc()],
+                buffers: &[render::Vertex::desc(), render::Instance::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(FragmentState {
@@ -273,12 +273,12 @@ impl ApplicationHandler for App {
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("Render Pipeline Resumed"),
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[render::Instance::desc()],
+                buffers: &[render::Vertex::desc(), render::Instance::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(FragmentState {
@@ -404,6 +404,25 @@ impl App {
         queue: &Queue,
         pipeline: &RenderPipeline,
     ) {
+        let vertices: &[Vertex] = &[
+            Vertex {
+                pos: [0.0, 0.5],
+                color: [1, 0, 0, 1],
+            },
+            Vertex {
+                pos: [0.5, -0.5],
+                color: [0, 1, 0, 1],
+            },
+            Vertex {
+                pos: [-0.5, -0.5],
+                color: [0, 0, 1, 1],
+            },
+        ];
+        let instances = &[render::Instance {
+            position: [0.0, 0.0],
+            radius: 1.0,
+            color: [1, 1, 1, 1],
+        }];
         let frame = surface.get_current_texture().expect("Unable to get frame");
         let tex_view = TextureViewDescriptor {
             label: Some("CUSTOME TEXTURE VIEW DES"),
@@ -436,11 +455,15 @@ impl App {
                 occlusion_query_set: Default::default(),
             });
 
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
+            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instances));
             rpass.set_pipeline(pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..)); // per-instance
             rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
             rpass.draw(0..3, 0..1);
         }
+
         queue.submit(std::iter::once(encoder.finish()));
         frame.present();
     }

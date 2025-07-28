@@ -16,13 +16,14 @@ struct View {
 var<uniform> view: View;
 
 struct VertexInput {
-    @builtin(vertex_index) index: u32
+    @location(0) vertex_pos: vec2<f32>,         // Vertex.pos
+    @location(1) vertex_color: vec4<f32>,       // Vertex.color (Unorm8x4 → vec4<f32>)
 };
 
 struct InstanceInput {
-    @location(0) position: vec2<f32>,
-    @location(1) radius: f32,
-    @location(2) color: vec4<f32>,
+    @location(2) position: vec2<f32>,
+    @location(3) radius: f32,
+    @location(4) color: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -39,39 +40,14 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    let x = (view.xy       ) & 0xffffu;
-    let y = (view.xy >> 16u) & 0xffffu;
-    let aspect = f32(y) / f32(x);
+    let world_pos = vertex.vertex_pos * instance.radius + instance.position;
+    let scale = view.scale;
+    let screen_pos = (world_pos - view.position) * scale;
 
-    // Local space
-    let local_space = VERTICES[vertex.index];
-
-    // If the circle is smaller than a pixel, we need to snap it to the pixel grid and make it larger
-    // This ensures that the circle never becomes invisible when zooming out or when the circle is very small
-    var position = instance.position;
-    var radius = instance.radius;
-    if radius * f32(y) < 1.414214 * view.scale {
-        let a = (position - view.position) / view.scale;
-        let b = (floor(a * f32(y)) + 0.5) / f32(y);
-        let c = b * view.scale + view.position;
-        position = c;
-        radius = 1.414214 * view.scale / f32(y);
-    }
-
-    // Object space -> World space
-    let world_space = local_space * radius + position;
-
-    // World space -> View space
-    let view_space = (world_space - view.position) / view.scale;
-
-    // View space -> Clip space
-    let clip_space = vec4<f32>(view_space.x * aspect, view_space.y, 0.0, 1.0);
-
-    // Return
-    out.clip_space  = clip_space;
-    out.local_space = local_space;
-    out.color       = vec4(pow(instance.color.rgb, vec3(2.2)), instance.color.a);
-    out.pixel_size  = view.scale / (radius * f32(y));
+    out.clip_space = vec4<f32>(screen_pos, 0.0, 1.0);
+    out.local_space = vertex.vertex_pos; // [-1..1] triangle space
+    out.color = instance.color;
+    out.pixel_size = 1.0 / scale; // optional
     return out;
 }
 
