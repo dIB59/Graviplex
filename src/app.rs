@@ -410,7 +410,7 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
     let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
 
     for (i, base) in base_vertices.iter().enumerate() {
-        let mut jitter = |v: f32| v + rng.random_range(-0.05..0.05);
+        let mut jitter = |v: f32| v + rng.gen_range(-0.05..0.05);
         let x = jitter(base[0]) + center[0];
         let y = jitter(base[1]) + center[1];
 
@@ -428,9 +428,7 @@ impl App {
         pipeline: &RenderPipeline,
     ) {
         let mut vertices = Vec::new();
-        for _ in 0..100 {
-            vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
-        }
+        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
 
         for _ in 0..100 {

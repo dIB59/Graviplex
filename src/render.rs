@@ -53,10 +53,10 @@ impl Instance {
     }
 
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Instance {
-            position: [rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)],
-            radius: rng.gen_range(0.01..0.1),
+            position: [rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)],
+            radius: rng.gen_range(0.1..1.0),
             color: [
                 rng.gen_range(0..=255),
                 rng.gen_range(0..=255),
