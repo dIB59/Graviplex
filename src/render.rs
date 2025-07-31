@@ -56,13 +56,22 @@ impl Instance {
         let mut rng = rand::rng();
         Instance {
             position: [rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)],
-            radius: rng.gen_range(0.1..1.0),
+            radius: rng.gen_range(0.01..0.05),
             color: [
                 rng.gen_range(0..=255),
                 rng.gen_range(0..=255),
                 rng.gen_range(0..=255),
                 255, // Fully opaque
             ],
+        }
+    }
+
+    pub fn default() -> Self {
+        let mut rng = rand::rng();
+        Instance {
+            position: [0.0, 0.0],
+            radius: 0.1,
+            color: [1, 1, 1, 1],
         }
     }
 }

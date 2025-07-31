@@ -431,8 +431,8 @@ impl App {
         vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
 
-        for _ in 0..100 {
-            instances.push(render::Instance::random());
+        for _ in 0..1_512_000 {
+            instances.push(render::Instance::default());
         }
         let frame = surface.get_current_texture().expect("Unable to get frame");
         let tex_view = TextureViewDescriptor {
