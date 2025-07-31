@@ -252,49 +252,6 @@ impl ApplicationHandler for App {
                 }],
             });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("View Buffer"),
-            contents: bytemuck::cast_slice(&[View {
-                position: Vec2::zero(),
-                scale: 1.0,
-                x: 0,
-                y: 0,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&view_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline Resumed"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[render::Vertex::desc(), render::Instance::desc()],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
-                    blend: Some(BlendState::REPLACE),
-                    write_mask: ColorWrites::all(),
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            multiview: Default::default(),
-            cache: Default::default(),
-        });
-
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
             contents: bytemuck::cast_slice(&[view]),
@@ -345,6 +302,38 @@ impl ApplicationHandler for App {
                     size: None,
                 }),
             }],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Pipeline Layout"),
+            bind_group_layouts: &[&view_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline Resumed"),
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[render::Vertex::desc(), render::Instance::desc()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(ColorTargetState {
+                    format: TextureFormat::Bgra8UnormSrgb,
+                    blend: Some(BlendState::REPLACE),
+                    write_mask: ColorWrites::all(),
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            multiview: Default::default(),
+            cache: Default::default(),
         });
 
         self.config = Some(surface_config);
@@ -427,8 +416,8 @@ impl App {
         vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
 
-        for _ in 0..1_512_000 {
-            instances.push(render::Instance::default());
+        for _ in 0..5_000 {
+            instances.push(render::Instance::random());
         }
         let frame = surface.get_current_texture().expect("Unable to get frame");
         let tex_view = TextureViewDescriptor {
