@@ -15,7 +15,7 @@ unsafe impl Zeroable for View {}
 unsafe impl Pod for View {}
 
 #[repr(C)]
-#[derive(Clone, Copy, NoUninit)]
+#[derive(Clone, Copy, NoUninit, Debug)]
 pub struct Vertex {
     pub pos: [f32; 2],
 }
@@ -42,7 +42,7 @@ pub struct Instance {
 
 impl Instance {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![2 => Float32x2, 3 => Float32, 4 => Unorm8x4];
+        wgpu::vertex_attr_array![1 => Float32x2, 2 => Float32, 3 => Unorm8x4];
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
