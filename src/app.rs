@@ -49,6 +49,7 @@ impl Default for App {
             .request_device(&DeviceDescriptor {
                 label: Some("Device Descriptor"),
                 required_limits: Limits::default(),
+                required_features: Features::SHADER_F16,
                 ..Default::default()
             })
             .block_on()
