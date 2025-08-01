@@ -1,7 +1,10 @@
 use std::{borrow::Cow, env::current_dir};
 
 use log::{debug, warn};
-use wgpu::{ShaderModuleDescriptor, ShaderSource};
+use wgpu::{
+    BlendState, ColorTargetState, ColorWrites, FragmentState, ShaderModuleDescriptor, ShaderSource,
+    TextureFormat,
+};
 
 pub struct PipelineBuilder<'a> {
     device: &'a wgpu::Device,
@@ -77,7 +80,7 @@ Default shader values may be used unintentionally."
         }
         let mut filepath = current_dir().unwrap();
         filepath.push(self.shader_filename.as_str());
-        let filepath = filepath.into_os_string().into_string().unwrap();
+        let filepath = &filepath.into_os_string().into_string().unwrap();
         debug!("{}", filepath);
 
         let shader_module = self.device.create_shader_module(ShaderModuleDescriptor {
@@ -113,23 +116,13 @@ Default shader values may be used unintentionally."
                 compilation_options: Default::default(),
             },
 
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-
-            fragment: Some(wgpu::FragmentState {
+            primitive: wgpu::PrimitiveState::default(),
+            fragment: Some(FragmentState {
                 module: &shader_module,
                 entry_point: Some(&self.fragment_entry),
                 targets: &render_targets,
                 compilation_options: Default::default(),
             }),
-
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
                 count: 1,
@@ -139,7 +132,6 @@ Default shader values may be used unintentionally."
             multiview: None,
             cache: Default::default(),
         };
-        println!("{:?}", self.vertex_buffer_layouts[1]);
 
         self.device
             .create_render_pipeline(&render_pipeline_descriptor)
