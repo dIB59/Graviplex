@@ -67,7 +67,6 @@ impl Instance {
     }
 
     pub fn default() -> Self {
-        let rng = rand::rng();
         Instance {
             position: [0.0, 0.0],
             radius: 0.1,

@@ -31,13 +31,6 @@ impl Default for App {
     fn default() -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
-        let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800,
-            y: 800,
-        };
-
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::LowPower,
             force_fallback_adapter: false,
@@ -54,11 +47,6 @@ impl Default for App {
             })
             .block_on()
             .expect("Unable to create device");
-
-        let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
 
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
@@ -77,6 +65,13 @@ impl Default for App {
             size: 1 << 28,
             mapped_at_creation: false,
         });
+
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: 800,
+            y: 800,
+        };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
@@ -171,13 +166,6 @@ impl ApplicationHandler for App {
             .block_on()
             .expect("Unable to create device");
 
-        let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800u16,
-            y: 800u16,
-        };
-
         let format: TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
         let surface_config = SurfaceConfiguration {
@@ -192,11 +180,30 @@ impl ApplicationHandler for App {
         };
 
         surface.configure(&device, &surface_config);
-
-        let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
+
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
+        });
+
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: 800u16,
+            y: 800u16,
+        };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
@@ -219,24 +226,6 @@ impl ApplicationHandler for App {
                 }],
             });
 
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
         let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("View Bind Group"),
             layout: &view_bind_group_layout,
@@ -254,6 +243,7 @@ impl ApplicationHandler for App {
             .add_bind_group_layout(&view_bind_group_layout)
             .add_vertex_buffer_layout(render::Vertex::desc())
             .add_vertex_buffer_layout(render::Instance::desc())
+            .set_pixel_format(format)
             .build_pipeline();
 
         self.config = Some(surface_config);
@@ -303,8 +293,6 @@ impl ApplicationHandler for App {
 }
 
 pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
-    let mut rng = rand::rng();
-
     // Base equilateral triangle around origin
     let base_vertices = [
         [0.0, size],
@@ -315,7 +303,8 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
     let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
 
     for (i, base) in base_vertices.iter().enumerate() {
-        let mut jitter = |v: f32| v + rng.gen_range(-0.05..0.05);
+        let mut rng = rand::rng();
+        let mut jitter = |v: f32| v + rng.gen_range(-0.15..0.15);
         let x = jitter(base[0]) + center[0];
         let y = jitter(base[1]) + center[1];
 
