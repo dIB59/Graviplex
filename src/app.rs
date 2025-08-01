@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::render::View;
 use crate::render::{self, Vertex};
-use crate::render_backend;
 use crate::render_backend::pipeline_builder::PipelineBuilder;
 use pollster::FutureExt;
 use rand::Rng;

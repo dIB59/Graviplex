@@ -1,10 +1,7 @@
 use std::{borrow::Cow, env::current_dir};
 
 use log::{debug, warn};
-use wgpu::{
-    BlendState, ColorTargetState, ColorWrites, FragmentState, ShaderModuleDescriptor, ShaderSource,
-    TextureFormat,
-};
+use wgpu::{FragmentState, ShaderModuleDescriptor};
 
 pub struct PipelineBuilder<'a> {
     device: &'a wgpu::Device,
