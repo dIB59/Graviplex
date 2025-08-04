@@ -38,11 +38,23 @@ impl Default for App {
         }))
         .expect("Unable to create adapter");
 
+        #[cfg(target_os = "macos")]
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: Some("Device Descriptor"),
                 required_limits: Limits::default(),
                 required_features: Features::SHADER_F16,
+                ..Default::default()
+            })
+            .block_on()
+            .expect("Unable to create device");
+
+        #[cfg(target_os = "windows")]
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                required_features: Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION,
                 ..Default::default()
             })
             .block_on()
@@ -302,9 +314,9 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
 
+    let mut rng = rand::rng();
     for (i, base) in base_vertices.iter().enumerate() {
-        let mut rng = rand::rng();
-        let mut jitter = |v: f32| v + rng.gen_range(-0.15..0.15);
+        let mut jitter = |v: f32| v + rng.random_range(-0.25..0.25);
         let x = jitter(base[0]) + center[0];
         let y = jitter(base[1]) + center[1];
 
@@ -313,6 +325,7 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     vertices
 }
+
 impl App {
     fn render_frame(
         &self,
