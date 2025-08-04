@@ -4,6 +4,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 pub mod app;
 pub mod render;
+pub mod render_backend;
 
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();

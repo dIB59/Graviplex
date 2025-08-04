@@ -15,7 +15,7 @@ unsafe impl Zeroable for View {}
 unsafe impl Pod for View {}
 
 #[repr(C)]
-#[derive(Clone, Copy, NoUninit)]
+#[derive(Clone, Copy, NoUninit, Debug)]
 pub struct Vertex {
     pub pos: [f32; 2],
 }
@@ -42,7 +42,7 @@ pub struct Instance {
 
 impl Instance {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![2 => Float32x2, 3 => Float32, 4 => Unorm8x4];
+        wgpu::vertex_attr_array![1 => Float32x2, 2 => Float32, 3 => Unorm8x4];
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
@@ -53,16 +53,24 @@ impl Instance {
     }
 
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Instance {
-            position: [rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)],
-            radius: rng.gen_range(0.01..0.1),
+            position: [rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)],
+            radius: rng.gen_range(0.01..0.05),
             color: [
                 rng.gen_range(0..=255),
                 rng.gen_range(0..=255),
                 rng.gen_range(0..=255),
                 255, // Fully opaque
             ],
+        }
+    }
+
+    pub fn default() -> Self {
+        Instance {
+            position: [0.0, 0.0],
+            radius: 0.1,
+            color: [1, 1, 1, 1],
         }
     }
 }

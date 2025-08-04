@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::render::View;
 use crate::render::{self, Vertex};
+use crate::render_backend::pipeline_builder::PipelineBuilder;
 use pollster::FutureExt;
 use rand::Rng;
 use ultraviolet::Vec2;
@@ -19,9 +20,7 @@ pub struct App {
     queue: Queue,
     device: Device,
     render_pipeline: RenderPipeline,
-    vertices: u32,
     vertex_buffer: wgpu::Buffer,
-    instances: u32,
     instance_buffer: wgpu::Buffer,
     view: View,
     view_buffer: wgpu::Buffer,
@@ -32,13 +31,6 @@ impl Default for App {
     fn default() -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
-        let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800,
-            y: 800,
-        };
-
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::LowPower,
             force_fallback_adapter: false,
@@ -46,66 +38,52 @@ impl Default for App {
         }))
         .expect("Unable to create adapter");
 
+        #[cfg(target_os = "macos")]
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 label: Some("Device Descriptor"),
                 required_limits: Limits::default(),
+                required_features: Features::SHADER_F16,
                 ..Default::default()
             })
             .block_on()
             .expect("Unable to create device");
 
-        let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        #[cfg(target_os = "windows")]
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                required_features: Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION,
+                ..Default::default()
+            })
+            .block_on()
+            .expect("Unable to create device");
+
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
 
-        let view_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("View Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&view_bind_group_layout],
-            push_constant_ranges: &[],
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline Init"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[render::Vertex::desc(), render::Instance::desc()],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
-                    blend: Some(BlendState::REPLACE),
-                    write_mask: ColorWrites::all(),
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            multiview: Default::default(),
-            cache: Default::default(),
-        });
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: 800,
+            y: 800,
+        };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
@@ -128,24 +106,6 @@ impl Default for App {
                 }],
             });
 
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
         let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("View Bind Group"),
             layout: &view_bind_group_layout,
@@ -159,6 +119,12 @@ impl Default for App {
             }],
         });
 
+        let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
+            .add_bind_group_layout(&view_bind_group_layout)
+            .add_vertex_buffer_layout(render::Vertex::desc())
+            .add_vertex_buffer_layout(render::Instance::desc())
+            .build_pipeline();
+
         Self {
             window: None,
             surface: None,
@@ -166,9 +132,7 @@ impl Default for App {
             queue,
             device,
             render_pipeline,
-            vertices: 3,
             vertex_buffer,
-            instances: 1,
             instance_buffer,
             view,
             view_buffer,
@@ -214,13 +178,6 @@ impl ApplicationHandler for App {
             .block_on()
             .expect("Unable to create device");
 
-        let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800u16,
-            y: 800u16,
-        };
-
         let format: TextureFormat = surface.get_capabilities(&adapter).formats[0];
 
         let surface_config = SurfaceConfiguration {
@@ -235,69 +192,30 @@ impl ApplicationHandler for App {
         };
 
         surface.configure(&device, &surface_config);
-
-        let shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
 
-        let view_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("View Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("View Buffer"),
-            contents: bytemuck::cast_slice(&[View {
-                position: Vec2::zero(),
-                scale: 1.0,
-                x: 0,
-                y: 0,
-            }]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Instance Buffer"),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST,
+            size: 1 << 28,
+            mapped_at_creation: false,
         });
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&view_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline Resumed"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[render::Vertex::desc(), render::Instance::desc()],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: TextureFormat::Bgra8UnormSrgb,
-                    blend: Some(BlendState::REPLACE),
-                    write_mask: ColorWrites::all(),
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            multiview: Default::default(),
-            cache: Default::default(),
-        });
+        let view = View {
+            position: Vec2::zero(),
+            scale: 1.0,
+            x: 800u16,
+            y: 800u16,
+        };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("View Buffer"),
@@ -320,24 +238,6 @@ impl ApplicationHandler for App {
                 }],
             });
 
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::VERTEX
-                | wgpu::BufferUsages::COPY_DST,
-            size: 1 << 28,
-            mapped_at_creation: false,
-        });
-
         let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("View Bind Group"),
             layout: &view_bind_group_layout,
@@ -350,6 +250,13 @@ impl ApplicationHandler for App {
                 }),
             }],
         });
+
+        let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
+            .add_bind_group_layout(&view_bind_group_layout)
+            .add_vertex_buffer_layout(render::Vertex::desc())
+            .add_vertex_buffer_layout(render::Instance::desc())
+            .set_pixel_format(format)
+            .build_pipeline();
 
         self.config = Some(surface_config);
         self.surface = Some(surface);
@@ -398,8 +305,6 @@ impl ApplicationHandler for App {
 }
 
 pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
-    let mut rng = rand::rng();
-
     // Base equilateral triangle around origin
     let base_vertices = [
         [0.0, size],
@@ -409,8 +314,9 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
 
+    let mut rng = rand::rng();
     for (i, base) in base_vertices.iter().enumerate() {
-        let mut jitter = |v: f32| v + rng.random_range(-0.05..0.05);
+        let mut jitter = |v: f32| v + rng.random_range(-0.25..0.25);
         let x = jitter(base[0]) + center[0];
         let y = jitter(base[1]) + center[1];
 
@@ -419,6 +325,7 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     vertices
 }
+
 impl App {
     fn render_frame(
         &self,
@@ -428,12 +335,10 @@ impl App {
         pipeline: &RenderPipeline,
     ) {
         let mut vertices = Vec::new();
-        for _ in 0..100 {
-            vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
-        }
+        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
 
-        for _ in 0..100 {
+        for _ in 0..5_000 {
             instances.push(render::Instance::random());
         }
         let frame = surface.get_current_texture().expect("Unable to get frame");
