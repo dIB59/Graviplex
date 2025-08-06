@@ -4,14 +4,13 @@ var<private> VERTICES: array<vec2<f32>, 3> = array<vec2<f32>, 3>(
     vec2<f32>( 0.0   , 2.0),
 );
 
-// Vertex shader
 struct View {
     position: vec2<f32>,
     scale: f32,
-    xy: u32,
-};
+    screen_size: vec2<f32>,  // Changed from xy: u32 to screen_size: vec2<f32>
+}
 
-@group(0)
+;@group(0)
 @binding(0)
 var<uniform> view: View;
 
@@ -39,17 +38,20 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
+    // Transform to world space
     let world_pos = vertex.vertex_pos * instance.radius + instance.position;
-    let scale = view.scale;
-    let screen_pos = (world_pos - view.position) * scale;
-
-    out.clip_space = vec4<f32>(screen_pos, 0.0, 1.0);
-    out.local_space = vertex.vertex_pos; // [-1..1] triangle space
+    
+    // Apply camera transformation
+    let camera_space = (world_pos - view.position) * view.scale;
+    
+    let ndc = camera_space / (view.screen_size * 0.5);
+    
+    out.clip_space = vec4<f32>(ndc, 0.0, 1.0);
+    out.local_space = vertex.vertex_pos;
     out.color = instance.color;
-    out.pixel_size = 1.0 / scale; // optional
+    out.pixel_size = 1.0 / view.scale;
     return out;
 }
-
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

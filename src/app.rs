@@ -1,3 +1,4 @@
+use std::collections::{hash_set, HashSet};
 use std::sync::Arc;
 
 use crate::render::View;
@@ -9,8 +10,9 @@ use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 
 pub struct App {
@@ -25,6 +27,10 @@ pub struct App {
     view: View,
     view_buffer: wgpu::Buffer,
     view_bind_group: wgpu::BindGroup,
+    last_frame_time: std::time::Instant,
+    pressed_keys: hash_set::HashSet<KeyCode>,
+    camera_speed: f32,
+    zoom_speed: f32,
 }
 
 impl Default for App {
@@ -79,10 +85,10 @@ impl Default for App {
         });
 
         let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800,
-            y: 800,
+            position: [0.0, 0.0],
+            scale: 400.0,
+            _padding: 0.0,
+            screen_size: [800.0, 800.0],
         };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -137,6 +143,10 @@ impl Default for App {
             view,
             view_buffer,
             view_bind_group,
+            last_frame_time: std::time::Instant::now(),
+            pressed_keys: HashSet::new(),
+            camera_speed: 5.0, // Units per second
+            zoom_speed: 1.1,   // Zoom factor per scroll step
         }
     }
 }
@@ -211,10 +221,10 @@ impl ApplicationHandler for App {
         });
 
         let view = View {
-            position: Vec2::zero(),
-            scale: 1.0,
-            x: 800u16,
-            y: 800u16,
+            position: [0.0, 0.0],
+            scale: 400.0,
+            _padding: 0.0,
+            screen_size: [800.0, 800.0],
         };
 
         let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -268,6 +278,7 @@ impl ApplicationHandler for App {
         self.view_bind_group = view_bind_group;
         self.vertex_buffer = vertex_buffer;
         self.instance_buffer = instance_buffer;
+        self.last_frame_time = std::time::Instant::now();
     }
 
     fn window_event(
@@ -290,16 +301,28 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let (Some(surface), device, queue, pipeline) = (
-                    &self.surface,
-                    &self.device,
-                    &self.queue,
-                    &self.render_pipeline,
-                ) {
-                    self.render_frame(surface, device, queue, pipeline);
+                // Check if surface exists first
+                if self.surface.is_some() {
+                    // Move render_frame call here to avoid borrowing conflicts
+                    self.render_frame();
                 }
             }
+            WindowEvent::KeyboardInput { event, .. } => {
+                println!("{:?}", event);
+                self.handle_keyboard_input(event);
+            }
+            // Handle mouse scroll for zooming
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.handle_scroll(delta);
+            }
             _ => (),
+        }
+    }
+
+    // Make sure to request redraws continuously for smooth movement
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
         }
     }
 }
@@ -327,13 +350,10 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 }
 
 impl App {
-    fn render_frame(
-        &self,
-        surface: &Surface,
-        device: &Device,
-        queue: &Queue,
-        pipeline: &RenderPipeline,
-    ) {
+    fn render_frame(&mut self) {
+        {
+            self.update_camera_from_input();
+        }
         let mut vertices = Vec::new();
         vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
@@ -341,15 +361,22 @@ impl App {
         for _ in 0..5_000 {
             instances.push(render::Instance::random());
         }
-        let frame = surface.get_current_texture().expect("Unable to get frame");
+        let frame = self
+            .surface
+            .as_ref()
+            .expect("wos")
+            .get_current_texture()
+            .expect("Unable to get frame");
         let tex_view = TextureViewDescriptor {
             label: Some("CUSTOME TEXTURE VIEW DES"),
             ..Default::default()
         };
         let view: TextureView = frame.texture.create_view(&tex_view);
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -373,16 +400,117 @@ impl App {
                 occlusion_query_set: Default::default(),
             });
 
-            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
-            rpass.set_pipeline(pipeline);
+            self.queue
+                .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+            self.queue
+                .write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+            rpass.set_pipeline(&self.render_pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_vertex_buffer(1, self.instance_buffer.slice(..)); // per-instance
             rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
             rpass.draw(0..vertices.len() as u32, 0..instances.len() as u32);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+    }
+
+    // Process input and update camera
+    fn update_camera_from_input(&mut self) {
+        let now = std::time::Instant::now();
+        let delta_time = now.duration_since(self.last_frame_time).as_secs_f32();
+        self.last_frame_time = now;
+
+        // Calculate movement speed - use a more reasonable formula
+        // Base speed that feels good, adjusted for zoom level
+        let base_speed = 200.0; // Much higher base speed
+        let movement_speed = base_speed / self.view.scale * delta_time;
+
+        println!(
+            "Delta time: {:.4}, Movement speed: {:.6}, Scale: {:.2}",
+            delta_time, movement_speed, self.view.scale
+        );
+        println!("Pressed keys: {:?}", self.pressed_keys);
+
+        let mut movement = [0.0f32; 2];
+
+        // WASD movement - removed the extra multipliers for now
+        if self.pressed_keys.contains(&KeyCode::KeyW) {
+            movement[1] += movement_speed;
+            log::debug!("Moving UP: {}", movement_speed);
+        }
+        if self.pressed_keys.contains(&KeyCode::KeyS) {
+            movement[1] -= movement_speed;
+            log::debug!("Moving DOWN: {}", movement_speed);
+        }
+        if self.pressed_keys.contains(&KeyCode::KeyA) {
+            movement[0] -= movement_speed;
+            log::debug!("Moving LEFT: {}", movement_speed);
+        }
+        if self.pressed_keys.contains(&KeyCode::KeyD) {
+            movement[0] += movement_speed;
+            log::debug!("Moving RIGHT: {}", movement_speed);
+        }
+
+        // Apply movement
+        if movement[0] != 0.0 || movement[1] != 0.0 {
+            let old_pos = self.view.position;
+            self.view.position[0] += movement[0];
+            self.view.position[1] += movement[1];
+
+            log::debug!(
+                "Camera moved from [{:.4}, {:.4}] to [{:.4}, {:.4}]",
+                old_pos[0],
+                old_pos[1],
+                self.view.position[0],
+                self.view.position[1]
+            );
+
+            // Update the buffer
+            self.queue
+                .write_buffer(&self.view_buffer, 0, bytemuck::cast_slice(&[self.view]));
+        }
+    }
+    fn handle_scroll(&mut self, delta: MouseScrollDelta) {
+        let zoom_factor = match delta {
+            MouseScrollDelta::LineDelta(_, y) => {
+                if y > 0.0 {
+                    self.zoom_speed
+                } else {
+                    1.0 / self.zoom_speed
+                }
+            }
+            MouseScrollDelta::PixelDelta(pos) => {
+                let y = pos.y as f32;
+                if y > 0.0 {
+                    1.0 + (y * 0.01)
+                } else {
+                    1.0 / (1.0 + (-y * 0.01))
+                }
+            }
+        };
+
+        self.view.scale *= zoom_factor;
+
+        // Clamp zoom to reasonable bounds (higher max for Retina displays)
+        self.view.scale = self.view.scale.clamp(10.0, 5000.0);
+
+        // Update the buffer
+        self.queue
+            .write_buffer(&self.view_buffer, 0, bytemuck::cast_slice(&[self.view]));
+    }
+
+    // Handle key press/release
+    fn handle_keyboard_input(&mut self, event: KeyEvent) {
+        if let PhysicalKey::Code(keycode) = event.physical_key {
+            match event.state {
+                ElementState::Pressed => {
+                    self.pressed_keys.insert(keycode);
+                }
+                ElementState::Released => {
+                    self.pressed_keys.remove(&keycode);
+                }
+            }
+        }
     }
 }

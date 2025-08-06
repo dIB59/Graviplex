@@ -3,12 +3,12 @@ use bytemuck::{NoUninit, Pod, Zeroable};
 use rand::Rng;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct View {
-    pub(crate) position: Vec2,
-    pub(crate) scale: f32,
-    pub(crate) x: u16,
-    pub(crate) y: u16,
+    pub position: [f32; 2], // Changed from Vec2 to [f32; 2] for GPU compatibility
+    pub scale: f32,
+    pub _padding: f32, // Padding for proper GPU alignment (16-byte boundary)
+    pub screen_size: [f32; 2], // Changed from x,y u16 to screen_size [f32; 2] for shader
 }
 
 unsafe impl Zeroable for View {}
