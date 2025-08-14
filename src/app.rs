@@ -1,12 +1,11 @@
-use std::collections::{hash_set, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::camera::View;
+use crate::camera::{Camera2D, CameraController, CameraPlugin}; // Import the camera plugin
 use crate::render::{self, Vertex};
 use crate::render_backend::pipeline_builder::PipelineBuilder;
 use pollster::FutureExt;
 use rand::Rng;
-use wgpu::util::DeviceExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -23,11 +22,9 @@ pub struct App {
     render_pipeline: RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
-    view: View,
-    view_buffer: wgpu::Buffer,
-    view_bind_group: wgpu::BindGroup,
+    camera_plugin: CameraPlugin, // Replace view with camera plugin
     last_frame_time: std::time::Instant,
-    pressed_keys: hash_set::HashSet<KeyCode>,
+    pressed_keys: HashSet<KeyCode>,
 }
 
 impl Default for App {
@@ -81,49 +78,24 @@ impl Default for App {
             mapped_at_creation: false,
         });
 
-        let view = View {
-            position: [0.0, 0.0],
-            scale: 400.0,
-            zoom_speed: 1.0,
-            screen_size: [800.0, 800.0],
-        };
+        // Create camera plugin with custom settings
+        let camera = Camera2D::new([0.0, 0.0], 400.0)
+            .with_zoom_speed(1.1)
+            .with_screen_size([1200.0, 200.0]);
 
-        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("View Buffer"),
-            contents: bytemuck::cast_slice(&[view]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let controller = CameraController::new()
+            .with_move_speed(200.0)
+            .with_zoom_range(10.0, 5000.0);
 
-        let view_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("View Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
+        let mut camera_plugin = CameraPlugin::new()
+            .with_camera(camera)
+            .with_controller(controller);
 
-        let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("View Bind Group"),
-            layout: &view_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &view_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            }],
-        });
+        // Initialize GPU resources
+        camera_plugin.initialize_gpu_resources(&device);
 
         let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
-            .add_bind_group_layout(&view_bind_group_layout)
+            .add_bind_group_layout(camera_plugin.bind_group_layout())
             .add_vertex_buffer_layout(render::Vertex::desc())
             .add_vertex_buffer_layout(render::Instance::desc())
             .build_pipeline();
@@ -137,9 +109,7 @@ impl Default for App {
             render_pipeline,
             vertex_buffer,
             instance_buffer,
-            view,
-            view_buffer,
-            view_bind_group,
+            camera_plugin,
             last_frame_time: std::time::Instant::now(),
             pressed_keys: HashSet::new(),
         }
@@ -197,6 +167,7 @@ impl ApplicationHandler for App {
         };
 
         surface.configure(&device, &surface_config);
+
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
             usage: wgpu::BufferUsages::STORAGE
@@ -215,49 +186,23 @@ impl ApplicationHandler for App {
             mapped_at_creation: false,
         });
 
-        let view = View {
-            position: [0.0, 0.0],
-            scale: 400.0,
-            zoom_speed: 1.0,
-            screen_size: [800.0, 800.0],
-        };
+        // Reinitialize camera plugin for the new device
+        let camera = Camera2D::new([0.0, 0.0], 400.0)
+            .with_zoom_speed(1.1)
+            .with_screen_size([size.width as f32, size.height as f32]);
 
-        let view_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("View Buffer"),
-            contents: bytemuck::cast_slice(&[view]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let controller = CameraController::new()
+            .with_move_speed(200.0)
+            .with_zoom_range(10.0, 5000.0);
 
-        let view_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("View Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
+        let mut camera_plugin = CameraPlugin::new()
+            .with_camera(camera)
+            .with_controller(controller);
 
-        let view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("View Bind Group"),
-            layout: &view_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                    buffer: &view_buffer,
-                    offset: 0,
-                    size: None,
-                }),
-            }],
-        });
+        camera_plugin.initialize_gpu_resources(&device);
 
         let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
-            .add_bind_group_layout(&view_bind_group_layout)
+            .add_bind_group_layout(camera_plugin.bind_group_layout())
             .add_vertex_buffer_layout(render::Vertex::desc())
             .add_vertex_buffer_layout(render::Instance::desc())
             .set_pixel_format(format)
@@ -268,9 +213,7 @@ impl ApplicationHandler for App {
         self.queue = queue;
         self.device = device;
         self.render_pipeline = render_pipeline;
-        self.view = view;
-        self.view_buffer = view_buffer;
-        self.view_bind_group = view_bind_group;
+        self.camera_plugin = camera_plugin;
         self.vertex_buffer = vertex_buffer;
         self.instance_buffer = instance_buffer;
         self.last_frame_time = std::time::Instant::now();
@@ -293,29 +236,27 @@ impl ApplicationHandler for App {
                     config.height = size.height;
                     surface.configure(&self.device, &config);
                     self.config = Some(config);
+
+                    // Update camera screen size
+                    self.camera_plugin
+                        .handle_resize([size.width as f32, size.height as f32], &self.queue);
                 }
             }
             WindowEvent::RedrawRequested => {
-                // Check if surface exists first
                 if self.surface.is_some() {
-                    // Move render_frame call here to avoid borrowing conflicts
                     self.render_frame();
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                println!("{:?}", event);
                 self.handle_keyboard_input(event);
             }
-            // Handle mouse scroll for zooming
             WindowEvent::MouseWheel { delta, .. } => {
-                self.view
-                    .handle_scroll(delta, &self.queue, &self.view_buffer);
+                self.camera_plugin.handle_scroll(delta, &self.queue);
             }
             _ => (),
         }
     }
 
-    // Make sure to request redraws continuously for smooth movement
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {
         if let Some(window) = &self.window {
             window.request_redraw();
@@ -350,12 +291,11 @@ impl App {
         let now = std::time::Instant::now();
         let delta_time = now.duration_since(self.last_frame_time).as_secs_f32();
         self.last_frame_time = now;
-        self.view.update_from_input(
-            delta_time,
-            &self.pressed_keys,
-            &self.queue,
-            &self.view_buffer,
-        );
+
+        // Update camera through plugin
+        self.camera_plugin
+            .update(delta_time, &self.pressed_keys, &self.queue);
+
         let mut vertices = Vec::new();
         vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
@@ -363,17 +303,20 @@ impl App {
         for _ in 0..5_000 {
             instances.push(render::Instance::random());
         }
+
         let frame = self
             .surface
             .as_ref()
-            .expect("wos")
+            .expect("surface not available")
             .get_current_texture()
             .expect("Unable to get frame");
+
         let tex_view = TextureViewDescriptor {
-            label: Some("CUSTOME TEXTURE VIEW DES"),
+            label: Some("Custom Texture View"),
             ..Default::default()
         };
         let view: TextureView = frame.texture.create_view(&tex_view);
+
         let mut encoder = self
             .device
             .create_command_encoder(&CommandEncoderDescriptor {
@@ -406,10 +349,11 @@ impl App {
                 .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
             self.queue
                 .write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+
             rpass.set_pipeline(&self.render_pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..)); // per-instance
-            rpass.set_bind_group(0, &self.view_bind_group, &[]); // Bind the bind group at index 0
+            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            rpass.set_bind_group(0, self.camera_plugin.bind_group(), &[]); // Use camera plugin's bind group
             rpass.draw(0..vertices.len() as u32, 0..instances.len() as u32);
         }
 
@@ -417,7 +361,6 @@ impl App {
         frame.present();
     }
 
-    // Handle key press/release
     fn handle_keyboard_input(&mut self, event: KeyEvent) {
         if let PhysicalKey::Code(keycode) = event.physical_key {
             match event.state {
