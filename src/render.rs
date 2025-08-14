@@ -1,17 +1,5 @@
-use bytemuck::{NoUninit, Pod, Zeroable};
+use bytemuck::NoUninit;
 use rand::Rng;
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct View {
-    pub position: [f32; 2], // Changed from Vec2 to [f32; 2] for GPU compatibility
-    pub scale: f32,
-    pub zoom_speed: f32, // Padding for proper GPU alignment (16-byte boundary)
-    pub screen_size: [f32; 2], // Changed from x,y u16 to screen_size [f32; 2] for shader
-}
-
-unsafe impl Zeroable for View {}
-unsafe impl Pod for View {}
 
 #[repr(C)]
 #[derive(Clone, Copy, NoUninit, Debug)]
@@ -39,6 +27,16 @@ pub struct Instance {
     pub color: [u8; 4],
 }
 
+impl Default for Instance {
+    fn default() -> Self {
+        Instance {
+            position: [0.0, 0.0],
+            radius: 0.1,
+            color: [1, 1, 1, 1],
+        }
+    }
+}
+
 impl Instance {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
         wgpu::vertex_attr_array![1 => Float32x2, 2 => Float32, 3 => Unorm8x4];
@@ -62,14 +60,6 @@ impl Instance {
                 rng.gen_range(0..=255),
                 255, // Fully opaque
             ],
-        }
-    }
-
-    pub fn default() -> Self {
-        Instance {
-            position: [0.0, 0.0],
-            radius: 0.1,
-            color: [1, 1, 1, 1],
         }
     }
 }
