@@ -1,66 +1,63 @@
 use bytemuck::{Pod, Zeroable};
+use std::collections::HashSet;
 use wgpu::{Buffer, Queue};
 use winit::event::MouseScrollDelta;
+use winit::keyboard::KeyCode;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct View {
-    pub position: [f32; 2], // Changed from Vec2 to [f32; 2] for GPU compatibility
+    pub position: [f32; 2],
     pub scale: f32,
-    pub zoom_speed: f32, // Padding for proper GPU alignment (16-byte boundary)
-    pub screen_size: [f32; 2], // Changed from x,y u16 to screen_size [f32; 2] for shader
+    pub zoom_speed: f32,
+    pub screen_size: [f32; 2],
 }
 
 unsafe impl Zeroable for View {}
 unsafe impl Pod for View {}
 
 impl View {
+    /// Update camera position based on pressed keys and delta time.
     pub fn update_from_input(
         &mut self,
         delta_time: f32,
-        pressed_keys: &std::collections::HashSet<winit::keyboard::KeyCode>,
-        queue: &wgpu::Queue,
-        view_buffer: &wgpu::Buffer,
+        pressed_keys: &HashSet<KeyCode>,
+        queue: &Queue,
+        view_buffer: &Buffer,
     ) {
-        let base_speed = 2.0;
+        let base_speed = 200.0; // world units per second
         let movement_speed = base_speed / self.scale * delta_time;
 
         let mut movement = [0.0f32; 2];
-        use winit::keyboard::KeyCode::*;
-        if pressed_keys.contains(&KeyW) {
+        if pressed_keys.contains(&KeyCode::KeyW) {
             movement[1] += movement_speed;
         }
-        if pressed_keys.contains(&KeyS) {
+        if pressed_keys.contains(&KeyCode::KeyS) {
             movement[1] -= movement_speed;
         }
-        if pressed_keys.contains(&KeyA) {
+        if pressed_keys.contains(&KeyCode::KeyA) {
             movement[0] -= movement_speed;
         }
-        if pressed_keys.contains(&KeyD) {
+        if pressed_keys.contains(&KeyCode::KeyD) {
             movement[0] += movement_speed;
         }
 
         if movement != [0.0, 0.0] {
             self.position[0] += movement[0];
             self.position[1] += movement[1];
-
             queue.write_buffer(view_buffer, 0, bytemuck::cast_slice(&[*self]));
         }
     }
 
+    /// Apply a zoom multiplier and update GPU buffer.
     pub fn apply_zoom(&mut self, zoom_factor: f32, queue: &Queue, view_buffer: &Buffer) {
         self.scale *= zoom_factor;
         self.scale = self.scale.clamp(10.0, 5000.0);
-
         queue.write_buffer(view_buffer, 0, bytemuck::cast_slice(&[*self]));
     }
 
-    fn handle_scroll(
-        &mut self,
-        delta: MouseScrollDelta,
-        queue: &Queue,
-        view_buffer: &wgpu::Buffer,
-    ) {
+    /// Handle mouse scroll events for zoom.
+    pub fn handle_scroll(&mut self, delta: MouseScrollDelta, queue: &Queue, view_buffer: &Buffer) {
         let zoom_factor = match delta {
             MouseScrollDelta::LineDelta(_, y) => {
                 if y > 0.0 {
@@ -78,13 +75,6 @@ impl View {
                 }
             }
         };
-
-        self.scale *= zoom_factor;
-
-        // Clamp zoom to reasonable bounds (higher max for Retina displays)
-        self.scale = self.scale.clamp(10.0, 5000.0);
-
-        // Update the buffer
-        queue.write_buffer(view_buffer, 0, bytemuck::cast_slice(&[*self]));
+        self.apply_zoom(zoom_factor, queue, view_buffer);
     }
 }

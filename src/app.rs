@@ -1,16 +1,15 @@
 use std::collections::{hash_set, HashSet};
 use std::sync::Arc;
 
-use crate::render::View;
+use crate::camera::View;
 use crate::render::{self, Vertex};
 use crate::render_backend::pipeline_builder::PipelineBuilder;
 use pollster::FutureExt;
 use rand::Rng;
-use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
 use wgpu::*;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
@@ -29,8 +28,6 @@ pub struct App {
     view_bind_group: wgpu::BindGroup,
     last_frame_time: std::time::Instant,
     pressed_keys: hash_set::HashSet<KeyCode>,
-    camera_speed: f32,
-    zoom_speed: f32,
 }
 
 impl Default for App {
@@ -145,8 +142,6 @@ impl Default for App {
             view_bind_group,
             last_frame_time: std::time::Instant::now(),
             pressed_keys: HashSet::new(),
-            camera_speed: 5.0, // Units per second
-            zoom_speed: 1.1,   // Zoom factor per scroll step
         }
     }
 }
@@ -313,14 +308,15 @@ impl ApplicationHandler for App {
             }
             // Handle mouse scroll for zooming
             WindowEvent::MouseWheel { delta, .. } => {
-                self.handle_scroll(delta);
+                self.view
+                    .handle_scroll(delta, &self.queue, &self.view_buffer);
             }
             _ => (),
         }
     }
 
     // Make sure to request redraws continuously for smooth movement
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, _: &ActiveEventLoop) {
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -351,9 +347,15 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
 impl App {
     fn render_frame(&mut self) {
-        {
-            self.update_camera_from_input();
-        }
+        let now = std::time::Instant::now();
+        let delta_time = now.duration_since(self.last_frame_time).as_secs_f32();
+        self.last_frame_time = now;
+        self.view.update_from_input(
+            delta_time,
+            &self.pressed_keys,
+            &self.queue,
+            &self.view_buffer,
+        );
         let mut vertices = Vec::new();
         vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
         let mut instances = Vec::new();
@@ -413,91 +415,6 @@ impl App {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
-    }
-
-    // Process input and update camera
-    fn update_camera_from_input(&mut self) {
-        let now = std::time::Instant::now();
-        let delta_time = now.duration_since(self.last_frame_time).as_secs_f32();
-        self.last_frame_time = now;
-
-        // Calculate movement speed - use a more reasonable formula
-        // Base speed that feels good, adjusted for zoom level
-        let base_speed = 200.0; // Much higher base speed
-        let movement_speed = base_speed / self.view.scale * delta_time;
-
-        println!(
-            "Delta time: {:.4}, Movement speed: {:.6}, Scale: {:.2}",
-            delta_time, movement_speed, self.view.scale
-        );
-        println!("Pressed keys: {:?}", self.pressed_keys);
-
-        let mut movement = [0.0f32; 2];
-
-        // WASD movement - removed the extra multipliers for now
-        if self.pressed_keys.contains(&KeyCode::KeyW) {
-            movement[1] += movement_speed;
-            log::debug!("Moving UP: {}", movement_speed);
-        }
-        if self.pressed_keys.contains(&KeyCode::KeyS) {
-            movement[1] -= movement_speed;
-            log::debug!("Moving DOWN: {}", movement_speed);
-        }
-        if self.pressed_keys.contains(&KeyCode::KeyA) {
-            movement[0] -= movement_speed;
-            log::debug!("Moving LEFT: {}", movement_speed);
-        }
-        if self.pressed_keys.contains(&KeyCode::KeyD) {
-            movement[0] += movement_speed;
-            log::debug!("Moving RIGHT: {}", movement_speed);
-        }
-
-        // Apply movement
-        if movement[0] != 0.0 || movement[1] != 0.0 {
-            let old_pos = self.view.position;
-            self.view.position[0] += movement[0];
-            self.view.position[1] += movement[1];
-
-            log::debug!(
-                "Camera moved from [{:.4}, {:.4}] to [{:.4}, {:.4}]",
-                old_pos[0],
-                old_pos[1],
-                self.view.position[0],
-                self.view.position[1]
-            );
-
-            // Update the buffer
-            self.queue
-                .write_buffer(&self.view_buffer, 0, bytemuck::cast_slice(&[self.view]));
-        }
-    }
-    fn handle_scroll(&mut self, delta: MouseScrollDelta) {
-        let zoom_factor = match delta {
-            MouseScrollDelta::LineDelta(_, y) => {
-                if y > 0.0 {
-                    self.zoom_speed
-                } else {
-                    1.0 / self.zoom_speed
-                }
-            }
-            MouseScrollDelta::PixelDelta(pos) => {
-                let y = pos.y as f32;
-                if y > 0.0 {
-                    1.0 + (y * 0.01)
-                } else {
-                    1.0 / (1.0 + (-y * 0.01))
-                }
-            }
-        };
-
-        self.view.scale *= zoom_factor;
-
-        // Clamp zoom to reasonable bounds (higher max for Retina displays)
-        self.view.scale = self.view.scale.clamp(10.0, 5000.0);
-
-        // Update the buffer
-        self.queue
-            .write_buffer(&self.view_buffer, 0, bytemuck::cast_slice(&[self.view]));
     }
 
     // Handle key press/release
