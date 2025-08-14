@@ -87,7 +87,7 @@ impl Default for App {
         let view = View {
             position: [0.0, 0.0],
             scale: 400.0,
-            _padding: 0.0,
+            zoom_speed: 1.0,
             screen_size: [800.0, 800.0],
         };
 
@@ -223,7 +223,7 @@ impl ApplicationHandler for App {
         let view = View {
             position: [0.0, 0.0],
             scale: 400.0,
-            _padding: 0.0,
+            zoom_speed: 1.0,
             screen_size: [800.0, 800.0],
         };
 

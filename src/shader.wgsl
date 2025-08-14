@@ -7,10 +7,11 @@ var<private> VERTICES: array<vec2<f32>, 3> = array<vec2<f32>, 3>(
 struct View {
     position: vec2<f32>,
     scale: f32,
+    zoom_speed: f32,
     screen_size: vec2<f32>,  // Changed from xy: u32 to screen_size: vec2<f32>
 }
 
-;@group(0)
+@group(0)
 @binding(0)
 var<uniform> view: View;
 
