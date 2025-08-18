@@ -24,7 +24,7 @@ impl Default for Camera2D {
             position: [0.0, 0.0],
             scale: 400.0,
             zoom_speed: 1.1,
-            screen_size: [800.0, 200.0],
+            screen_size: [800.0, 800.0],
         }
     }
 }
@@ -35,7 +35,7 @@ impl Camera2D {
             position,
             scale,
             zoom_speed: 1.1,
-            screen_size: [1000.0, 200.0],
+            screen_size: [800.0, 800.0],
         }
     }
 
@@ -207,15 +207,17 @@ impl CameraController {
 pub struct CameraPlugin {
     pub camera: Camera2D,
     pub controller: CameraController,
-    pub gpu_data: Option<CameraGpuData>,
+    pub gpu_data: CameraGpuData,
 }
 
 impl CameraPlugin {
-    pub fn new() -> Self {
+    /// Creates a new [`CameraPlugin`].
+    pub fn new(device: &Device) -> Self {
+        let camera = Camera2D::default();
         Self {
-            camera: Camera2D::default(),
+            gpu_data: CameraGpuData::new(device, &camera),
+            camera,
             controller: CameraController::default(),
-            gpu_data: None,
         }
     }
 
@@ -229,11 +231,6 @@ impl CameraPlugin {
         self
     }
 
-    /// Initialize GPU resources (call this after wgpu setup)
-    pub fn initialize_gpu_resources(&mut self, device: &Device) {
-        self.gpu_data = Some(CameraGpuData::new(device, &self.camera));
-    }
-
     /// Update camera based on input and time
     pub fn update(&mut self, delta_time: f32, pressed_keys: &HashSet<KeyCode>, queue: &Queue) {
         let moved = self
@@ -241,9 +238,7 @@ impl CameraPlugin {
             .update_movement(&mut self.camera, delta_time, pressed_keys);
 
         if moved {
-            if let Some(gpu_data) = &self.gpu_data {
-                gpu_data.update(queue, &self.camera);
-            }
+            self.gpu_data.update(queue, &self.camera);
         }
     }
 
@@ -252,36 +247,24 @@ impl CameraPlugin {
         let zoomed = self.controller.handle_scroll(&mut self.camera, delta);
 
         if zoomed {
-            if let Some(gpu_data) = &self.gpu_data {
-                gpu_data.update(queue, &self.camera);
-            }
+            self.gpu_data.update(queue, &self.camera);
         }
     }
 
     /// Handle window resize
     pub fn handle_resize(&mut self, new_size: [f32; 2], queue: &Queue) {
         self.camera.screen_size = new_size;
-        if let Some(gpu_data) = &self.gpu_data {
-            gpu_data.update(queue, &self.camera);
-        }
+        self.gpu_data.update(queue, &self.camera);
     }
 
     /// Get the camera's bind group layout (for pipeline creation)
     pub fn bind_group_layout(&self) -> &BindGroupLayout {
-        &self
-            .gpu_data
-            .as_ref()
-            .expect("GPU resources not initialized")
-            .bind_group_layout
+        &self.gpu_data.bind_group_layout
     }
 
     /// Get the camera's bind group (for render pass)
     pub fn bind_group(&self) -> &BindGroup {
-        &self
-            .gpu_data
-            .as_ref()
-            .expect("GPU resources not initialized")
-            .bind_group
+        &self.gpu_data.bind_group
     }
 
     /// Get the camera data
@@ -296,14 +279,6 @@ impl CameraPlugin {
 
     /// Force update GPU buffer (useful for manual camera changes)
     pub fn force_update_gpu(&self, queue: &Queue) {
-        if let Some(gpu_data) = &self.gpu_data {
-            gpu_data.update(queue, &self.camera);
-        }
-    }
-}
-
-impl Default for CameraPlugin {
-    fn default() -> Self {
-        Self::new()
+        self.gpu_data.update(queue, &self.camera);
     }
 }

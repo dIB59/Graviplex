@@ -4,6 +4,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 pub mod app;
 pub mod camera;
+pub mod device;
 pub mod render;
 pub mod render_backend;
 

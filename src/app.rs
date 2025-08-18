@@ -87,12 +87,11 @@ impl Default for App {
             .with_move_speed(200.0)
             .with_zoom_range(10.0, 5000.0);
 
-        let mut camera_plugin = CameraPlugin::new()
+        let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
             .with_controller(controller);
 
         // Initialize GPU resources
-        camera_plugin.initialize_gpu_resources(&device);
 
         let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
             .add_bind_group_layout(camera_plugin.bind_group_layout())
@@ -195,11 +194,9 @@ impl ApplicationHandler for App {
             .with_move_speed(200.0)
             .with_zoom_range(10.0, 5000.0);
 
-        let mut camera_plugin = CameraPlugin::new()
+        let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
             .with_controller(controller);
-
-        camera_plugin.initialize_gpu_resources(&device);
 
         let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
             .add_bind_group_layout(camera_plugin.bind_group_layout())
