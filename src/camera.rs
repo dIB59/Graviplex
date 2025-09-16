@@ -30,12 +30,12 @@ impl Default for Camera2D {
 }
 
 impl Camera2D {
-    pub fn new(position: [f32; 2], scale: f32) -> Self {
+    pub fn new(position: [f32; 2], scale: f32, screen_size: [f32; 2]) -> Self {
         Self {
             position,
             scale,
             zoom_speed: 1.1,
-            screen_size: [800.0, 800.0],
+            screen_size,
         }
     }
 

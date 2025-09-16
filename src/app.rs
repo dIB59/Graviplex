@@ -79,7 +79,7 @@ impl Default for App {
         });
 
         // Create camera plugin with custom settings
-        let camera = Camera2D::new([0.0, 0.0], 400.0)
+        let camera = Camera2D::new([0.0, 0.0], 400.0, [1200.0, 1200.0])
             .with_zoom_speed(1.1)
             .with_screen_size([1200.0, 200.0]);
 
@@ -93,7 +93,7 @@ impl Default for App {
 
         // Initialize GPU resources
 
-        let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
+        let render_pipeline = PipelineBuilder::new("circle_shader.wgsl", &device)
             .add_bind_group_layout(camera_plugin.bind_group_layout())
             .add_vertex_buffer_layout(render::Vertex::desc())
             .add_vertex_buffer_layout(render::Instance::desc())
@@ -186,7 +186,7 @@ impl ApplicationHandler for App {
         });
 
         // Reinitialize camera plugin for the new device
-        let camera = Camera2D::new([0.0, 0.0], 400.0)
+        let camera = Camera2D::new([0.0, 0.0], 400.0, [1200.0, 1200.0])
             .with_zoom_speed(1.1)
             .with_screen_size([size.width as f32, size.height as f32]);
 
@@ -198,7 +198,7 @@ impl ApplicationHandler for App {
             .with_camera(camera)
             .with_controller(controller);
 
-        let render_pipeline = PipelineBuilder::new("shader.wgsl", &device)
+        let render_pipeline = PipelineBuilder::new("circle_shader.wgsl", &device)
             .add_bind_group_layout(camera_plugin.bind_group_layout())
             .add_vertex_buffer_layout(render::Vertex::desc())
             .add_vertex_buffer_layout(render::Instance::desc())
@@ -256,7 +256,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {
         if let Some(window) = &self.window {
-            window.request_redraw();
+            //window.request_redraw();
         }
     }
 }
@@ -273,9 +273,8 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     let mut rng = rand::rng();
     for (i, base) in base_vertices.iter().enumerate() {
-        let mut jitter = |v: f32| v + rng.random_range(-0.25..0.25);
-        let x = jitter(base[0]) + center[0];
-        let y = jitter(base[1]) + center[1];
+        let x = base[0] + center[0];
+        let y = base[1] + center[1];
 
         vertices[i] = Vertex { pos: [x, y] };
     }
