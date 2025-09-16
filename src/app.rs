@@ -60,6 +60,17 @@ impl Default for App {
             .block_on()
             .expect("Unable to create device");
 
+        #[cfg(target_os = "linux")]
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                required_features: Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION,
+                ..Default::default()
+            })
+            .block_on()
+            .expect("Unable to create device");
+
         let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Vertex Buffer"),
             usage: wgpu::BufferUsages::STORAGE
