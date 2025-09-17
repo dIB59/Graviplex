@@ -5,7 +5,7 @@ var<private> VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
     vec2<f32>(1.0, -1.0), // Bottom right
     vec2<f32>(-1.0, 1.0), // Top left
     
-    // Second triangle
+   // Second triangle
     vec2<f32>(1.0, -1.0), // Bottom right
     vec2<f32>(1.0, 1.0), // Top right
     vec2<f32>(-1.0, 1.0), // Top left

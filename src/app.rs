@@ -4,8 +4,8 @@ use std::sync::Arc;
 use crate::camera::{Camera2D, CameraController, CameraPlugin}; // Import the camera plugin
 use crate::render::{self, Vertex};
 use crate::render_backend::pipeline_builder::PipelineBuilder;
+use crate::simulation::Simulation;
 use pollster::FutureExt;
-use rand::Rng;
 use wgpu::*;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -25,6 +25,7 @@ pub struct App {
     camera_plugin: CameraPlugin, // Replace view with camera plugin
     last_frame_time: std::time::Instant,
     pressed_keys: HashSet<KeyCode>,
+    simulation: Simulation,
 }
 
 impl Default for App {
@@ -99,6 +100,11 @@ impl Default for App {
             .add_vertex_buffer_layout(render::Instance::desc())
             .build_pipeline();
 
+        let mut simulation = Simulation::default();
+
+        simulation.add_body([400.0, 400.0], [-1.0, 1.0], 1.0, [0, 0, 0, 1]);
+        simulation.generate_bodies();
+
         Self {
             window: None,
             surface: None,
@@ -111,6 +117,7 @@ impl Default for App {
             camera_plugin,
             last_frame_time: std::time::Instant::now(),
             pressed_keys: HashSet::new(),
+            simulation,
         }
     }
 }
@@ -118,7 +125,7 @@ impl Default for App {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_none() {
-            let win_attr = Window::default_attributes().with_title("winit example");
+            let win_attr = Window::default_attributes().with_title("Simulation");
 
             let window = Arc::new(
                 event_loop
@@ -256,7 +263,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _: &ActiveEventLoop) {
         if let Some(window) = &self.window {
-            //window.request_redraw();
+            window.request_redraw();
         }
     }
 }
@@ -271,7 +278,6 @@ pub fn random_triangle(center: [f32; 2], size: f32) -> [Vertex; 3] {
 
     let mut vertices = [Vertex { pos: [0.0, 0.0] }; 3];
 
-    let mut rng = rand::rng();
     for (i, base) in base_vertices.iter().enumerate() {
         let x = base[0] + center[0];
         let y = base[1] + center[1];
@@ -292,13 +298,20 @@ impl App {
         self.camera_plugin
             .update(delta_time, &self.pressed_keys, &self.queue);
 
-        let mut vertices = Vec::new();
-        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
-        let mut instances = Vec::new();
+        let mut vertices: Vec<Vertex> = Vec::new();
+        let simulation_instances = self.simulation.bodies();
 
-        for _ in 0..5_000 {
-            instances.push(render::Instance::random());
+        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
+        let mut instances: Vec<render::Instance> = Vec::new();
+
+        for i in simulation_instances {
+            instances.push(i.into());
         }
+        let r = render::Instance::random();
+        println!("{}", r);
+        instances.push(r);
+
+        println!("{:?}", &instances.get(0));
 
         let frame = self
             .surface
@@ -340,7 +353,6 @@ impl App {
                 timestamp_writes: Default::default(),
                 occlusion_query_set: Default::default(),
             });
-
             self.queue
                 .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
             self.queue

@@ -7,6 +7,7 @@ pub mod camera;
 pub mod device;
 pub mod render;
 pub mod render_backend;
+pub mod simulation;
 
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();

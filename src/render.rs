@@ -1,5 +1,9 @@
+use std::{arch::aarch64::vabds_f32, fmt, path::Display};
+
 use bytemuck::NoUninit;
 use rand::Rng;
+
+use crate::simulation::Body;
 
 #[repr(C)]
 #[derive(Clone, Copy, NoUninit, Debug)]
@@ -25,6 +29,32 @@ pub struct Instance {
     pub position: [f32; 2],
     pub radius: f32,
     pub color: [u8; 4],
+}
+
+impl fmt::Display for Instance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Instance {{ position: ({:.2}, {:.2}), radius: {:.2}, color: rgba({}, {}, {}, {}) }}",
+            self.position[0],
+            self.position[1],
+            self.radius,
+            self.color[0],
+            self.color[1],
+            self.color[2],
+            self.color[3],
+        )
+    }
+}
+
+impl From<&Body> for Instance {
+    fn from(value: &Body) -> Self {
+        return Instance {
+            color: value.color,
+            position: value.position,
+            radius: value.radius,
+        };
+    }
 }
 
 impl Default for Instance {
