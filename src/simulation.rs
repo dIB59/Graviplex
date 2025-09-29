@@ -56,10 +56,10 @@ impl Simulation {
         }
     }
 
-    pub fn generate_bodies(&mut self) {
+    pub fn generate_bodies(&mut self, range: i32) {
         let mut rng = rand::rng();
 
-        for _ in 0..100 {
+        for _ in 0..range {
             let pos = [
                 rng.random_range(-1.0..1.0), // normalized x
                 rng.random_range(-1.0..1.0), // normalized y
