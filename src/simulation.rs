@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rand::{Rng, RngCore};
+use rand::Rng;
 
 /// A body in the n-body simulation
 #[derive(Clone, Copy, Debug)]
@@ -57,29 +57,29 @@ impl Simulation {
     }
 
     pub fn generate_bodies(&mut self) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..100 {
             let pos = [
-                rng.gen_range(-1.0..1.0), // normalized x
-                rng.gen_range(-1.0..1.0), // normalized y
+                rng.random_range(-1.0..1.0), // normalized x
+                rng.random_range(-1.0..1.0), // normalized y
             ];
 
             let vel = [
-                rng.gen_range(-0.01..0.01), // small velocity so things drift
-                rng.gen_range(-0.01..0.01),
+                rng.random_range(-0.01..0.01), // small velocity so things drift
+                rng.random_range(-0.01..0.01),
             ];
 
-            let radius = rng.gen_range(0.01..0.05); // fraction of screen size
+            let radius = rng.random_range(0.01..0.05); // fraction of screen size
 
             let color = [
-                rng.gen_range(0..=255), // red
-                rng.gen_range(0..=255), // green
-                rng.gen_range(0..=255), // blue
-                255,                    // fully opaque
+                rng.random_range(0..=255), // red
+                rng.random_range(0..=255), // green
+                rng.random_range(0..=255), // blue
+                255,                       // fully opaque
             ];
 
-            self.add_body(pos, vel, radius, color);
+            self.add_body(pos, vel, radius, color, radius);
         }
     }
     /// Add a body to the simulation
@@ -89,11 +89,12 @@ impl Simulation {
         velocity: [f32; 2],
         mass: f32,
         color: [u8; 4],
+        radius: f32,
     ) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
 
-        let body = Body::new(id, position, velocity, mass, color, 1.0);
+        let body = Body::new(id, position, velocity, mass, color, radius);
         self.bodies.insert(id, body);
         id
     }

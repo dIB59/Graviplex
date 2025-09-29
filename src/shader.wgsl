@@ -1,7 +1,7 @@
 var<private> VERTICES: array<vec2<f32>, 3> = array<vec2<f32>, 3>(
-    vec2<f32>(-1.7321,-1.0),
-    vec2<f32>( 1.7321,-1.0), // sqrt(3) ≈ 1.7321
-    vec2<f32>( 0.0   , 2.0),
+    vec2<f32>(-1.7321, -1.0),
+    vec2<f32>(1.7321, -1.0), // sqrt(3) ≈ 1.7321
+    vec2<f32>(0.0, 2.0),
 );
 
 struct View {
@@ -44,9 +44,9 @@ fn vs_main(
     
     // Apply camera transformation
     let camera_space = (world_pos - view.position) * view.scale;
-    
+
     let ndc = camera_space / (view.screen_size * 0.5);
-    
+
     out.clip_space = vec4<f32>(ndc, 0.0, 1.0);
     out.local_space = vertex.vertex_pos;
     out.color = instance.color;

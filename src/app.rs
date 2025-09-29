@@ -102,7 +102,6 @@ impl Default for App {
 
         let mut simulation = Simulation::default();
 
-        simulation.add_body([400.0, 400.0], [-1.0, 1.0], 1.0, [0, 0, 0, 1]);
         simulation.generate_bodies();
 
         Self {
@@ -307,9 +306,6 @@ impl App {
         for i in simulation_instances {
             instances.push(i.into());
         }
-        let r = render::Instance::random();
-        println!("{}", r);
-        instances.push(r);
 
         println!("{:?}", &instances.get(0));
 

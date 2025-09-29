@@ -1,7 +1,7 @@
 use std::{borrow::Cow, env::current_dir, fs};
 
 use log::{debug, warn};
-use wgpu::{FragmentState, ShaderModuleDescriptor};
+use wgpu::FragmentState;
 
 pub struct PipelineBuilder<'a> {
     device: &'a wgpu::Device,

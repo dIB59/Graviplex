@@ -1,7 +1,8 @@
-use std::{arch::aarch64::vabds_f32, fmt, path::Display};
+use std::{fmt, path::Display};
 
-use bytemuck::NoUninit;
+use bytemuck::{NoUninit, Pod, Zeroable};
 use rand::Rng;
+use ultraviolet::Vec2;
 
 use crate::simulation::Body;
 
@@ -10,6 +11,18 @@ use crate::simulation::Body;
 pub struct Vertex {
     pub pos: [f32; 2],
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct View {
+    pub(crate) position: Vec2,
+    pub(crate) scale: f32,
+    pub(crate) x: u16,
+    pub(crate) y: u16,
+}
+
+unsafe impl Zeroable for View {}
+unsafe impl Pod for View {}
 
 impl Vertex {
     const ATTRIBS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
