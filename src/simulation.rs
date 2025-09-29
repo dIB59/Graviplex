@@ -82,6 +82,7 @@ impl Simulation {
             self.add_body(pos, vel, radius, color, radius);
         }
     }
+
     /// Add a body to the simulation
     pub fn add_body(
         &mut self,

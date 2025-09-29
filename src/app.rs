@@ -248,6 +248,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if self.surface.is_some() {
                     self.render_frame();
+                    self.simulation.update(0.00001);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
@@ -306,8 +307,6 @@ impl App {
         for i in simulation_instances {
             instances.push(i.into());
         }
-
-        println!("{:?}", &instances.get(0));
 
         let frame = self
             .surface
