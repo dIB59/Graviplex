@@ -102,7 +102,7 @@ impl Default for App {
 
         let mut simulation = Simulation::default();
 
-        simulation.generate_bodies(500);
+        simulation.generate_bodies(100);
 
         Self {
             window: None,
@@ -248,7 +248,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if self.surface.is_some() {
                     self.render_frame();
-                    self.simulation.update(0.00001);
+                    self.simulation.update(0.000005);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
