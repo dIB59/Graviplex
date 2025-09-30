@@ -248,7 +248,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if self.surface.is_some() {
                     self.render_frame();
-                    self.simulation.update(0.000005);
+                    self.simulation.update(0.00005);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {

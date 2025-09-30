@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
 use rand::Rng;
 
-/// A body in the n-body simulation
 #[derive(Clone, Copy, Debug)]
 pub struct Body {
     pub id: u32,
@@ -248,10 +245,11 @@ impl Quadtree {
 pub trait GravityStrategy {
     fn calculate_forces(
         &mut self,
-        bodies: &HashMap<u32, Body>,
+        bodies: &[Body],
         gravity_constant: f32,
         dt: f32,
-    ) -> HashMap<u32, ([f32; 2], [f32; 2])>;
+        updates: &mut Vec<([f32; 2], [f32; 2])>,
+    );
 }
 
 pub struct NaiveGravityStrategy;
@@ -259,23 +257,24 @@ pub struct NaiveGravityStrategy;
 impl GravityStrategy for NaiveGravityStrategy {
     fn calculate_forces(
         &mut self,
-        bodies: &HashMap<u32, Body>,
+        bodies: &[Body],
         gravity_constant: f32,
         dt: f32,
-    ) -> HashMap<u32, ([f32; 2], [f32; 2])> {
-        let mut updates: HashMap<u32, ([f32; 2], [f32; 2])> = HashMap::new();
-        let body_ids: Vec<u32> = bodies.keys().cloned().collect();
+        updates: &mut Vec<([f32; 2], [f32; 2])>,
+    ) {
+        updates.clear();
+        updates.reserve(bodies.len());
 
-        for &id1 in &body_ids {
+        for i in 0..bodies.len() {
             let mut total_force = [0.0, 0.0];
 
-            for &id2 in &body_ids {
-                if id1 == id2 {
+            for j in 0..bodies.len() {
+                if i == j {
                     continue;
                 }
 
-                let body1 = bodies[&id1];
-                let body2 = bodies[&id2];
+                let body1 = &bodies[i];
+                let body2 = &bodies[j];
 
                 let dx = body2.position[0] - body1.position[0];
                 let dy = body2.position[1] - body1.position[1];
@@ -294,7 +293,7 @@ impl GravityStrategy for NaiveGravityStrategy {
                 total_force[1] += force_y;
             }
 
-            let body = bodies[&id1];
+            let body = &bodies[i];
             let acceleration = [total_force[0] / body.mass, total_force[1] / body.mass];
             let new_velocity = [
                 body.velocity[0] + acceleration[0] * dt,
@@ -305,10 +304,8 @@ impl GravityStrategy for NaiveGravityStrategy {
                 body.position[1] + new_velocity[1] * dt,
             ];
 
-            updates.insert(id1, (new_position, new_velocity));
+            updates.push((new_position, new_velocity));
         }
-
-        updates
     }
 }
 
@@ -327,25 +324,27 @@ impl BarnesHutGravityStrategy {
 impl GravityStrategy for BarnesHutGravityStrategy {
     fn calculate_forces(
         &mut self,
-        bodies: &HashMap<u32, Body>,
+        bodies: &[Body],
         gravity_constant: f32,
         dt: f32,
-    ) -> HashMap<u32, ([f32; 2], [f32; 2])> {
+        updates: &mut Vec<([f32; 2], [f32; 2])>,
+    ) {
         // Build quadtree
-        let positions: Vec<[f32; 2]> = bodies.values().map(|b| b.position).collect();
+        let positions: Vec<[f32; 2]> = bodies.iter().map(|b| b.position).collect();
         let root_quad = Quad::new_containing(&positions);
         self.quadtree.clear(root_quad);
 
-        for body in bodies.values() {
+        for body in bodies {
             self.quadtree.insert(body.position, body.mass);
         }
 
         self.quadtree.propagate();
 
         // Calculate accelerations and update
-        let mut updates: HashMap<u32, ([f32; 2], [f32; 2])> = HashMap::new();
+        updates.clear();
+        updates.reserve(bodies.len());
 
-        for (&id, body) in bodies {
+        for body in bodies {
             let acc = self.quadtree.acc(body.position, gravity_constant);
 
             let new_velocity = [
@@ -358,21 +357,19 @@ impl GravityStrategy for BarnesHutGravityStrategy {
                 body.position[1] + new_velocity[1] * dt,
             ];
 
-            updates.insert(id, (new_position, new_velocity));
+            updates.push((new_position, new_velocity));
         }
-
-        updates
     }
 }
 
 pub trait CollisionStrategy {
-    fn handle_collisions(&mut self, bodies: &mut HashMap<u32, Body>);
+    fn handle_collisions(&mut self, bodies: &mut [Body]);
 }
 
 pub struct NoCollisionStrategy;
 
 impl CollisionStrategy for NoCollisionStrategy {
-    fn handle_collisions(&mut self, _bodies: &mut HashMap<u32, Body>) {
+    fn handle_collisions(&mut self, _bodies: &mut [Body]) {
         // Do nothing
     }
 }
@@ -380,38 +377,63 @@ impl CollisionStrategy for NoCollisionStrategy {
 pub struct NaiveCollisionStrategy;
 
 impl CollisionStrategy for NaiveCollisionStrategy {
-    fn handle_collisions(&mut self, bodies: &mut HashMap<u32, Body>) {
-        // Collect all body IDs to iterate over
-        let body_ids: Vec<u32> = bodies.keys().copied().collect();
-
-        // Check every pair of bodies
-        for i in 0..body_ids.len() {
-            for j in (i + 1)..body_ids.len() {
-                let id_i = body_ids[i];
-                let id_j = body_ids[j];
-
-                // Get mutable references to both bodies
-                // Safety: We know id_i != id_j because i != j
-                let ptr = bodies as *mut HashMap<u32, Body>;
-                unsafe {
-                    let body_i = (*ptr).get_mut(&id_i).unwrap();
-                    let body_j = (*ptr).get_mut(&id_j).unwrap();
-                    resolve_particle_collision(body_i, body_j);
-                }
+    fn handle_collisions(&mut self, bodies: &mut [Body]) {
+        for i in 0..bodies.len() {
+            for j in (i + 1)..bodies.len() {
+                let (left, right) = bodies.split_at_mut(j);
+                resolve_particle_collision(&mut left[i], &mut right[0]);
             }
         }
     }
 }
 
+fn resolve_particle_collision(a: &mut Body, b: &mut Body) {
+    let dx = b.position[0] - a.position[0];
+    let dy = b.position[1] - a.position[1];
+    let dist_sq = dx * dx + dy * dy;
+    let radius_sum = a.radius + b.radius;
+
+    // tiny epsilon to avoid float-equality problems
+    let eps = 1e-8_f32;
+
+    // if they're exactly at the same position (or extremely close), pick an arbitrary separation axis
+    if dist_sq < eps {
+        // push them along x a bit so they separate
+        let overlap = radius_sum;
+        a.position[0] -= overlap * 0.5;
+        b.position[0] += overlap * 0.5;
+        return;
+    }
+
+    let dist = dist_sq.sqrt();
+
+    if dist >= radius_sum {
+        return; // no collision
+    }
+
+    // Normal (unit vector) from a -> b
+    let nx = dx / dist;
+    let ny = dy / dist;
+
+    // how much they overlap
+    let overlap = radius_sum - dist;
+
+    // move each by half the overlap so they just touch
+    a.position[0] -= nx * (overlap * 0.5);
+    a.position[1] -= ny * (overlap * 0.5);
+    b.position[0] += nx * (overlap * 0.5);
+    b.position[1] += ny * (overlap * 0.5);
+}
+
 #[derive(Debug)]
 struct KdNode {
     point: [f32; 2],
-    id: u32,
+    idx: usize,
     left: Option<Box<KdNode>>,
     right: Option<Box<KdNode>>,
 }
 
-fn build_kd_tree(points: &mut [(u32, [f32; 2])], depth: usize) -> Option<Box<KdNode>> {
+fn build_kd_tree(points: &mut [(usize, [f32; 2])], depth: usize) -> Option<Box<KdNode>> {
     if points.is_empty() {
         return None;
     }
@@ -420,11 +442,11 @@ fn build_kd_tree(points: &mut [(u32, [f32; 2])], depth: usize) -> Option<Box<KdN
     points.sort_by(|a, b| a.1[axis].partial_cmp(&b.1[axis]).unwrap());
 
     let mid = points.len() / 2;
-    let (id, point) = points[mid];
+    let (idx, point) = points[mid];
 
     Some(Box::new(KdNode {
         point,
-        id,
+        idx,
         left: build_kd_tree(&mut points[..mid], depth + 1),
         right: build_kd_tree(&mut points[mid + 1..], depth + 1),
     }))
@@ -435,14 +457,14 @@ fn search_radius(
     target: [f32; 2],
     radius: f32,
     depth: usize,
-    results: &mut Vec<u32>,
+    results: &mut Vec<usize>,
 ) {
     if let Some(n) = node {
         let axis = depth % 2;
         let dist_sq = (n.point[0] - target[0]).powi(2) + (n.point[1] - target[1]).powi(2);
 
         if dist_sq <= radius.powi(2) {
-            results.push(n.id);
+            results.push(n.idx);
         }
 
         let diff = target[axis] - n.point[axis];
@@ -459,77 +481,45 @@ fn search_radius(
 pub struct KdTreeCollision;
 
 impl CollisionStrategy for KdTreeCollision {
-    fn handle_collisions(&mut self, bodies: &mut HashMap<u32, Body>) {
+    fn handle_collisions(&mut self, bodies: &mut [Body]) {
         // Build KD-tree points from body positions
-        let mut points: Vec<(u32, [f32; 2])> = bodies
+        let mut points: Vec<(usize, [f32; 2])> = bodies
             .iter()
-            .map(|(&id, body)| (id, [body.position[0], body.position[1]]))
+            .enumerate()
+            .map(|(idx, body)| (idx, [body.position[0], body.position[1]]))
             .collect();
         let tree = build_kd_tree(&mut points, 0);
 
-        // Collect body IDs to process
-        let body_ids: Vec<u32> = bodies.keys().copied().collect();
-
-        for &id_i in &body_ids {
+        for i in 0..bodies.len() {
             let mut neighbours = Vec::new();
-            let (pos_i_clone, radius_i) = {
-                let body = &bodies[&id_i];
+            let (pos_i, radius_i) = {
+                let body = &bodies[i];
                 ([body.position[0], body.position[1]], body.radius)
             };
 
-            search_radius(
-                &tree,
-                pos_i_clone,
-                (radius_i * 2.0) as f32,
-                0,
-                &mut neighbours,
-            );
+            search_radius(&tree, pos_i, radius_i * 2.0, 0, &mut neighbours);
 
-            for &id_j in neighbours.iter() {
-                if id_i >= id_j {
+            for &j in neighbours.iter() {
+                if i >= j {
                     continue; // Only process each pair once
                 }
 
-                // Get mutable references to both bodies
-                // Safety: We know id_i != id_j from the check above
-                let ptr = bodies as *mut HashMap<u32, Body>;
-                unsafe {
-                    let body_i = (*ptr).get_mut(&id_i).expect("DID NOT FIND BODY I");
-                    let body_j = (*ptr).get_mut(&id_j).expect("DID NOT FIND BODY J");
-                    resolve_particle_collision(body_i, body_j);
-                }
+                let (left, right) = bodies.split_at_mut(j);
+                resolve_particle_collision(&mut left[i], &mut right[0]);
             }
         }
     }
 }
 
-fn resolve_particle_collision(a: &mut Body, b: &mut Body) {
-    let dx = b.position[0] - a.position[0];
-    let dy = b.position[1] - a.position[1];
-    let dist_sq = dx * dx + dy * dy;
-    let radius_sum = a.radius + b.radius;
-
-    if dist_sq == 0.0 || dist_sq >= radius_sum * radius_sum {
-        return; // no collision
-    }
-
-    let dist = dist_sq.sqrt();
-    let overlap = 0.5 * (dist - radius_sum);
-
-    a.position[0] -= overlap * dx / dist;
-    a.position[1] -= overlap * dy / dist;
-
-    b.position[0] += overlap * dx / dist;
-    b.position[1] += overlap * dy / dist;
-}
 // ==================== N-body Simulation ====================
 
 pub struct Simulation {
-    bodies: HashMap<u32, Body>,
+    bodies: Vec<Body>,
     next_id: u32,
     gravity_constant: f32,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
+    updates_buffer: Vec<([f32; 2], [f32; 2])>,
 }
 
 impl Default for Simulation {
@@ -539,14 +529,15 @@ impl Default for Simulation {
 }
 
 impl Simulation {
-    /// Create a new n-body simulation with default strategies
+    /// Create a new n-body simulation with default strategi
     pub fn new() -> Self {
         Self {
-            bodies: HashMap::new(),
+            bodies: Vec::new(),
             next_id: 0,
             gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
-            collision_strategy: Box::new(NoCollisionStrategy),
+            collision_strategy: Box::new(NaiveCollisionStrategy),
+            updates_buffer: Vec::new(),
         }
     }
 
@@ -593,20 +584,25 @@ impl Simulation {
         self.next_id += 1;
 
         let body = Body::new(id, position, velocity, mass, color, radius);
-        self.bodies.insert(id, body);
+        self.bodies.push(body);
         id
     }
 
     pub fn remove_body(&mut self, id: u32) -> bool {
-        self.bodies.remove(&id).is_some()
+        if let Some(pos) = self.bodies.iter().position(|b| b.id == id) {
+            self.bodies.swap_remove(pos);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn get_body(&self, id: u32) -> Option<&Body> {
-        self.bodies.get(&id)
+        self.bodies.iter().find(|b| b.id == id)
     }
 
     pub fn bodies(&self) -> impl Iterator<Item = &Body> {
-        self.bodies.values()
+        self.bodies.iter()
     }
 
     pub fn body_count(&self) -> usize {
@@ -633,16 +629,17 @@ impl Simulation {
         }
 
         // Calculate gravity forces and get position/velocity updates
-        let updates =
-            self.gravity_strategy
-                .calculate_forces(&self.bodies, self.gravity_constant, dt);
+        self.gravity_strategy.calculate_forces(
+            &self.bodies,
+            self.gravity_constant,
+            dt,
+            &mut self.updates_buffer,
+        );
 
         // Apply updates
-        for (id, (position, velocity)) in updates {
-            if let Some(body) = self.bodies.get_mut(&id) {
-                body.position = position;
-                body.velocity = velocity;
-            }
+        for (i, &(position, velocity)) in self.updates_buffer.iter().enumerate() {
+            self.bodies[i].position = position;
+            self.bodies[i].velocity = velocity;
         }
 
         // Handle collisions
@@ -653,14 +650,14 @@ impl Simulation {
         let mut nearest_id = None;
         let mut min_distance = f32::INFINITY;
 
-        for (&id, body) in &self.bodies {
+        for body in &self.bodies {
             let dx = body.position[0] - position[0];
             let dy = body.position[1] - position[1];
             let distance = (dx * dx + dy * dy).sqrt();
 
             if distance < min_distance {
                 min_distance = distance;
-                nearest_id = Some(id);
+                nearest_id = Some(body.id);
             }
         }
 
