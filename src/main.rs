@@ -3,8 +3,12 @@ use winit::error::EventLoopError;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 pub mod app;
+pub mod camera;
+pub mod device;
+pub mod kd_tree;
 pub mod render;
 pub mod render_backend;
+pub mod simulation;
 
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();

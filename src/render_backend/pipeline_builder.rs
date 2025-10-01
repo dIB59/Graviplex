@@ -1,7 +1,7 @@
-use std::{borrow::Cow, env::current_dir};
+use std::{borrow::Cow, env::current_dir, fs};
 
 use log::{debug, warn};
-use wgpu::{FragmentState, ShaderModuleDescriptor};
+use wgpu::FragmentState;
 
 pub struct PipelineBuilder<'a> {
     device: &'a wgpu::Device,
@@ -76,14 +76,21 @@ Default shader values may be used unintentionally."
             );
         }
         let mut filepath = current_dir().unwrap();
+        filepath.push("src");
         filepath.push(self.shader_filename.as_str());
         let filepath = &filepath.into_os_string().into_string().unwrap();
         debug!("{}", filepath);
 
-        let shader_module = self.device.create_shader_module(ShaderModuleDescriptor {
-            label: Some("Shader numero 1"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("../shader.wgsl"))),
-        });
+        // Read shader code at runtime
+        let shader_source = fs::read_to_string(&filepath).expect("Failed to read shader file");
+
+        // Create shader module using Cow::Owned
+        let shader_module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Shader numero 1"),
+                source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_source)),
+            });
 
         let pipeline_layout_descriptor = wgpu::PipelineLayoutDescriptor {
             label: Some(&format!("Render Pipeline Layout: {}", self.shader_filename)),

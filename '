@@ -1,8 +1,7 @@
-use std::fmt;
+use std::{fmt, path::Display};
 
-use bytemuck::{NoUninit, Pod, Zeroable};
+use bytemuck::NoUninit;
 use rand::Rng;
-use ultraviolet::Vec2;
 
 use crate::simulation::Body;
 
@@ -20,9 +19,6 @@ pub struct View {
     pub(crate) x: u16,
     pub(crate) y: u16,
 }
-
-unsafe impl Zeroable for View {}
-unsafe impl Pod for View {}
 
 impl Vertex {
     const ATTRIBS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 => Float32x2];
