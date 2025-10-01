@@ -1,6 +1,6 @@
 use rand::Rng;
 
-const SPACE_SCALE: f32 = 800.0;
+const SPACE_SCALE: f32 = 4000.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Body {
@@ -503,7 +503,7 @@ impl CollisionStrategy for KdTreeCollision {
                 ([body.position[0], body.position[1]], body.radius)
             };
 
-            search_radius(&tree, pos_i, radius_i * 2.0, 0, &mut neighbours);
+            search_radius(&tree, pos_i, radius_i * 5.0, 0, &mut neighbours);
 
             for &j in neighbours.iter() {
                 if i >= j {
