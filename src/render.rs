@@ -96,11 +96,11 @@ impl Instance {
         let mut rng = rand::rng();
         Instance {
             position: [rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)],
-            radius: rng.gen_range(0.01..0.05),
+            radius: rng.random_range(0.01..0.05),
             color: [
-                rng.gen_range(0..=255),
-                rng.gen_range(0..=255),
-                rng.gen_range(0..=255),
+                rng.random_range(0..=255),
+                rng.random_range(0..=255),
+                rng.random_range(0..=255),
                 255, // Fully opaque
             ],
         }
