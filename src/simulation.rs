@@ -1,6 +1,6 @@
 use rand::Rng;
 
-const SPACE_SCALE: f32 = 4000.0;
+const SPACE_SCALE: f32 = 10000.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Body {

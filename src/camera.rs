@@ -117,8 +117,8 @@ impl Default for CameraController {
         Self {
             move_speed: 200.0,
             zoom_sensitivity: 0.01,
-            min_zoom: 10.0,
-            max_zoom: 5000.0,
+            min_zoom: 0.001,
+            max_zoom: 15000.0,
         }
     }
 }
