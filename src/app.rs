@@ -102,7 +102,7 @@ impl Default for App {
 
         let mut simulation = Simulation::default();
 
-        simulation.generate_bodies(3);
+        simulation.generate_bodies(100);
 
         Self {
             window: None,

@@ -1,6 +1,6 @@
 use rand::Rng;
 
-const SPACE_SCALE: f32 = 100.0;
+const SPACE_SCALE: f32 = 800.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Body {
@@ -542,7 +542,7 @@ impl Simulation {
             next_id: 0,
             gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
-            collision_strategy: Box::new(NaiveCollisionStrategy),
+            collision_strategy: Box::new(KdTreeCollision),
             updates_buffer: Vec::new(),
         }
     }
@@ -566,7 +566,7 @@ impl Simulation {
                 rng.random_range(-SPACE_SCALE..SPACE_SCALE),
             ];
 
-            let vel = [rng.random_range(-0.1..0.1), rng.random_range(-0.1..0.1)];
+            let vel = [rng.random_range(-15.0..15.0), rng.random_range(-10.0..10.0)];
 
             let radius = rng.random_range(10.0..50.0);
 
