@@ -80,13 +80,13 @@ impl Default for App {
         });
 
         // Create camera plugin with custom settings
-        let camera = Camera2D::new([0.0, 0.0], 400.0, [1200.0, 1200.0])
+        let camera = Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0])
             .with_zoom_speed(1.1)
             .with_screen_size([1200.0, 200.0]);
 
         let controller = CameraController::new()
-            .with_move_speed(200.0)
-            .with_zoom_range(10.0, 5000.0);
+            .with_move_speed(250.0) // Adjust movement speed for new scale
+            .with_zoom_range(0.1, 10.0);
 
         let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
@@ -102,7 +102,7 @@ impl Default for App {
 
         let mut simulation = Simulation::default();
 
-        simulation.generate_bodies(100);
+        simulation.generate_bodies(3);
 
         Self {
             window: None,
@@ -192,13 +192,13 @@ impl ApplicationHandler for App {
         });
 
         // Reinitialize camera plugin for the new device
-        let camera = Camera2D::new([0.0, 0.0], 400.0, [1200.0, 1200.0])
+        let camera = Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0])
             .with_zoom_speed(1.1)
             .with_screen_size([size.width as f32, size.height as f32]);
 
         let controller = CameraController::new()
-            .with_move_speed(200.0)
-            .with_zoom_range(10.0, 5000.0);
+            .with_move_speed(250.0) // Adjust movement speed for new scale
+            .with_zoom_range(0.1, 10.0);
 
         let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
@@ -248,7 +248,7 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if self.surface.is_some() {
                     self.render_frame();
-                    self.simulation.update(0.00005);
+                    self.simulation.update(0.01);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
@@ -301,7 +301,7 @@ impl App {
         let mut vertices: Vec<Vertex> = Vec::new();
         let simulation_instances = self.simulation.bodies();
 
-        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 0.5));
+        vertices.extend_from_slice(&random_triangle([0.0, 0.0], 5.0));
         let mut instances: Vec<render::Instance> = Vec::new();
 
         for i in simulation_instances {

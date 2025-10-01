@@ -1,16 +1,3 @@
-// Quad vertices to contain the circle
-var<private> VERTICES: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-    // First triangle
-    vec2<f32>(-1.0, -1.0), // Bottom left
-    vec2<f32>(1.0, -1.0), // Bottom right
-    vec2<f32>(-1.0, 1.0), // Top left
-    
-   // Second triangle
-    vec2<f32>(1.0, -1.0), // Bottom right
-    vec2<f32>(1.0, 1.0), // Top right
-    vec2<f32>(-1.0, 1.0), // Top left
-);
-
 struct View {
     position: vec2<f32>,
     scale: f32,
@@ -37,6 +24,7 @@ struct VertexOutput {
     @location(0) local_space: vec2<f32>,
     @location(1) color: vec4<f32>,
     @location(2) pixel_size: f32,
+    @location(3) radius: f32
 };
 
 @vertex
@@ -58,6 +46,7 @@ fn vs_main(
     out.local_space = vertex.vertex_pos;
     out.color = instance.color;
     out.pixel_size = 1.0 / view.scale;
+    out.radius = instance.radius;
 
     return out;
 }
@@ -67,7 +56,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let distance = length(in.local_space);
     
     // Discard fragments outside the circle
-    if distance > 0.25 {
+    if distance > 1.0 {
         discard;
     }
     

@@ -1,5 +1,7 @@
 use rand::Rng;
 
+const SPACE_SCALE: f32 = 100.0;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Body {
     pub id: u32,
@@ -394,7 +396,7 @@ fn resolve_particle_collision(a: &mut Body, b: &mut Body) {
     let radius_sum = a.radius + b.radius;
 
     // tiny epsilon to avoid float-equality problems
-    let eps = 1e-8_f32;
+    let eps = 1e-6_f32;
 
     // if they're exactly at the same position (or extremely close), pick an arbitrary separation axis
     if dist_sq < eps {
@@ -418,7 +420,7 @@ fn resolve_particle_collision(a: &mut Body, b: &mut Body) {
     // how much they overlap
     let overlap = radius_sum - dist;
 
-    // move each by half the overlap so they just touch
+    // move each by half the overlap so they just touch (0.5 each = full separation)
     a.position[0] -= nx * (overlap * 0.5);
     a.position[1] -= ny * (overlap * 0.5);
     b.position[0] += nx * (overlap * 0.5);
@@ -439,7 +441,11 @@ fn build_kd_tree(points: &mut [(usize, [f32; 2])], depth: usize) -> Option<Box<K
     }
 
     let axis = depth % 2;
-    points.sort_by(|a, b| a.1[axis].partial_cmp(&b.1[axis]).unwrap());
+    points.sort_by(|a, b| {
+        a.1[axis]
+            .partial_cmp(&b.1[axis])
+            .expect("SORTING IS FUCKED")
+    });
 
     let mid = points.len() / 2;
     let (idx, point) = points[mid];
@@ -555,11 +561,14 @@ impl Simulation {
         let mut rng = rand::rng();
 
         for _ in 0..range {
-            let pos = [rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0)];
+            let pos = [
+                rng.random_range(-SPACE_SCALE..SPACE_SCALE),
+                rng.random_range(-SPACE_SCALE..SPACE_SCALE),
+            ];
 
-            let vel = [rng.random_range(-0.01..0.01), rng.random_range(-0.01..0.01)];
+            let vel = [rng.random_range(-0.1..0.1), rng.random_range(-0.1..0.1)];
 
-            let radius = rng.random_range(0.01..0.05);
+            let radius = rng.random_range(10.0..50.0);
 
             let color = [
                 rng.random_range(0..=255),
