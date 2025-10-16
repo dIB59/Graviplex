@@ -33,7 +33,7 @@ impl Default for App {
         let instance = Instance::new(&InstanceDescriptor::default());
 
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::LowPower,
+            power_preference: PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: None,
         }))
@@ -97,7 +97,7 @@ impl Default for App {
 
         let controller = CameraController::new()
             .with_move_speed(250.0) // Adjust movement speed for new scale
-            .with_zoom_range(0.1, 10.0);
+            .with_zoom_range(0.01, 10.0);
 
         let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
@@ -209,7 +209,7 @@ impl ApplicationHandler for App {
 
         let controller = CameraController::new()
             .with_move_speed(250.0) // Adjust movement speed for new scale
-            .with_zoom_range(0.1, 10.0);
+            .with_zoom_range(0.01, 10.0);
 
         let camera_plugin = CameraPlugin::new(&device)
             .with_camera(camera)
