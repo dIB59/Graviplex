@@ -19,13 +19,16 @@ impl Time {
         Self::default()
     }
 
+    /// Updates delta to be the difference (in seconds) since last frame and now.
     pub fn update(&mut self) {
         let now = Instant::now();
         self.delta = now.duration_since(self.last_frame).as_secs_f32();
         self.last_frame = now;
     }
 
+    /// Gives time diffrence between current and last frame
     pub fn delta(&self) -> f32 {
         self.delta
     }
 }
+
