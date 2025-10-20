@@ -48,15 +48,20 @@ impl ApplicationHandler for App {
                     .create_window(Window::default_attributes().with_title("Simulation"))
                     .expect("Unable to create window"),
             );
-            
+
             self.gpu.init_surface(window.clone());
-            
+
             let size = window.inner_size();
             self.camera.screen_size = [size.width as f32, size.height as f32];
-            
-            let format = self.gpu.config.as_ref().expect("Unable to get TextureFormat").format;
+
+            let format = self
+                .gpu
+                .config
+                .as_ref()
+                .expect("Unable to get TextureFormat")
+                .format;
             self.pipeline = Some(RenderPipeline::new(&self.gpu.device, format, &self.camera));
-            
+
             self.window = Some(window);
         }
     }
@@ -69,29 +74,36 @@ impl ApplicationHandler for App {
     ) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            
+
             WindowEvent::Resized(size) => {
                 self.gpu.resize(size.width, size.height);
                 self.camera.screen_size = [size.width as f32, size.height as f32];
                 if let Some(pipeline) = &self.pipeline {
-                    pipeline.camera_gpu_data().update(&self.gpu.queue, &self.camera);
+                    pipeline
+                        .camera_gpu_data()
+                        .update(&self.gpu.queue, &self.camera);
                 }
             }
-            
+
             WindowEvent::RedrawRequested => self.render(),
-            
+
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input.handle_keyboard_event(event);
             }
-            
+
             WindowEvent::MouseWheel { delta, .. } => {
-                if self.camera_controller.handle_scroll(&mut self.camera, delta) {
+                if self
+                    .camera_controller
+                    .handle_scroll(&mut self.camera, delta)
+                {
                     if let Some(pipeline) = &self.pipeline {
-                        pipeline.camera_gpu_data().update(&self.gpu.queue, &self.camera);
+                        pipeline
+                            .camera_gpu_data()
+                            .update(&self.gpu.queue, &self.camera);
                     }
                 }
             }
-            
+
             _ => (),
         }
     }
@@ -106,7 +118,7 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-        
+
         // Update camera
         if self.camera_controller.update_movement(
             &mut self.camera,
@@ -114,35 +126,43 @@ impl App {
             self.input.pressed_keys(),
         ) {
             if let Some(pipeline) = &self.pipeline {
-                pipeline.camera_gpu_data().update(&self.gpu.queue, &self.camera);
+                pipeline
+                    .camera_gpu_data()
+                    .update(&self.gpu.queue, &self.camera);
             }
         }
-        
+
         // Update simulation
         self.simulation.update(0.01);
-        
+
         // Prepare render data
         let vertices = vec![
             Vertex { pos: [0.0, 5.0] },
             Vertex { pos: [4.33, -2.5] },
             Vertex { pos: [-4.33, -2.5] },
         ];
-        
+
         let instances: Vec<Instance> = self
             .simulation
             .bodies()
             .iter()
             .map(Instance::from)
             .collect();
-        
+
         // Render
         if let Ok(frame) = self.gpu.get_current_frame() {
             let view = frame.texture.create_view(&Default::default());
-            
+
             if let Some(pipeline) = &self.pipeline {
-                pipeline.render(&self.gpu.device, &self.gpu.queue, &view, &vertices, &instances);
+                pipeline.render(
+                    &self.gpu.device,
+                    &self.gpu.queue,
+                    &view,
+                    &vertices,
+                    &instances,
+                );
             }
-            
+
             frame.present();
         }
     }
