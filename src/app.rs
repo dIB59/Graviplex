@@ -132,7 +132,7 @@ impl App {
             }
         }
 
-        // Update simulation
+        // Update simulation based on time
         self.simulation.update(0.01);
 
         // Prepare render data
