@@ -1,10 +1,12 @@
 use std::sync::Arc;
+use wgpu::{include_wgsl, CommandEncoderDescriptor};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
 use crate::core::time::Time;
+use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
 use crate::renderer::{Camera2D, CameraController, GpuContext, Instance, RenderPipeline, Vertex};
@@ -20,6 +22,7 @@ pub struct App {
     input: InputState,
     simulation: Simulation,
     gui: Option<Gui>,
+    gui_renderer: Option<UiPipeline>,
 }
 
 impl Default for App {
@@ -39,6 +42,7 @@ impl Default for App {
             input: InputState::new(),
             simulation,
             gui: None,
+            gui_renderer: None,
         }
     }
 }
@@ -65,7 +69,7 @@ impl ApplicationHandler for App {
                 .format;
             self.pipeline = Some(RenderPipeline::new(
                 "Circle Shader",
-                include_str!("../src/shaders/circle_shader.wgsl"),
+                include_wgsl!("../src/shaders/circle_shader.wgsl"),
                 &self.gpu.device,
                 format,
                 &self.camera,
@@ -73,6 +77,7 @@ impl ApplicationHandler for App {
 
             self.window = Some(window);
             self.gui = Some(Gui::new(event_loop));
+            self.gui_renderer = Some(UiPipeline::new(&self.gpu.device, &self.gpu.queue, format))
         }
     }
 
@@ -128,7 +133,9 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-        // Update camera
+        self.simulation.update(self.time.delta());
+
+        // 2. Update camera if it moved
         if self.camera_controller.update_movement(
             &mut self.camera,
             self.time.delta(),
@@ -150,7 +157,6 @@ impl App {
             Vertex { pos: [4.33, -2.5] },
             Vertex { pos: [-4.33, -2.5] },
         ];
-
         let instances: Vec<Instance> = self
             .simulation
             .bodies()
@@ -172,6 +178,28 @@ impl App {
                 );
             }
 
+            if let Some(ui) = &mut self.gui_renderer {
+                if let Some(gui) = &mut self.gui {
+                    // 1. single egui frame
+                    let full = gui.run(&self.window.clone().expect("WINDOW NOT FOUND FOR UI")); // shapes + textures
+                    let prim = gui.tessellate(full.shapes, full.pixels_per_point);
+                    // 2. flatten to slices UiPipeline expects
+                    let (mut vtx, mut idx) = (vec![], vec![]);
+                    for p in &prim {
+                        if let egui::epaint::Primitive::Mesh(ref m) = p.primitive {
+                            let base = vtx.len() as u32;
+                            vtx.extend_from_slice(&m.vertices);
+                            idx.extend(m.indices.iter().map(|i| base + i));
+                        }
+                    }
+
+                    println!("{}", vtx.len());
+                    // 3. draw
+                    let mut enc = self.gpu.device.create_command_encoder(&Default::default());
+                    ui.render(&mut enc, &view, &vtx, &idx, &prim, self.camera.screen_size);
+                    self.gpu.queue.submit(std::iter::once(enc.finish()));
+                }
+            }
             frame.present();
         }
     }

@@ -1,3 +1,5 @@
+pub mod gui_renderer;
+
 pub struct Gui {
     ctx: egui::Context,
     state: egui_winit::State,
@@ -48,9 +50,9 @@ impl Gui {
         self.ctx.tessellate(shapes, pixels_per_point)
     }
 
-    fn build_ui(ctx: &egui::Context) {
+    pub fn build_ui(ctx: &egui::Context) {
         egui::Window::new("Simulation Controls")
-            .default_width(300.0)
+            .default_width(600.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
                 ui.label(format!("Bodies: {}", 2));

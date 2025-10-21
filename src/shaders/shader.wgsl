@@ -1,61 +1,34 @@
-var<private> VERTICES: array<vec2<f32>, 3> = array<vec2<f32>, 3>(
-    vec2<f32>(-1.7321, -1.0),
-    vec2<f32>(1.7321, -1.0), // sqrt(3) ≈ 1.7321
-    vec2<f32>(0.0, 2.0),
-);
-
-struct View {
-    position: vec2<f32>,
-    scale: f32,
-    zoom_speed: f32,
-    screen_size: vec2<f32>,  // Changed from xy: u32 to screen_size: vec2<f32>
+struct Uniforms {
+    screen_size: vec2<f32>,
 }
 
-@group(0)
-@binding(0)
-var<uniform> view: View;
+@group(0) @binding(0) var t_font: texture_2d<f32>;
+@group(0) @binding(1) var s_font: sampler;
+@group(0) @binding(2) var<uniform> uniforms: Uniforms;
 
-struct VertexInput {
-    @location(0) vertex_pos: vec2<f32>,         // Vertex.pos
-};
-
-struct InstanceInput {
-    @location(1) position: vec2<f32>,
-    @location(2) radius: f32,
-    @location(3) color: vec4<f32>,
-};
-
-struct VertexOutput {
-    @builtin(position) clip_space: vec4<f32>,
-    @location(0) local_space: vec2<f32>,
+struct VOut {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) uv: vec2<f32>,
     @location(1) color: vec4<f32>,
-    @location(2) pixel_size: f32,
-};
+}
 
 @vertex
 fn vs_main(
-    vertex: VertexInput,
-    instance: InstanceInput,
-) -> VertexOutput {
-    var out: VertexOutput;
-
-    // Transform to world space
-    let world_pos = vertex.vertex_pos * instance.radius + instance.position;
-    
-    // Apply camera transformation
-    let camera_space = (world_pos - view.position) * view.scale;
-
-    let ndc = camera_space / (view.screen_size * 0.5);
-
-    out.clip_space = vec4<f32>(ndc, 0.0, 1.0);
-    out.local_space = vertex.vertex_pos;
-    out.color = instance.color;
-    out.pixel_size = 1.0 / view.scale;
+    @location(0) pos: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) color: vec4<f32>,
+) -> VOut {
+    var out: VOut;
+    // Transform from pixel coords to clip space
+    let clip_pos = pos * vec2(2.0 / uniforms.screen_size.x, -2.0 / uniforms.screen_size.y) + vec2(-1.0, 1.0);
+    out.pos = vec4(clip_pos, 0.0, 1.0);
+    out.uv = uv;
+    out.color = color; // Already normalized by Unorm8x4
     return out;
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let alpha = 1.0 - smoothstep(1.0 - 3.0 * in.pixel_size, 1.0, length(in.local_space));
-    return vec4<f32>(in.color.rgb, in.color.a * alpha);
+fn fs_main(in: VOut) -> @location(0) vec4<f32> {
+    let a = textureSample(t_font, s_font, in.uv).r;
+    return in.color * a;
 }
