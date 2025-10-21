@@ -4,6 +4,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 
 pub mod app;
 pub mod core;
+pub mod gui;
 pub mod input;
 pub mod renderer;
 pub mod simulation;

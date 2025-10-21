@@ -14,10 +14,12 @@ wgpu = "26.0.1"
 winit = "0.30.7"
 egui = { version = "0.33.0", default-features = false }
 egui-winit = { version = "0.33.0", default-features = false }
-egui-wgpu = { version = "0.33.0", default-features = false }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[lib]
+bench = false
 
 [[bench]]
 name = "simple_bench"

@@ -5,6 +5,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
 use crate::core::time::Time;
+use crate::gui::Gui;
 use crate::input::InputState;
 use crate::renderer::{Camera2D, CameraController, GpuContext, Instance, RenderPipeline, Vertex};
 use crate::simulation::Simulation;
@@ -18,6 +19,7 @@ pub struct App {
     time: Time,
     input: InputState,
     simulation: Simulation,
+    gui: Option<Gui>,
 }
 
 impl Default for App {
@@ -36,6 +38,7 @@ impl Default for App {
             time: Time::new(),
             input: InputState::new(),
             simulation,
+            gui: None,
         }
     }
 }
@@ -60,9 +63,16 @@ impl ApplicationHandler for App {
                 .as_ref()
                 .expect("Unable to get TextureFormat")
                 .format;
-            self.pipeline = Some(RenderPipeline::new(&self.gpu.device, format, &self.camera));
+            self.pipeline = Some(RenderPipeline::new(
+                "Circle Shader",
+                include_str!("../src/shaders/circle_shader.wgsl"),
+                &self.gpu.device,
+                format,
+                &self.camera,
+            ));
 
             self.window = Some(window);
+            self.gui = Some(Gui::new(event_loop));
         }
     }
 
@@ -118,7 +128,6 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-
         // Update camera
         if self.camera_controller.update_movement(
             &mut self.camera,
@@ -133,7 +142,7 @@ impl App {
         }
 
         // Update simulation based on time
-        self.simulation.update(0.01);
+        self.simulation.update(self.time.delta());
 
         // Prepare render data
         let vertices = vec![
