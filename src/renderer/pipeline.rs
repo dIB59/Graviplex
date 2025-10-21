@@ -12,11 +12,17 @@ pub struct RenderPipeline {
 impl RenderPipeline {
     /// Creates a new, Shader is file path location.
     /// eg include_str!("../shaders/circle_shader.wgsl")
-    pub fn new(shader: &str, device: &Device, format: TextureFormat, camera: &Camera2D) -> Self {
+    pub fn new(
+        name: &str,
+        shader: &str,
+        device: &Device,
+        format: TextureFormat,
+        camera: &Camera2D,
+    ) -> Self {
         let camera_gpu_data = CameraGpuData::new(device, camera);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Circle Shader"),
+            label: Some(name),
             source: wgpu::ShaderSource::Wgsl(shader.into()),
         });
 
