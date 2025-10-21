@@ -1,6 +1,7 @@
 use super::{Camera2D, Instance, Vertex};
 use crate::renderer::camera::CameraGpuData;
 use wgpu::*;
+use winit::event::DeviceEvent;
 
 pub struct RenderPipeline {
     pipeline: wgpu::RenderPipeline,
@@ -14,26 +15,22 @@ impl RenderPipeline {
     /// eg include_str!("../shaders/circle_shader.wgsl")
     pub fn new(
         name: &str,
-        shader: &str,
+        shader_module_descriptor: ShaderModuleDescriptor,
         device: &Device,
         format: TextureFormat,
         camera: &Camera2D,
     ) -> Self {
         let camera_gpu_data = CameraGpuData::new(device, camera);
-
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some(name),
-            source: wgpu::ShaderSource::Wgsl(shader.into()),
-        });
+        let shader = device.create_shader_module(shader_module_descriptor);
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
+            label: Some(("Render Pipeline Layout ".to_owned() + name).as_str()),
             bind_group_layouts: &[&camera_gpu_data.bind_group_layout],
             push_constant_ranges: &[],
         });
 
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some(("Render Pipeline ".to_owned() + name).as_str()),
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &shader,
@@ -59,14 +56,14 @@ impl RenderPipeline {
         });
 
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Vertex Buffer"),
+            label: Some(("Vertex Buffer ".to_owned() + name).as_str()),
             usage: BufferUsages::STORAGE | BufferUsages::VERTEX | BufferUsages::COPY_DST,
             size: 1 << 28,
             mapped_at_creation: false,
         });
 
         let instance_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Instance Buffer"),
+            label: Some(("Instance Buffer ".to_owned() + name).as_str()),
             usage: BufferUsages::STORAGE | BufferUsages::VERTEX | BufferUsages::COPY_DST,
             size: 1 << 28,
             mapped_at_creation: false,
@@ -131,4 +128,3 @@ impl RenderPipeline {
         &self.camera_gpu_data
     }
 }
-
