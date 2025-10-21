@@ -1,6 +1,6 @@
-use wgpu::*;
 use super::{Camera2D, Instance, Vertex};
 use crate::renderer::camera::CameraGpuData;
+use wgpu::*;
 
 pub struct RenderPipeline {
     pipeline: wgpu::RenderPipeline,
@@ -10,12 +10,14 @@ pub struct RenderPipeline {
 }
 
 impl RenderPipeline {
-    pub fn new(device: &Device, format: TextureFormat, camera: &Camera2D) -> Self {
+    /// Creates a new, Shader is file path location.
+    /// eg include_str!("../shaders/circle_shader.wgsl")
+    pub fn new(shader: &str, device: &Device, format: TextureFormat, camera: &Camera2D) -> Self {
         let camera_gpu_data = CameraGpuData::new(device, camera);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Circle Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/circle_shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(shader.into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -123,3 +125,4 @@ impl RenderPipeline {
         &self.camera_gpu_data
     }
 }
+
