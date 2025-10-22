@@ -29,6 +29,7 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VOut) -> @location(0) vec4<f32> {
-    let a = textureSample(t_font, s_font, in.uv).r;
-    return in.color * a;
+    let a = textureSample(t_font, s_font, in.uv).r;   // 0 or 1
+    if a < 0.9 { discard; }                         // punch holes
+    return in.color;                                  // solid text colour
 }

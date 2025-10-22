@@ -8,6 +8,7 @@ pub struct Gui {
 impl Gui {
     pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> Self {
         let ctx = egui::Context::default();
+        ctx.set_fonts(egui::FontDefinitions::default()); // normal fonts
         let state = egui_winit::State::new(
             ctx.clone(),
             egui::ViewportId::ROOT,

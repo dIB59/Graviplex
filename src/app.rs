@@ -193,7 +193,6 @@ impl App {
                         }
                     }
 
-                    println!("{}", vtx.len());
                     // 3. draw
                     let mut enc = self.gpu.device.create_command_encoder(&Default::default());
                     ui.render(&mut enc, &view, &vtx, &idx, &prim, self.camera.screen_size);

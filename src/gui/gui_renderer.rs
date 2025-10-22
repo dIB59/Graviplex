@@ -233,10 +233,11 @@ impl UiPipeline {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: TextureFormat::Rgba8Unorm,
+            format: TextureFormat::R8Unorm, // <── single channel
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
             view_formats: &[],
         });
+
         queue.write_texture(
             TexelCopyTextureInfo {
                 texture: &tex,
@@ -244,10 +245,10 @@ impl UiPipeline {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            data,
+            data, // data is w*h bytes
             TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(w * 4),
+                bytes_per_row: Some(w), // <── one byte per pixel
                 rows_per_image: None,
             },
             Extent3d {
