@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use wgpu::{include_wgsl, CommandEncoderDescriptor};
+use wgpu::include_wgsl;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -67,6 +67,7 @@ impl ApplicationHandler for App {
                 .as_ref()
                 .expect("Unable to get TextureFormat")
                 .format;
+
             self.pipeline = Some(RenderPipeline::new(
                 "Circle Shader",
                 include_wgsl!("../src/shaders/circle_shader.wgsl"),
@@ -75,9 +76,29 @@ impl ApplicationHandler for App {
                 &self.camera,
             ));
 
+            // Create GUI FIRST
+            let mut gui = Gui::new(event_loop);
+
+            // Run one frame to generate font texture delta
+            log::debug!("Running initial egui frame to generate font texture...");
+            let initial_output = gui.run(&window);
+            log::debug!(
+                "Initial texture deltas: set={}, free={}",
+                initial_output.textures_delta.set.len(),
+                initial_output.textures_delta.free.len()
+            );
+
+            // NOW create the UI pipeline
+            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
+
+            // Handle the initial texture deltas (this includes the font texture!)
+            ui_pipeline.handle_textures(initial_output.textures_delta);
+
             self.window = Some(window);
-            self.gui = Some(Gui::new(event_loop));
-            self.gui_renderer = Some(UiPipeline::new(&self.gpu.device, &self.gpu.queue, format))
+            self.gui = Some(gui);
+            self.gui_renderer = Some(ui_pipeline);
+
+            log::debug!("Initialization complete!");
         }
     }
 

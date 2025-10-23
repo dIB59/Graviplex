@@ -9,11 +9,12 @@ pub struct UiPipeline {
     pipeline: RenderPipeline,
     vtx_buf: Buffer,
     idx_buf: Buffer,
+    font_tex: Texture,
     font_view: TextureView,
     sampler: Sampler,
     bind_group: BindGroup,
     bind_layout: BindGroupLayout,
-    uniform_buf: Buffer, // Add this
+    uniform_buf: Buffer,
 }
 
 impl UiPipeline {
@@ -104,8 +105,10 @@ impl UiPipeline {
             multiview: None,
             cache: None,
         });
-        let (_font_tex, font_view) =
-            Self::make_font_tex(device, queue, 1, 1, &[255, 255, 255, 255]);
+
+        // Create initial 1x1 white RGBA texture
+        let (font_tex, font_view) = Self::make_font_tex(device, queue, 1, 1, &[255, 255, 255, 255]);
+
         let sampler = device.create_sampler(&SamplerDescriptor {
             address_mode_u: AddressMode::ClampToEdge,
             address_mode_v: AddressMode::ClampToEdge,
@@ -113,12 +116,14 @@ impl UiPipeline {
             min_filter: FilterMode::Linear,
             ..Default::default()
         });
+
         let vtx_buf = device.create_buffer(&BufferDescriptor {
             label: Some("ui vtx"),
             size: 1 << 18,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
         let idx_buf = device.create_buffer(&BufferDescriptor {
             label: Some("ui idx"),
             size: 1 << 19,
@@ -132,7 +137,9 @@ impl UiPipeline {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
         let bind_group = Self::make_bg(device, &bind_layout, &font_view, &sampler, &uniform_buf);
+
         Self {
             device: device.clone(),
             queue: queue.clone(),
@@ -144,6 +151,7 @@ impl UiPipeline {
             bind_group,
             bind_layout,
             uniform_buf,
+            font_tex,
         }
     }
 
@@ -156,6 +164,20 @@ impl UiPipeline {
         primitives: &[ClippedPrimitive],
         screensize: [f32; 2],
     ) {
+        println!("=== RENDER CALL ===");
+        println!(
+            "Vertices: {}, Indices: {}, Primitives: {}",
+            vertices.len(),
+            indices.len(),
+            primitives.len()
+        );
+        println!("Screen size: {:?}", screensize);
+
+        if vertices.is_empty() || indices.is_empty() {
+            println!("Skipping render - no geometry");
+            return;
+        }
+
         let vtx_bytes = unsafe {
             std::slice::from_raw_parts(
                 vertices.as_ptr() as *const u8,
@@ -165,6 +187,10 @@ impl UiPipeline {
         self.queue.write_buffer(&self.vtx_buf, 0, vtx_bytes);
         self.queue
             .write_buffer(&self.idx_buf, 0, bytemuck::cast_slice(indices));
+
+        self.queue
+            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&screensize));
+
         let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("ui"),
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -181,22 +207,38 @@ impl UiPipeline {
             occlusion_query_set: None,
         });
 
-        self.queue
-            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&screensize));
         rpass.set_pipeline(&self.pipeline);
         rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vtx_buf.slice(..));
         rpass.set_index_buffer(self.idx_buf.slice(..), IndexFormat::Uint32);
+
         let mut base = 0;
-        for prim in primitives {
+        for (i, prim) in primitives.iter().enumerate() {
             if let Primitive::Mesh(ref mesh) = prim.primitive {
                 let egui::Rect { min, max } = prim.clip_rect;
-                rpass.set_scissor_rect(
-                    min.x as u32,
-                    min.y as u32,
-                    (max.x - min.x) as u32,
-                    (max.y - min.y) as u32,
+                println!(
+                    "Primitive {}: clip_rect=({},{}) to ({},{}), indices={}",
+                    i,
+                    min.x,
+                    min.y,
+                    max.x,
+                    max.y,
+                    mesh.indices.len()
                 );
+
+                let scissor_x = min.x.max(0.0) as u32;
+                let scissor_y = min.y.max(0.0) as u32;
+                let scissor_w =
+                    ((max.x - min.x).max(0.0) as u32).min(screensize[0] as u32 - scissor_x);
+                let scissor_h =
+                    ((max.y - min.y).max(0.0) as u32).min(screensize[1] as u32 - scissor_y);
+
+                println!(
+                    "  Scissor: x={}, y={}, w={}, h={}",
+                    scissor_x, scissor_y, scissor_w, scissor_h
+                );
+
+                rpass.set_scissor_rect(scissor_x, scissor_y, scissor_w, scissor_h);
                 let cnt = mesh.indices.len() as u32;
                 rpass.draw_indexed(base..base + cnt, 0, 0..1);
                 base += cnt;
@@ -204,16 +246,80 @@ impl UiPipeline {
         }
     }
 
-    pub fn update_font(&mut self, data: &[u8], w: u32, h: u32) {
-        let (_tex, view) = Self::make_font_tex(&self.device, &self.queue, w, h, data);
-        self.font_view = view;
-        self.bind_group = Self::make_bg(
-            &self.device,
-            &self.bind_layout,
-            &self.font_view,
-            &self.sampler,
-            &self.uniform_buf,
-        );
+    // Process texture deltas from egui
+    pub fn handle_textures(&mut self, textures_delta: egui::TexturesDelta) {
+        for (id, delta) in textures_delta.set {
+            println!(
+                "Texture update - ID: {:?}, size: {:?}, pos: {:?}",
+                id,
+                delta.image.size(),
+                delta.pos
+            );
+
+            if id == egui::TextureId::default() {
+                let [w, h] = delta.image.size();
+                let data: Vec<u8> = match &delta.image {
+                    egui::ImageData::Color(color_image) => {
+                        println!(
+                            "Font texture: {}x{}, pixels: {}",
+                            w,
+                            h,
+                            color_image.pixels.len()
+                        );
+                        color_image
+                            .pixels
+                            .iter()
+                            .flat_map(|c| c.to_array())
+                            .collect()
+                    }
+                };
+
+                println!("Data bytes: {}, expected: {}", data.len(), w * h * 4);
+
+                // Check if this is a partial update (delta.pos is Some) or full texture
+                if let Some([x, y]) = delta.pos {
+                    // Partial update - write to existing texture at offset
+                    println!("Partial texture update at ({}, {})", x, y);
+                    self.queue.write_texture(
+                        wgpu::TexelCopyTextureInfoBase {
+                            texture: &self.font_tex,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d {
+                                x: x as u32,
+                                y: y as u32,
+                                z: 0,
+                            },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        &data,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(w as u32 * 4),
+                            rows_per_image: None,
+                        },
+                        wgpu::Extent3d {
+                            width: w as u32,
+                            height: h as u32,
+                            depth_or_array_layers: 1,
+                        },
+                    );
+                } else {
+                    // Full texture replacement
+                    println!("Full texture update");
+                    let (tex, view) =
+                        Self::make_font_tex(&self.device, &self.queue, w as u32, h as u32, &data);
+                    self.font_tex = tex;
+                    self.font_view = view;
+                    self.bind_group = Self::make_bg(
+                        &self.device,
+                        &self.bind_layout,
+                        &self.font_view,
+                        &self.sampler,
+                        &self.uniform_buf,
+                    );
+                }
+            }
+        }
     }
 
     fn make_font_tex(
@@ -233,7 +339,7 @@ impl UiPipeline {
             mip_level_count: 1,
             sample_count: 1,
             dimension: TextureDimension::D2,
-            format: TextureFormat::R8Unorm, // <── single channel
+            format: TextureFormat::Rgba8Unorm, // Changed to RGBA
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -245,10 +351,10 @@ impl UiPipeline {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            data, // data is w*h bytes
+            data,
             TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(w), // <── one byte per pixel
+                bytes_per_row: Some(w * 4), // 4 bytes per pixel (RGBA)
                 rows_per_image: None,
             },
             Extent3d {
@@ -257,9 +363,10 @@ impl UiPipeline {
                 depth_or_array_layers: 1,
             },
         );
+
         (
             tex.clone(),
-            tex.clone().create_view(&TextureViewDescriptor::default()),
+            tex.create_view(&TextureViewDescriptor::default()),
         )
     }
 
