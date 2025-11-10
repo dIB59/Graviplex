@@ -1,5 +1,3 @@
-use egui::Response;
-
 use crate::app::NUM_OF_BODIES;
 
 pub mod gui_renderer;
@@ -7,6 +5,7 @@ pub mod gui_renderer;
 pub struct Gui {
     ctx: egui::Context,
     state: egui_winit::State,
+    click_count: u32,
 }
 
 impl Gui {
@@ -21,8 +20,11 @@ impl Gui {
             None,
             None,
         );
-
-        Self { ctx, state }
+        Self {
+            ctx,
+            state,
+            click_count: 0,
+        }
     }
 
     pub fn handle_event(
@@ -35,8 +37,9 @@ impl Gui {
 
     pub fn run(&mut self, window: &winit::window::Window) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
-
-        self.ctx.run(raw_input, |ctx| Self::build_ui(ctx))
+        let click_count = &mut self.click_count;
+        self.ctx
+            .run(raw_input, |ctx| Self::build_ui(ctx, click_count))
     }
 
     pub fn handle_platform_output(
@@ -55,31 +58,23 @@ impl Gui {
         self.ctx.tessellate(shapes, pixels_per_point)
     }
 
-    pub fn build_ui(ctx: &egui::Context) {
+    pub fn build_ui(ctx: &egui::Context, click_count: &mut u32) {
         egui::Window::new("Simulation Controls")
-            .default_width(600.0)
+            .default_width(1500.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
                 ui.label(format!("Bodies: {}", NUM_OF_BODIES));
-
                 ui.separator();
 
-                ui.heading("Camera");
+                let button =
+                    egui::Button::new("Click Me").min_size(egui::Vec2 { x: 100.0, y: 100.0 });
 
-                ui.separator();
-
-                let s: Response = ui.button("Click me!");
-
-                if s.clicked() {
-                    println!("HELLOW");
-                }
-                if ui.button("Click me!").clicked() {
-                    println!("SOME");
+                if ui.add(button).clicked() {
+                    *click_count += 1;
+                    println!("Button clicked {} times", click_count);
                 }
 
-                ui.heading("Controls");
-                ui.label("WASD - Move camera");
-                ui.label("Mouse wheel - Zoom");
+                ui.label(format!("Button clicked: {} times", click_count));
             });
     }
 }

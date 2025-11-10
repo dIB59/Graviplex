@@ -25,7 +25,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 25000;
+pub const NUM_OF_BODIES: i32 = 2500;
 
 impl Default for App {
     fn default() -> Self {
@@ -110,6 +110,15 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        if let Some(gui) = &mut self.gui {
+            if let Some(window) = &self.window {
+                let response = gui.handle_event(window, &event);
+                // If GUI consumed the event, don't pass it to your app
+                if response.consumed {
+                    return;
+                }
+            }
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
 
@@ -202,7 +211,11 @@ impl App {
                 if let Some(gui) = &mut self.gui {
                     // 1. single egui frame
                     let full = gui.run(&self.window.clone().expect("WINDOW NOT FOUND FOR UI")); // shapes + textures
+
+                    ui.handle_textures(full.textures_delta);
+
                     let prim = gui.tessellate(full.shapes, full.pixels_per_point);
+
                     // 2. flatten to slices UiPipeline expects
                     let (mut vtx, mut idx) = (vec![], vec![]);
                     for p in &prim {
