@@ -164,17 +164,17 @@ impl UiPipeline {
         primitives: &[ClippedPrimitive],
         screensize: [f32; 2],
     ) {
-        println!("=== RENDER CALL ===");
-        println!(
+        log::debug!("=== RENDER CALL ===");
+        log::debug!(
             "Vertices: {}, Indices: {}, Primitives: {}",
             vertices.len(),
             indices.len(),
             primitives.len()
         );
-        println!("Screen size: {:?}", screensize);
+        log::debug!("Screen size: {:?}", screensize);
 
         if vertices.is_empty() || indices.is_empty() {
-            println!("Skipping render - no geometry");
+            log::warn!("Skipping render - no geometry");
             return;
         }
 
@@ -216,7 +216,7 @@ impl UiPipeline {
         for (i, prim) in primitives.iter().enumerate() {
             if let Primitive::Mesh(ref mesh) = prim.primitive {
                 let egui::Rect { min, max } = prim.clip_rect;
-                println!(
+                log::debug!(
                     "Primitive {}: clip_rect=({},{}) to ({},{}), indices={}",
                     i,
                     min.x,
@@ -233,9 +233,12 @@ impl UiPipeline {
                 let scissor_h =
                     ((max.y - min.y).max(0.0) as u32).min(screensize[1] as u32 - scissor_y);
 
-                println!(
+                log::debug!(
                     "  Scissor: x={}, y={}, w={}, h={}",
-                    scissor_x, scissor_y, scissor_w, scissor_h
+                    scissor_x,
+                    scissor_y,
+                    scissor_w,
+                    scissor_h
                 );
 
                 rpass.set_scissor_rect(scissor_x, scissor_y, scissor_w, scissor_h);
@@ -249,7 +252,7 @@ impl UiPipeline {
     // Process texture deltas from egui
     pub fn handle_textures(&mut self, textures_delta: egui::TexturesDelta) {
         for (id, delta) in textures_delta.set {
-            println!(
+            log::debug!(
                 "Texture update - ID: {:?}, size: {:?}, pos: {:?}",
                 id,
                 delta.image.size(),
@@ -260,7 +263,7 @@ impl UiPipeline {
                 let [w, h] = delta.image.size();
                 let data: Vec<u8> = match &delta.image {
                     egui::ImageData::Color(color_image) => {
-                        println!(
+                        log::debug!(
                             "Font texture: {}x{}, pixels: {}",
                             w,
                             h,
@@ -274,12 +277,12 @@ impl UiPipeline {
                     }
                 };
 
-                println!("Data bytes: {}, expected: {}", data.len(), w * h * 4);
+                log::debug!("Data bytes: {}, expected: {}", data.len(), w * h * 4);
 
                 // Check if this is a partial update (delta.pos is Some) or full texture
                 if let Some([x, y]) = delta.pos {
                     // Partial update - write to existing texture at offset
-                    println!("Partial texture update at ({}, {})", x, y);
+                    log::debug!("Partial texture update at ({}, {})", x, y);
                     self.queue.write_texture(
                         wgpu::TexelCopyTextureInfoBase {
                             texture: &self.font_tex,
@@ -305,7 +308,7 @@ impl UiPipeline {
                     );
                 } else {
                     // Full texture replacement
-                    println!("Full texture update");
+                    log::debug!("Full texture update");
                     let (tex, view) =
                         Self::make_font_tex(&self.device, &self.queue, w as u32, h as u32, &data);
                     self.font_tex = tex;

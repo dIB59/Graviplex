@@ -25,10 +25,12 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
+pub const NUM_OF_BODIES: i32 = 25000;
+
 impl Default for App {
     fn default() -> Self {
         let mut simulation = Simulation::default();
-        simulation.generate_bodies(25000);
+        simulation.generate_bodies(NUM_OF_BODIES);
 
         Self {
             window: None,
@@ -168,9 +170,6 @@ impl App {
                     .update(&self.gpu.queue, &self.camera);
             }
         }
-
-        // Update simulation based on time
-        self.simulation.update(self.time.delta());
 
         // Prepare render data
         let vertices = vec![

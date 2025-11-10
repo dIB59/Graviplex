@@ -1,3 +1,7 @@
+use egui::Response;
+
+use crate::app::NUM_OF_BODIES;
+
 pub mod gui_renderer;
 
 pub struct Gui {
@@ -56,13 +60,22 @@ impl Gui {
             .default_width(600.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
-                ui.label(format!("Bodies: {}", 2));
+                ui.label(format!("Bodies: {}", NUM_OF_BODIES));
 
                 ui.separator();
 
                 ui.heading("Camera");
 
                 ui.separator();
+
+                let s: Response = ui.button("Click me!");
+
+                if s.clicked() {
+                    println!("HELLOW");
+                }
+                if ui.button("Click me!").clicked() {
+                    println!("SOME");
+                }
 
                 ui.heading("Controls");
                 ui.label("WASD - Move camera");
