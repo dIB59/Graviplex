@@ -58,6 +58,9 @@ impl ApplicationHandler for App {
                     .expect("Unable to create window"),
             );
 
+            let scale_factor = window.scale_factor();
+            println!("Window scale factor: {}", scale_factor);
+
             self.gpu.init_surface(window.clone());
 
             let size = window.inner_size();
@@ -228,7 +231,29 @@ impl App {
 
                     // 3. draw
                     let mut enc = self.gpu.device.create_command_encoder(&Default::default());
-                    ui.render(&mut enc, &view, &vtx, &idx, &prim, self.camera.screen_size);
+
+                    // Get a reference to the window (unwrap since we know it exists at render time)
+                    let window = self.window.as_ref().unwrap();
+
+                    // Get the window's inner size in physical pixels
+                    // Physical pixels = actual pixels on the screen (affected by DPI/monitor scaling)
+                    let size = window.inner_size();
+
+                    // Get the scale factor (e.g., 1.0 for standard displays, 2.0 for Retina/HiDPI)
+                    // This tells us how many physical pixels = 1 logical pixel
+                    let scale_factor = window.scale_factor();
+
+                    // Convert physical pixels to logical pixels for egui
+                    // Logical pixels are what egui uses internally - they're DPI-independent
+                    // For example: 1920 physical pixels ÷ 2.0 scale = 960 logical pixels
+                    let logical_size = [
+                        size.width as f32 / scale_factor as f32,  // Logical width
+                        size.height as f32 / scale_factor as f32, // Logical height
+                    ];
+
+                    // Pass the logical size to the UI renderer
+                    // This ensures egui's coordinate system matches what the user sees
+                    ui.render(&mut enc, &view, &vtx, &idx, &prim, logical_size);
                     self.gpu.queue.submit(std::iter::once(enc.finish()));
                 }
             }
