@@ -1,4 +1,3 @@
-
 #[derive(Clone, Copy, Debug)]
 pub struct Quad {
     pub center: [f32; 2],
@@ -262,5 +261,97 @@ pub fn search_radius(
         if diff >= -radius {
             search_radius(&n.right, target, radius, depth + 1, results);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_quad_subdivide() {
+        let quad = Quad {
+            center: [0.0, 0.0],
+            size: 2.0,
+        };
+        let sub = quad.subdivide();
+        assert_eq!(sub.len(), 4);
+
+        // Quadrant 0: Bottom-Left (assuming into_quadrant logic)
+        assert_eq!(sub[0].center, [-0.5, -0.5]);
+        assert_eq!(sub[0].size, 1.0);
+
+        // Quadrant 3: Top-Right
+        assert_eq!(sub[3].center, [0.5, 0.5]);
+        assert_eq!(sub[3].size, 1.0);
+    }
+
+    #[test]
+    fn test_quadtree_basic_insertion() {
+        let mut qt = Quadtree::new(0.5, 0.01);
+        let quad = Quad {
+            center: [0.0, 0.0],
+            size: 2.0,
+        };
+        qt.clear(quad);
+
+        qt.insert([0.5, 0.5], 1.0);
+        qt.propagate();
+
+        assert_eq!(qt.nodes[Quadtree::ROOT].mass, 1.0);
+        assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.5, 0.5]);
+    }
+
+    #[test]
+    fn test_quadtree_subdivision() {
+        let mut qt = Quadtree::new(0.5, 0.01);
+        let quad = Quad {
+            center: [0.0, 0.0],
+            size: 2.0,
+        };
+        qt.clear(quad);
+
+        qt.insert([0.1, 0.1], 1.0);
+        qt.insert([-0.1, -0.1], 1.0);
+        qt.propagate();
+
+        assert_eq!(qt.nodes[Quadtree::ROOT].mass, 2.0);
+        assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.0, 0.0]);
+        assert!(qt.nodes[Quadtree::ROOT].children != 0);
+    }
+
+    #[test]
+    fn test_quadtree_acceleration() {
+        let mut qt = Quadtree::new(0.0, 0.0); // No approximation, theta=0
+        let quad = Quad {
+            center: [0.0, 0.0],
+            size: 100.0,
+        };
+        qt.clear(quad);
+
+        let p1 = [1.0, 0.0];
+        let m1 = 1.0;
+        let p2 = [-1.0, 0.0];
+        let m2 = 1.0;
+
+        qt.insert(p1, m1);
+        qt.insert(p2, m2);
+        qt.propagate();
+
+        let target = [0.0, 0.0];
+        let acc = qt.acc(target, 1.0);
+
+        // Forces should cancel out at the center
+        assert!((acc[0].abs() < 1e-6));
+        assert!((acc[1].abs() < 1e-6));
+
+        let target2 = [2.0, 0.0];
+        let acc2 = qt.acc(target2, 1.0);
+
+        assert!(
+            (acc2[0] - (-1.111111)).abs() < 1e-5,
+            "Expected ~-1.111, got {}",
+            acc2[0]
+        );
     }
 }
