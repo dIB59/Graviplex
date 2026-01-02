@@ -22,5 +22,5 @@ criterion = { version = "0.5", features = ["html_reports"] }
 bench = false
 
 [[bench]]
-name = "simple_bench"
+name = "baseline_bench"
 harness = false
