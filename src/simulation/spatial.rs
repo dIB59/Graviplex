@@ -5,6 +5,7 @@ pub struct Quad {
 }
 
 impl Quad {
+    pub const MIN_SIZE: f32 = 1e-10;
     pub fn new_containing(positions: &[[f32; 2]]) -> Self {
         if positions.is_empty() {
             return Self {
@@ -24,7 +25,7 @@ impl Quad {
         }
 
         let center = [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5];
-        let size = (max[0] - min[0]).max(max[1] - min[1]) * 1.1;
+        let size = ((max[0] - min[0]).max(max[1] - min[1]) * 1.1).max(Self::MIN_SIZE);
 
         Self { center, size }
     }
@@ -45,9 +46,27 @@ impl Quad {
     }
 }
 
+pub fn interleave_bits(x: u32) -> u64 {
+    let mut x = x as u64;
+    x = (x | (x << 16)) & 0x0000FFFF0000FFFF;
+    x = (x | (x << 8)) & 0x00FF00FF00FF00FF;
+    x = (x | (x << 4)) & 0x0F0F0F0F0F0F0F0F;
+    x = (x | (x << 2)) & 0x3333333333333333;
+    x = (x | (x << 1)) & 0x5555555555555555;
+    x
+}
+
+pub fn get_morton_code(pos: [f32; 2], quad: &Quad) -> u64 {
+    let x = (((pos[0] - (quad.center[0] - quad.size * 0.5)) / quad.size).clamp(0.0, 1.0)
+        * ((1u32 << 31) as f32 - 1.0)) as u32;
+    let y = (((pos[1] - (quad.center[1] - quad.size * 0.5)) / quad.size).clamp(0.0, 1.0)
+        * ((1u32 << 31) as f32 - 1.0)) as u32;
+    interleave_bits(x) | (interleave_bits(y) << 1)
+}
+
 #[derive(Clone)]
 pub struct Node {
-    pub children: usize,
+    pub children: [usize; 4],
     pub next: usize,
     pub pos: [f32; 2],
     pub mass: f32,
@@ -57,7 +76,7 @@ pub struct Node {
 impl Node {
     pub fn new(next: usize, quad: Quad) -> Self {
         Self {
-            children: 0,
+            children: [0; 4],
             next,
             pos: [0.0, 0.0],
             mass: 0.0,
@@ -66,7 +85,7 @@ impl Node {
     }
 
     pub fn is_leaf(&self) -> bool {
-        self.children == 0
+        self.children[0] == 0
     }
 
     pub fn is_empty(&self) -> bool {
@@ -78,7 +97,6 @@ pub struct Quadtree {
     pub t_sq: f32,
     pub e_sq: f32,
     pub nodes: Vec<Node>,
-    pub parents: Vec<usize>,
 }
 
 impl Quadtree {
@@ -89,41 +107,152 @@ impl Quadtree {
             t_sq: theta * theta,
             e_sq: epsilon * epsilon,
             nodes: Vec::new(),
-            parents: Vec::new(),
         }
     }
 
     pub fn clear(&mut self, quad: Quad) {
         self.nodes.clear();
-        self.parents.clear();
         self.nodes.push(Node::new(0, quad));
     }
 
-    fn subdivide(&mut self, node: usize) -> usize {
-        self.parents.push(node);
-        let children = self.nodes.len();
-        self.nodes[node].children = children;
+    pub fn build(&mut self, positions: &[[f32; 2]], masses: &[f32], quad: Quad) {
+        self.nodes.clear();
 
-        let nexts = [
-            children + 1,
-            children + 2,
-            children + 3,
-            self.nodes[node].next,
-        ];
-        let quads = self.nodes[node].quad.subdivide();
-        for i in 0..4 {
-            self.nodes.push(Node::new(nexts[i], quads[i]));
+        if positions.is_empty() {
+            self.nodes.push(Node::new(0, quad));
+            return;
         }
 
+        let mut bodies: Vec<_> = (0..positions.len())
+            .map(|i| {
+                (
+                    positions[i],
+                    masses[i],
+                    get_morton_code(positions[i], &quad),
+                )
+            })
+            .collect();
+
+        bodies.sort_by_key(|b| b.2);
+
+        self.build_recursive(&bodies, quad, 0);
+        self.thread(0, 0);
+    }
+
+    fn build_recursive(
+        &mut self,
+        bodies: &[([f32; 2], f32, u64)],
+        quad: Quad,
+        depth: usize,
+    ) -> usize {
+        let node_idx = self.nodes.len();
+        self.nodes.push(Node::new(0, quad));
+
+        if bodies.is_empty() {
+            return node_idx;
+        }
+
+        if bodies.len() == 1 || depth > 32 {
+            let mut mass = 0.0;
+            let mut pos = [0.0, 0.0];
+            for b in bodies {
+                mass += b.1;
+                pos[0] += b.0[0] * b.1;
+                pos[1] += b.0[1] * b.1;
+            }
+            if mass > 0.0 {
+                self.nodes[node_idx].pos = [pos[0] / mass, pos[1] / mass];
+            }
+            self.nodes[node_idx].mass = mass;
+            return node_idx;
+        }
+
+        let first_pos = bodies[0].0;
+        if bodies.iter().all(|b| b.0 == first_pos) {
+            self.nodes[node_idx].pos = first_pos;
+            self.nodes[node_idx].mass = bodies.iter().map(|b| b.1).sum();
+            return node_idx;
+        }
+
+        let sub_quads = quad.subdivide();
+        let mut split_indices = [0; 5];
+        split_indices[4] = bodies.len();
+
+        let mut current_quad = 0;
+        for (i, b) in bodies.iter().enumerate() {
+            let q = quad.find_quadrant(b.0);
+            while current_quad < q {
+                current_quad += 1;
+                split_indices[current_quad] = i;
+            }
+        }
+        while current_quad < 4 {
+            current_quad += 1;
+            split_indices[current_quad] = bodies.len();
+        }
+
+        let mut child_indices = [0; 4];
+        for i in 0..4 {
+            child_indices[i] = self.build_recursive(
+                &bodies[split_indices[i]..split_indices[i + 1]],
+                sub_quads[i],
+                depth + 1,
+            );
+        }
+        self.nodes[node_idx].children = child_indices;
+
+        let mut total_mass = 0.0;
+        let mut center_of_mass = [0.0, 0.0];
+
+        for i in 0..4 {
+            let m = self.nodes[child_indices[i]].mass;
+            total_mass += m;
+            center_of_mass[0] += self.nodes[child_indices[i]].pos[0] * m;
+            center_of_mass[1] += self.nodes[child_indices[i]].pos[1] * m;
+        }
+
+        if total_mass > 0.0 {
+            self.nodes[node_idx].pos = [
+                center_of_mass[0] / total_mass,
+                center_of_mass[1] / total_mass,
+            ];
+        } else if !bodies.is_empty() {
+            // Fallback for safety
+            self.nodes[node_idx].pos = bodies[0].0;
+        }
+        self.nodes[node_idx].mass = total_mass;
+
+        node_idx
+    }
+
+    fn thread(&mut self, node: usize, next: usize) {
+        self.nodes[node].next = next;
+        if !self.nodes[node].is_leaf() {
+            let children = self.nodes[node].children;
+            self.thread(children[0], children[1]);
+            self.thread(children[1], children[2]);
+            self.thread(children[2], children[3]);
+            self.thread(children[3], next);
+        }
+    }
+
+    fn subdivide(&mut self, node: usize) -> [usize; 4] {
+        let quads = self.nodes[node].quad.subdivide();
+        let mut children = [0; 4];
+        for i in 0..4 {
+            children[i] = self.nodes.len();
+            self.nodes.push(Node::new(0, quads[i]));
+        }
+        self.nodes[node].children = children;
         children
     }
 
     pub fn insert(&mut self, pos: [f32; 2], mass: f32) {
         let mut node = Self::ROOT;
 
-        while self.nodes[node].children != 0 {
+        while !self.nodes[node].is_leaf() {
             let q = self.nodes[node].quad.find_quadrant(pos);
-            node = self.nodes[node].children + q;
+            node = self.nodes[node].children[q];
         }
 
         if self.nodes[node].is_empty() {
@@ -139,15 +268,15 @@ impl Quadtree {
         }
 
         loop {
-            let children = self.subdivide(node);
+            let children_indices = self.subdivide(node);
             let q1 = self.nodes[node].quad.find_quadrant(p);
             let q2 = self.nodes[node].quad.find_quadrant(pos);
 
             if q1 == q2 {
-                node = children + q1;
+                node = children_indices[q1];
             } else {
-                let n1 = children + q1;
-                let n2 = children + q2;
+                let n1 = children_indices[q1];
+                let n2 = children_indices[q2];
                 self.nodes[n1].pos = p;
                 self.nodes[n1].mass = m;
                 self.nodes[n2].pos = pos;
@@ -158,24 +287,36 @@ impl Quadtree {
     }
 
     pub fn propagate(&mut self) {
-        for &node in self.parents.iter().rev() {
-            let i = self.nodes[node].children;
+        // Redefine propagate to use children array recursively
+        Self::propagate_recursive(&mut self.nodes, Self::ROOT);
+        // After propagation, we should re-thread if we used insert
+        self.thread(0, 0);
+    }
 
-            let mut pos = [0.0, 0.0];
-            let mut mass = 0.0;
-            for j in 0..4 {
-                pos[0] += self.nodes[i + j].pos[0] * self.nodes[i + j].mass;
-                pos[1] += self.nodes[i + j].pos[1] * self.nodes[i + j].mass;
-                mass += self.nodes[i + j].mass;
-            }
-
-            self.nodes[node].pos = if mass > 0.0 {
-                [pos[0] / mass, pos[1] / mass]
-            } else {
-                [0.0, 0.0]
-            };
-            self.nodes[node].mass = mass;
+    fn propagate_recursive(nodes: &mut [Node], node_idx: usize) -> (f32, [f32; 2]) {
+        if nodes[node_idx].is_leaf() {
+            return (nodes[node_idx].mass, nodes[node_idx].pos);
         }
+
+        let mut total_mass = 0.0;
+        let mut center_of_mass = [0.0, 0.0];
+
+        let children = nodes[node_idx].children;
+        for i in 0..4 {
+            let (m, p) = Self::propagate_recursive(nodes, children[i]);
+            total_mass += m;
+            center_of_mass[0] += p[0] * m;
+            center_of_mass[1] += p[1] * m;
+        }
+
+        nodes[node_idx].mass = total_mass;
+        if total_mass > 0.0 {
+            nodes[node_idx].pos = [
+                center_of_mass[0] / total_mass,
+                center_of_mass[1] / total_mass,
+            ];
+        }
+        (total_mass, nodes[node_idx].pos)
     }
 
     pub fn acc(&self, pos: [f32; 2], gravity_constant: f32) -> [f32; 2] {
@@ -188,17 +329,22 @@ impl Quadtree {
             let d_sq = d[0] * d[0] + d[1] * d[1];
 
             if n.is_leaf() || n.quad.size * n.quad.size < d_sq * self.t_sq {
-                let denom = (d_sq + self.e_sq) * d_sq.sqrt();
-                let force_scale = (gravity_constant * n.mass / denom).min(f32::MAX);
-                acc[0] += d[0] * force_scale;
-                acc[1] += d[1] * force_scale;
+                if n.mass > 0.0 {
+                    let soft_d_sq = d_sq + self.e_sq;
+                    if soft_d_sq > 0.0 {
+                        let denom = soft_d_sq * soft_d_sq.sqrt();
+                        let force_scale = gravity_constant * n.mass / denom;
+                        acc[0] += d[0] * force_scale;
+                        acc[1] += d[1] * force_scale;
+                    }
+                }
 
                 if n.next == 0 {
                     break;
                 }
                 node = n.next;
             } else {
-                node = n.children;
+                node = n.children[0];
             }
         }
 
@@ -317,7 +463,7 @@ mod tests {
 
         assert_eq!(qt.nodes[Quadtree::ROOT].mass, 2.0);
         assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.0, 0.0]);
-        assert!(qt.nodes[Quadtree::ROOT].children != 0);
+        assert!(!qt.nodes[Quadtree::ROOT].is_leaf());
     }
 
     #[test]
@@ -353,5 +499,26 @@ mod tests {
             "Expected ~-1.111, got {}",
             acc2[0]
         );
+    }
+
+    #[test]
+    fn test_quadtree_build() {
+        let mut qt = Quadtree::new(0.0, 0.0);
+        let quad = Quad {
+            center: [0.0, 0.0],
+            size: 100.0,
+        };
+
+        let positions = [[1.0, 0.0], [-1.0, 0.0]];
+        let masses = [1.0, 1.0];
+
+        qt.build(&positions, &masses, quad);
+
+        assert_eq!(qt.nodes[Quadtree::ROOT].mass, 2.0);
+        assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.0, 0.0]);
+
+        let target = [2.0, 0.0];
+        let acc = qt.acc(target, 1.0);
+        assert!((acc[0] - (-1.111111)).abs() < 1e-5);
     }
 }
