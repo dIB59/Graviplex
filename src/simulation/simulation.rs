@@ -1,8 +1,8 @@
-use rand::Rng;
-use super::{Body, CollisionStrategy, GravityStrategy};
 use super::{BarnesHutGravityStrategy, KdTreeCollision};
+use super::{Body, CollisionStrategy, GravityStrategy};
+use rand::Rng;
 
-const SPACE_SCALE: f32 = 10000.0;
+const SPACE_SCALE: f32 = 100000.0;
 
 pub struct Simulation {
     bodies: Vec<Body>,
@@ -117,3 +117,4 @@ impl Simulation {
         self.collision_strategy.handle_collisions(&mut self.bodies);
     }
 }
+

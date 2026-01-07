@@ -25,7 +25,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 2500;
+pub const NUM_OF_BODIES: i32 = 50000;
 
 impl Default for App {
     fn default() -> Self {
