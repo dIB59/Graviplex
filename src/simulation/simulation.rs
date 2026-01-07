@@ -2,15 +2,15 @@ use super::{BarnesHutGravityStrategy, KdTreeCollision};
 use super::{Body, CollisionStrategy, GravityStrategy};
 use rand::Rng;
 
-const SPACE_SCALE: f32 = 100000.0;
+const SPACE_SCALE: f64 = 100000.0;
 
 pub struct Simulation {
     bodies: Vec<Body>,
     next_id: u32,
-    gravity_constant: f32,
+    gravity_constant: f64,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
-    updates_buffer: Vec<([f32; 2], [f32; 2])>,
+    updates_buffer: Vec<([f64; 2], [f64; 2])>,
 }
 
 impl Default for Simulation {
@@ -62,11 +62,11 @@ impl Simulation {
 
     pub fn add_body(
         &mut self,
-        position: [f32; 2],
-        velocity: [f32; 2],
-        mass: f32,
+        position: [f64; 2],
+        velocity: [f64; 2],
+        mass: f64,
         color: [u8; 4],
-        radius: f32,
+        radius: f64,
     ) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
@@ -97,7 +97,7 @@ impl Simulation {
         self.next_id = 0;
     }
 
-    pub fn update(&mut self, dt: f32) {
+    pub fn update(&mut self, dt: f64) {
         if self.bodies.len() < 2 {
             return;
         }
@@ -109,12 +109,15 @@ impl Simulation {
             &mut self.updates_buffer,
         );
 
-        for (i, &(position, velocity)) in self.updates_buffer.iter().enumerate() {
-            self.bodies[i].position = position;
-            self.bodies[i].velocity = velocity;
-        }
+        use rayon::prelude::*;
+        self.bodies
+            .par_iter_mut()
+            .zip(self.updates_buffer.par_iter())
+            .for_each(|(body, &(position, velocity))| {
+                body.position = position;
+                body.velocity = velocity;
+            });
 
         self.collision_strategy.handle_collisions(&mut self.bodies);
     }
 }
-

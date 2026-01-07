@@ -39,7 +39,7 @@ impl Default for App {
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
-                .with_zoom_range(0.01, 10.0),
+                .with_zoom_range(0.001, 10.0),
             time: Time::new(),
             input: InputState::new(),
             simulation,
@@ -168,7 +168,7 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-        self.simulation.update(self.time.delta());
+        self.simulation.update(self.time.delta() as f64);
 
         // 2. Update camera if it moved
         if self.camera_controller.update_movement(

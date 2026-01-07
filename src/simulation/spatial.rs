@@ -1,12 +1,14 @@
+use rayon::prelude::*;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Quad {
-    pub center: [f32; 2],
-    pub size: f32,
+    pub center: [f64; 2],
+    pub size: f64,
 }
 
 impl Quad {
-    pub const MIN_SIZE: f32 = 1e-8;
-    pub fn new_containing(positions: &[[f32; 2]]) -> Self {
+    pub const MIN_SIZE: f64 = 1e-8;
+    pub fn new_containing(positions: &[[f64; 2]]) -> Self {
         if positions.is_empty() {
             return Self {
                 center: [0.0, 0.0],
@@ -14,8 +16,8 @@ impl Quad {
             };
         }
 
-        let mut min = [f32::MAX, f32::MAX];
-        let mut max = [f32::MIN, f32::MIN];
+        let mut min = [f64::MAX, f64::MAX];
+        let mut max = [f64::MIN, f64::MIN];
 
         for &pos in positions {
             min[0] = min[0].min(pos[0]);
@@ -30,14 +32,14 @@ impl Quad {
         Self { center, size }
     }
 
-    pub fn find_quadrant(&self, pos: [f32; 2]) -> usize {
+    pub fn find_quadrant(&self, pos: [f64; 2]) -> usize {
         ((pos[1] > self.center[1]) as usize) << 1 | (pos[0] > self.center[0]) as usize
     }
 
     pub fn into_quadrant(mut self, quadrant: usize) -> Self {
         self.size *= 0.5;
-        self.center[0] += ((quadrant & 1) as f32 - 0.5) * self.size;
-        self.center[1] += ((quadrant >> 1) as f32 - 0.5) * self.size;
+        self.center[0] += ((quadrant & 1) as f64 - 0.5) * self.size;
+        self.center[1] += ((quadrant >> 1) as f64 - 0.5) * self.size;
         self
     }
 
@@ -56,11 +58,11 @@ pub fn interleave_bits(x: u32) -> u64 {
     x
 }
 
-pub fn get_morton_code(pos: [f32; 2], quad: &Quad) -> u64 {
+pub fn get_morton_code(pos: [f64; 2], quad: &Quad) -> u64 {
     let x = (((pos[0] - (quad.center[0] - quad.size * 0.5)) / quad.size).clamp(0.0, 1.0)
-        * ((1u32 << 31) as f32 - 1.0)) as u32;
+        * ((1u32 << 31) as f64 - 1.0)) as u32;
     let y = (((pos[1] - (quad.center[1] - quad.size * 0.5)) / quad.size).clamp(0.0, 1.0)
-        * ((1u32 << 31) as f32 - 1.0)) as u32;
+        * ((1u32 << 31) as f64 - 1.0)) as u32;
     interleave_bits(x) | (interleave_bits(y) << 1)
 }
 
@@ -68,8 +70,8 @@ pub fn get_morton_code(pos: [f32; 2], quad: &Quad) -> u64 {
 pub struct Node {
     pub children: [usize; 4],
     pub next: usize,
-    pub pos: [f32; 2],
-    pub mass: f32,
+    pub pos: [f64; 2],
+    pub mass: f64,
     pub quad: Quad,
 }
 
@@ -94,15 +96,15 @@ impl Node {
 }
 
 pub struct Quadtree {
-    pub t_sq: f32,
-    pub e_sq: f32,
+    pub t_sq: f64,
+    pub e_sq: f64,
     pub nodes: Vec<Node>,
 }
 
 impl Quadtree {
     pub const ROOT: usize = 0;
 
-    pub fn new(theta: f32, epsilon: f32) -> Self {
+    pub fn new(theta: f64, epsilon: f64) -> Self {
         Self {
             t_sq: theta * theta,
             e_sq: epsilon * epsilon,
@@ -115,7 +117,7 @@ impl Quadtree {
         self.nodes.push(Node::new(0, quad));
     }
 
-    pub fn build(&mut self, positions: &[[f32; 2]], masses: &[f32], quad: Quad) {
+    pub fn build(&mut self, positions: &[[f64; 2]], masses: &[f64], quad: Quad) {
         self.nodes.clear();
 
         if positions.is_empty() {
@@ -124,6 +126,7 @@ impl Quadtree {
         }
 
         let mut bodies: Vec<_> = (0..positions.len())
+            .into_par_iter()
             .map(|i| {
                 (
                     positions[i],
@@ -133,7 +136,7 @@ impl Quadtree {
             })
             .collect();
 
-        bodies.sort_by_key(|b| b.2);
+        bodies.par_sort_by_key(|b| b.2);
 
         self.build_recursive(&bodies, quad, 0);
         self.thread(0, 0);
@@ -141,7 +144,7 @@ impl Quadtree {
 
     fn build_recursive(
         &mut self,
-        bodies: &[([f32; 2], f32, u64)],
+        bodies: &[([f64; 2], f64, u64)],
         quad: Quad,
         depth: usize,
     ) -> usize {
@@ -247,7 +250,7 @@ impl Quadtree {
         children
     }
 
-    pub fn insert(&mut self, pos: [f32; 2], mass: f32) {
+    pub fn insert(&mut self, pos: [f64; 2], mass: f64) {
         let mut node = Self::ROOT;
 
         while !self.nodes[node].is_leaf() {
@@ -293,7 +296,7 @@ impl Quadtree {
         self.thread(0, 0);
     }
 
-    fn propagate_recursive(nodes: &mut [Node], node_idx: usize) -> (f32, [f32; 2]) {
+    fn propagate_recursive(nodes: &mut [Node], node_idx: usize) -> (f64, [f64; 2]) {
         if nodes[node_idx].is_leaf() {
             return (nodes[node_idx].mass, nodes[node_idx].pos);
         }
@@ -319,7 +322,7 @@ impl Quadtree {
         (total_mass, nodes[node_idx].pos)
     }
 
-    pub fn acc(&self, pos: [f32; 2], gravity_constant: f32) -> [f32; 2] {
+    pub fn acc(&self, pos: [f64; 2], gravity_constant: f64) -> [f64; 2] {
         let mut acc = [0.0, 0.0];
         let mut node = Self::ROOT;
 
@@ -331,7 +334,7 @@ impl Quadtree {
             if n.is_leaf() || n.quad.size * n.quad.size < d_sq * self.t_sq {
                 if n.mass > 0.0 {
                     let soft_d_sq = d_sq + self.e_sq;
-                    if soft_d_sq > 0.0 {
+                    if soft_d_sq > 1e-9 {
                         let denom = soft_d_sq * soft_d_sq.sqrt();
                         let force_scale = gravity_constant * n.mass / denom;
                         acc[0] += d[0] * force_scale;
@@ -355,13 +358,13 @@ impl Quadtree {
 // KD-Tree for collision detection
 #[derive(Debug)]
 pub struct KdNode {
-    point: [f32; 2],
+    point: [f64; 2],
     idx: usize,
     left: Option<Box<KdNode>>,
     right: Option<Box<KdNode>>,
 }
 
-pub fn build_kd_tree(points: &mut [(usize, [f32; 2])], depth: usize) -> Option<Box<KdNode>> {
+pub fn build_kd_tree(points: &mut [(usize, [f64; 2])], depth: usize) -> Option<Box<KdNode>> {
     if points.is_empty() {
         return None;
     }
@@ -386,8 +389,8 @@ pub fn build_kd_tree(points: &mut [(usize, [f32; 2])], depth: usize) -> Option<B
 
 pub fn search_radius(
     node: &Option<Box<KdNode>>,
-    target: [f32; 2],
-    radius: f32,
+    target: [f64; 2],
+    radius: f64,
     depth: usize,
     results: &mut Vec<usize>,
 ) {
