@@ -86,7 +86,7 @@ impl ApplicationHandler for App {
 
             // Run one frame to generate font texture delta
             log::debug!("Running initial egui frame to generate font texture...");
-            let initial_output = gui.run(&window);
+            let initial_output = gui.run(&window, 0.0);
             log::debug!(
                 "Initial texture deltas: set={}, free={}",
                 initial_output.textures_delta.set.len(),
@@ -213,7 +213,10 @@ impl App {
             if let Some(ui) = &mut self.gui_renderer {
                 if let Some(gui) = &mut self.gui {
                     // 1. single egui frame
-                    let full = gui.run(&self.window.clone().expect("WINDOW NOT FOUND FOR UI")); // shapes + textures
+                    let full = gui.run(
+                        &self.window.clone().expect("WINDOW NOT FOUND FOR UI"),
+                        self.time.fps(),
+                    ); // shapes + textures
 
                     ui.handle_textures(full.textures_delta);
 

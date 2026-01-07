@@ -35,11 +35,11 @@ impl Gui {
         self.state.on_window_event(window, event)
     }
 
-    pub fn run(&mut self, window: &winit::window::Window) -> egui::FullOutput {
+    pub fn run(&mut self, window: &winit::window::Window, fps: f32) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
         let click_count = &mut self.click_count;
         self.ctx
-            .run(raw_input, |ctx| Self::build_ui(ctx, click_count))
+            .run(raw_input, |ctx| Self::build_ui(ctx, click_count, fps))
     }
 
     pub fn handle_platform_output(
@@ -58,12 +58,13 @@ impl Gui {
         self.ctx.tessellate(shapes, pixels_per_point)
     }
 
-    pub fn build_ui(ctx: &egui::Context, click_count: &mut u32) {
+    pub fn build_ui(ctx: &egui::Context, click_count: &mut u32, fps: f32) {
         egui::Window::new("Simulation Controls")
             .default_width(1500.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
                 ui.label(format!("Bodies: {}", NUM_OF_BODIES));
+                ui.label(format!("FPS: {:.1}", fps));
                 ui.separator();
 
                 let button =

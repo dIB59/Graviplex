@@ -5,7 +5,7 @@ pub struct Quad {
 }
 
 impl Quad {
-    pub const MIN_SIZE: f32 = 1e-10;
+    pub const MIN_SIZE: f32 = 1e-8;
     pub fn new_containing(positions: &[[f32; 2]]) -> Self {
         if positions.is_empty() {
             return Self {
