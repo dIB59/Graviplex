@@ -14,6 +14,7 @@ wgpu = "26.0.1"
 winit = "0.30.7"
 egui = { version = "0.33.0", default-features = true }
 egui-winit = { version = "0.33.0", default-features = false }
+rayon = "1.10"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -22,5 +23,5 @@ criterion = { version = "0.5", features = ["html_reports"] }
 bench = false
 
 [[bench]]
-name = "simple_bench"
+name = "baseline_bench"
 harness = false

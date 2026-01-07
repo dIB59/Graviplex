@@ -1,5 +1,5 @@
-use bytemuck::NoUninit;
 use crate::simulation::Body;
+use bytemuck::NoUninit;
 
 #[repr(C)]
 #[derive(Clone, Copy, NoUninit, Debug)]
@@ -44,8 +44,8 @@ impl From<&Body> for Instance {
     fn from(body: &Body) -> Self {
         Instance {
             color: body.color,
-            position: body.position,
-            radius: body.radius,
+            position: [body.position[0] as f32, body.position[1] as f32],
+            radius: body.radius as f32,
         }
     }
 }

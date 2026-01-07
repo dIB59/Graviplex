@@ -25,7 +25,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 2500;
+pub const NUM_OF_BODIES: i32 = 100000;
 
 impl Default for App {
     fn default() -> Self {
@@ -39,7 +39,7 @@ impl Default for App {
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
-                .with_zoom_range(0.01, 10.0),
+                .with_zoom_range(0.001, 10.0),
             time: Time::new(),
             input: InputState::new(),
             simulation,
@@ -86,7 +86,7 @@ impl ApplicationHandler for App {
 
             // Run one frame to generate font texture delta
             log::debug!("Running initial egui frame to generate font texture...");
-            let initial_output = gui.run(&window);
+            let initial_output = gui.run(&window, 0.0);
             log::debug!(
                 "Initial texture deltas: set={}, free={}",
                 initial_output.textures_delta.set.len(),
@@ -168,7 +168,7 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-        self.simulation.update(self.time.delta());
+        self.simulation.update(self.time.delta() as f64);
 
         // 2. Update camera if it moved
         if self.camera_controller.update_movement(
@@ -213,7 +213,10 @@ impl App {
             if let Some(ui) = &mut self.gui_renderer {
                 if let Some(gui) = &mut self.gui {
                     // 1. single egui frame
-                    let full = gui.run(&self.window.clone().expect("WINDOW NOT FOUND FOR UI")); // shapes + textures
+                    let full = gui.run(
+                        &self.window.clone().expect("WINDOW NOT FOUND FOR UI"),
+                        self.time.fps(),
+                    ); // shapes + textures
 
                     ui.handle_textures(full.textures_delta);
 

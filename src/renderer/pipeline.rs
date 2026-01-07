@@ -1,7 +1,6 @@
 use super::{Camera2D, Instance, Vertex};
 use crate::renderer::camera::CameraGpuData;
 use wgpu::*;
-use winit::event::DeviceEvent;
 
 pub struct RenderPipeline {
     pipeline: wgpu::RenderPipeline,

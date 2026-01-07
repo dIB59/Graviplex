@@ -1,13 +1,13 @@
-use super::Body;
 use super::spatial::Quadtree;
+use super::Body;
 
 pub trait GravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f32,
-        dt: f32,
-        updates: &mut Vec<([f32; 2], [f32; 2])>,
+        gravity_constant: f64,
+        dt: f64,
+        updates: &mut Vec<([f64; 2], [f64; 2])>,
     );
 }
 
@@ -17,9 +17,9 @@ impl GravityStrategy for NaiveGravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f32,
-        dt: f32,
-        updates: &mut Vec<([f32; 2], [f32; 2])>,
+        gravity_constant: f64,
+        dt: f64,
+        updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
         updates.clear();
         updates.reserve(bodies.len());
@@ -40,7 +40,7 @@ impl GravityStrategy for NaiveGravityStrategy {
                 let distance_sq = dx * dx + dy * dy;
                 let distance = distance_sq.sqrt();
 
-                if distance < 1e-6 {
+                if distance < 1.0 {
                     continue;
                 }
 
@@ -73,7 +73,7 @@ pub struct BarnesHutGravityStrategy {
 }
 
 impl BarnesHutGravityStrategy {
-    pub fn new(theta: f32, epsilon: f32) -> Self {
+    pub fn new(theta: f64, epsilon: f64) -> Self {
         Self {
             quadtree: Quadtree::new(theta, epsilon),
         }
@@ -84,39 +84,97 @@ impl GravityStrategy for BarnesHutGravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f32,
-        dt: f32,
-        updates: &mut Vec<([f32; 2], [f32; 2])>,
+        gravity_constant: f64,
+        dt: f64,
+        updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
         use super::spatial::Quad;
-        
-        let positions: Vec<[f32; 2]> = bodies.iter().map(|b| b.position).collect();
+        use rayon::prelude::*;
+
+        let positions: Vec<[f64; 2]> = bodies.par_iter().map(|b| b.position).collect();
         let root_quad = Quad::new_containing(&positions);
         self.quadtree.clear(root_quad);
 
-        for body in bodies {
-            self.quadtree.insert(body.position, body.mass);
+        let masses: Vec<f64> = bodies.par_iter().map(|b| b.mass).collect();
+        self.quadtree.build(&positions, &masses, root_quad);
+
+        *updates = bodies
+            .par_iter()
+            .map(|body| {
+                let acc = self.quadtree.acc(body.position, gravity_constant);
+
+                let new_velocity = [
+                    body.velocity[0] + acc[0] * dt,
+                    body.velocity[1] + acc[1] * dt,
+                ];
+
+                let new_position = [
+                    body.position[0] + new_velocity[0] * dt,
+                    body.position[1] + new_velocity[1] * dt,
+                ];
+
+                (new_position, new_velocity)
+            })
+            .collect();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::simulation::Body;
+    use rand::Rng;
+
+    #[test]
+    fn test_barnes_hut_vs_naive() {
+        let mut bodies = Vec::new();
+        let n = 100;
+        let mut rng = rand::rng();
+        for i in 0..n {
+            bodies.push(Body::new(
+                i as u32,
+                [
+                    rng.random_range(-100.0..100.0),
+                    rng.random_range(-100.0..100.0),
+                ],
+                [0.0, 0.0],
+                rng.random_range(1.0..10.0),
+                [0, 0, 0, 255],
+                1.0,
+            ));
         }
 
-        self.quadtree.propagate();
+        let dt = 0.01;
+        let gravity_constant = 1000.0;
 
-        updates.clear();
-        updates.reserve(bodies.len());
+        let mut naive_strategy = NaiveGravityStrategy;
+        let mut naive_updates = Vec::new();
+        naive_strategy.calculate_forces(&bodies, gravity_constant, dt, &mut naive_updates);
 
-        for body in bodies {
-            let acc = self.quadtree.acc(body.position, gravity_constant);
+        let mut bh_strategy = BarnesHutGravityStrategy::new(0.01, 0.0); // Very low theta, no softening
+        let mut bh_updates = Vec::new();
+        bh_strategy.calculate_forces(&bodies, gravity_constant, dt, &mut bh_updates);
 
-            let new_velocity = [
-                body.velocity[0] + acc[0] * dt,
-                body.velocity[1] + acc[1] * dt,
-            ];
+        for (i, (naive, bh)) in naive_updates.iter().zip(bh_updates.iter()).enumerate() {
+            let pos_diff = [naive.0[0] - bh.0[0], naive.0[1] - bh.0[1]];
+            let vel_diff = [naive.1[0] - bh.1[0], naive.1[1] - bh.1[1]];
 
-            let new_position = [
-                body.position[0] + new_velocity[0] * dt,
-                body.position[1] + new_velocity[1] * dt,
-            ];
+            let pos_error = (pos_diff[0] * pos_diff[0] + pos_diff[1] * pos_diff[1]).sqrt();
+            let vel_error = (vel_diff[0] * vel_diff[0] + vel_diff[1] * vel_diff[1]).sqrt();
 
-            updates.push((new_position, new_velocity));
+            // With f64 and theta=0.01, error should be small
+            assert!(
+                pos_error < 5.0,
+                "Position error too high for body {}: {}",
+                i,
+                pos_error
+            );
+            assert!(
+                vel_error < 100.0,
+                "Velocity error too high for body {}: {}",
+                i,
+                vel_error
+            );
         }
     }
 }
