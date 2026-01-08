@@ -10,6 +10,11 @@ pub enum SimulationCommand {
     SetTheta(f64),
     Pause(bool),
     Step,
+    Interaction {
+        pos: [f64; 2],
+        radius: f64,
+        strength: f64,
+    },
 }
 
 /// A Triple Buffer for zero-contention state sharing.
@@ -149,6 +154,13 @@ fn simulation_worker(
                 SimulationCommand::Pause(p) => is_paused = p,
                 SimulationCommand::Step => {
                     sim.update(0.016); // fixed step for manual advance
+                }
+                SimulationCommand::Interaction {
+                    pos,
+                    radius,
+                    strength,
+                } => {
+                    sim.apply_interaction(pos, radius, strength);
                 }
             }
         }

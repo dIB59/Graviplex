@@ -12,6 +12,8 @@ pub struct Gui {
     theta: f64,
     paused: bool,
     particle_count: i32,
+    interaction_radius: f32,
+    interaction_strength: f32,
     click_count: u32,
 }
 
@@ -38,6 +40,8 @@ impl Gui {
             theta: 0.5,
             paused: false,
             particle_count: crate::app::NUM_OF_BODIES,
+            interaction_radius: 100.0,
+            interaction_strength: 10.0,
             click_count: 0,
         }
     }
@@ -56,26 +60,47 @@ impl Gui {
         fps: f32,
         tps: f32,
         body_count: usize,
+        camera_scale: f32,
+        is_interacting: bool,
     ) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
 
-        let sender = &self.sender;
-        let gravity = &mut self.gravity_constant;
-        let theta = &mut self.theta;
-        let paused = &mut self.paused;
-        let particle_count = &mut self.particle_count;
-        let click_count = &mut self.click_count;
+        let world_radius = self.interaction_radius;
+        let interaction_strength_val = self.interaction_strength;
+        let pixels_per_point = self.ctx.pixels_per_point();
 
         self.ctx.run(raw_input, |ctx| {
+            if is_interacting {
+                if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
+                    let color = if interaction_strength_val > 0.0 {
+                        egui::Color32::from_rgba_unmultiplied(100, 200, 255, 40)
+                    } else {
+                        egui::Color32::from_rgba_unmultiplied(255, 100, 100, 40)
+                    };
+
+                    // Scale world radius to logical pixels (points)
+                    let visual_radius = (world_radius * camera_scale) / pixels_per_point;
+
+                    ctx.debug_painter().circle_stroke(
+                        pos,
+                        visual_radius,
+                        egui::Stroke::new(2.0, color),
+                    );
+                    ctx.debug_painter().circle_filled(pos, visual_radius, color);
+                }
+            }
+
             Self::build_ui(
                 ctx,
-                sender,
-                gravity,
-                theta,
-                paused,
-                particle_count,
+                &self.sender,
+                &mut self.gravity_constant,
+                &mut self.theta,
+                &mut self.paused,
+                &mut self.particle_count,
+                &mut self.interaction_radius,
+                &mut self.interaction_strength,
                 body_count,
-                click_count,
+                &mut self.click_count,
                 fps,
                 tps,
             )
@@ -105,6 +130,8 @@ impl Gui {
         theta: &mut f64,
         paused: &mut bool,
         particle_count: &mut i32,
+        interaction_radius: &mut f32,
+        interaction_strength: &mut f32,
         body_count: usize,
         click_count: &mut u32,
         fps: f32,
@@ -152,6 +179,11 @@ impl Gui {
                     let _ = sender.send(SimulationCommand::Reset(*particle_count));
                 }
 
+                ui.heading("Interaction");
+                ui.add(egui::Slider::new(interaction_radius, 10.0..=5000.0).text("Radius"));
+                ui.add(egui::Slider::new(interaction_strength, 10.0..=1000.0).text("Strength"));
+                ui.label("Left-click: Pull | Right-click: Repel");
+
                 ui.separator();
                 ui.heading("Misc");
                 if ui.button("Magic Click").clicked() {
@@ -159,5 +191,8 @@ impl Gui {
                 }
                 ui.label(format!("Magic Clicks: {}", click_count));
             });
+    }
+    pub fn interaction_params(&self) -> (f32, f32) {
+        (self.interaction_radius, self.interaction_strength)
     }
 }

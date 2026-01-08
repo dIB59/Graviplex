@@ -74,10 +74,16 @@ impl ApplicationHandler for App {
                 format,
                 &self.camera,
             ));
-            let cuurent_bodies = self.simulation_bridge.get_body_count();
 
             let mut gui = Gui::new(event_loop, self.simulation_bridge.sender());
-            let initial_output = gui.run(&window, 0.0, 0.0, cuurent_bodies);
+            let initial_output = gui.run(
+                &window,
+                0.0,
+                0.0,
+                self.simulation_bridge.get_body_count(),
+                self.camera.scale,
+                false,
+            );
             let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
             ui_pipeline.handle_textures(initial_output.textures_delta);
 
@@ -120,6 +126,14 @@ impl ApplicationHandler for App {
                 self.input.handle_keyboard_event(event);
             }
 
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input.handle_cursor_moved(position);
+            }
+
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.input.handle_mouse_input(state, button);
+            }
+
             WindowEvent::MouseWheel { delta, .. } => {
                 if self
                     .camera_controller
@@ -160,6 +174,32 @@ impl App {
             }
         }
 
+        // Particle Interaction
+        if let Some(gui) = &self.gui {
+            let left_down = self.input.is_mouse_down(winit::event::MouseButton::Left);
+            let right_down = self.input.is_mouse_down(winit::event::MouseButton::Right);
+
+            if left_down || right_down {
+                let (radius, strength) = gui.interaction_params();
+                let mouse_pos = self.input.mouse_pos();
+                let world_pos = self.camera.screen_to_world(mouse_pos);
+
+                let actual_strength = if left_down {
+                    strength as f64
+                } else {
+                    -(strength as f64) * 3.0 // Repel is slightly stronger for effect
+                };
+
+                let _ = self.simulation_bridge.sender().send(
+                    crate::simulation::bridge::SimulationCommand::Interaction {
+                        pos: [world_pos[0] as f64, world_pos[1] as f64],
+                        radius: radius as f64,
+                        strength: actual_strength,
+                    },
+                );
+            }
+        }
+
         let vertices = vec![
             Vertex { pos: [0.0, 5.0] },
             Vertex { pos: [4.33, -2.5] },
@@ -185,11 +225,16 @@ impl App {
 
             if let Some(ui_renderer) = &mut self.gui_renderer {
                 if let Some(gui) = &mut self.gui {
+                    let left_down = self.input.is_mouse_down(winit::event::MouseButton::Left);
+                    let right_down = self.input.is_mouse_down(winit::event::MouseButton::Right);
+
                     let full = gui.run(
                         self.window.as_ref().expect("Window not found"),
                         self.time.fps(),
                         self.simulation_bridge.get_tps(),
                         self.simulation_bridge.get_body_count(),
+                        self.camera.scale,
+                        left_down || right_down,
                     );
 
                     ui_renderer.handle_textures(full.textures_delta);

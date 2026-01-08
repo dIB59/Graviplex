@@ -167,6 +167,40 @@ impl Simulation {
         self.next_id = 0;
     }
 
+    pub fn apply_interaction(&mut self, mouse_pos: [f64; 2], radius: f64, strength: f64) {
+        let radius_sq = radius * radius;
+        use rayon::prelude::*;
+
+        self.bodies.par_iter_mut().for_each(|body| {
+            let dx = mouse_pos[0] - body.position[0];
+            let dy = mouse_pos[1] - body.position[1];
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq < radius_sq && dist_sq > 0.1 {
+                let dist = dist_sq.sqrt();
+                // Strength is positive for attraction, negative for repulsion
+                // Linear falloff for smoother control
+                let force = strength * (1.0 - (dist / radius));
+
+                // Directional unit vector
+                let ux = dx / dist;
+                let uy = dy / dist;
+
+                if strength > 0.0 {
+                    // Attraction + Damping
+                    // Damping helps particles "settle" on the cursor rather than orbiting
+                    let damping = 0.95;
+                    body.velocity[0] = body.velocity[0] * damping + ux * force;
+                    body.velocity[1] = body.velocity[1] * damping + uy * force;
+                } else {
+                    // Repulsion (no damping needed for "explosive" feel)
+                    body.velocity[0] += ux * force;
+                    body.velocity[1] += uy * force;
+                }
+            }
+        });
+    }
+
     pub fn update(&mut self, dt: f64) {
         if self.bodies.len() < 2 {
             return;

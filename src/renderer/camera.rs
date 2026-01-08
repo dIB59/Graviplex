@@ -48,6 +48,12 @@ impl Camera2D {
         self.screen_size = screen_size;
         self
     }
+
+    pub fn screen_to_world(&self, screen_pos: [f32; 2]) -> [f32; 2] {
+        let x = (screen_pos[0] - self.screen_size[0] / 2.0) / self.scale + self.position[0];
+        let y = (self.screen_size[1] / 2.0 - screen_pos[1]) / self.scale + self.position[1];
+        [x, y]
+    }
 }
 
 /// Camera GPU resources
