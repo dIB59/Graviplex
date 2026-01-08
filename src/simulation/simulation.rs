@@ -2,7 +2,7 @@ use super::{BarnesHutGravityStrategy, KdTreeCollision};
 use super::{Body, CollisionStrategy, GravityStrategy};
 use rand::Rng;
 
-const SPACE_SCALE: f64 = 100000.0;
+const SPACE_SCALE: f64 = 250000.0;
 
 pub struct Simulation {
     pub bodies: Vec<Body>,
@@ -56,7 +56,7 @@ impl Simulation {
         // 2. Add orbiting bodies
         for _ in 0..count {
             // Distribution: Uniform in a circle
-            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.7;
+            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.9;
             let angle = rng.random_range(0.0..std::f64::consts::TAU);
 
             let x = r * angle.cos();
