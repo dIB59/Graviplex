@@ -24,7 +24,7 @@ impl Simulation {
         Self {
             bodies: Vec::new(),
             next_id: 0,
-            gravity_constant: 500.0,
+            gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
             collision_strategy: Box::new(KdTreeCollision),
             updates_buffer: Vec::new(),
@@ -43,8 +43,8 @@ impl Simulation {
         let mut rng = rand::rng();
 
         // 1. Add central "Black Hole" or "Star"
-        let central_mass = count as f64 * 5000.0;
-        let central_radius = 200.0;
+        let central_mass = count as f64 * 1000.0;
+        let central_radius = 1000.0;
         self.add_body(
             [1.0, -1.0],
             [0.0, 0.0],
@@ -56,7 +56,7 @@ impl Simulation {
         // 2. Add orbiting bodies
         for _ in 0..count {
             // Distribution: Uniform in a circle
-            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.8;
+            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.7;
             let angle = rng.random_range(0.0..std::f64::consts::TAU);
 
             let x = r * angle.cos();
@@ -70,16 +70,62 @@ impl Simulation {
             // Tangential vector is [-sin(angle), cos(angle)]
             let vel = [-angle.sin() * orbital_speed, angle.cos() * orbital_speed];
 
-            let radius = rng.random_range(10.0..50.0);
+            let radius = rng.random_range(5.0..200.0);
+            let t = (radius - 5.0) / 195.0; // 0.0 to 1.0 range
+            let percentile = (t * 100.0) as i32;
 
-            // Color based on radius: small = blue, large = red
-            let t = (radius - 10.0) / 40.0; // 0.0 to 1.0
-            let r_col = (t * 255.0) as u8;
-            let g_col = ((1.0f64 - (t - 0.5f64).abs() * 2.0f64).max(0.0f64) * 255.0) as u8;
-            let b_col = ((1.0 - t) * 255.0) as u8;
-
-            let color = [r_col, g_col, b_col, 255];
-
+            let color = match percentile {
+                0..=19 => {
+                    // Deep Crimson -> Blood Red
+                    let f = percentile as f64 / 19.0;
+                    [
+                        (139.0 + f * 60.0) as u8,
+                        (0.0 + f * 20.0) as u8,
+                        (0.0 + f * 20.0) as u8,
+                        255,
+                    ]
+                }
+                20..=39 => {
+                    // Deep Navy -> Royal Blue
+                    let f = (percentile - 20) as f64 / 19.0;
+                    [
+                        (0.0 + f * 25.0) as u8,
+                        (0.0 + f * 105.0) as u8,
+                        (128.0 + f * 77.0) as u8,
+                        255,
+                    ]
+                }
+                40..=59 => {
+                    // Forest Green -> Emerald
+                    let f = (percentile - 40) as f64 / 19.0;
+                    [
+                        (0.0 + f * 30.0) as u8,
+                        (100.0 + f * 56.0) as u8,
+                        (0.0 + f * 48.0) as u8,
+                        255,
+                    ]
+                }
+                60..=79 => {
+                    // Deep Navy -> Royal Blue (same as 20-39%)
+                    let f = (percentile - 60) as f64 / 19.0;
+                    [
+                        (0.0 + f * 25.0) as u8,
+                        (0.0 + f * 105.0) as u8,
+                        (128.0 + f * 77.0) as u8,
+                        255,
+                    ]
+                }
+                _ => {
+                    // Dark Orange -> Burnt Sienna
+                    let f = (percentile - 80) as f64 / 19.0;
+                    [
+                        (204.0 - f * 44.0) as u8,
+                        (85.0 - f * 30.0) as u8,
+                        (0.0 + f * 19.0) as u8,
+                        255,
+                    ]
+                }
+            };
             self.add_body(pos, vel, radius, color, radius);
         }
     }

@@ -39,7 +39,7 @@ impl Default for App {
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
-                .with_zoom_range(0.001, 10.0),
+                .with_zoom_range(0.0001, 10.0),
             time: Time::new(),
             input: InputState::new(),
             simulation,
