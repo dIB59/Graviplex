@@ -77,6 +77,9 @@ impl Gui {
     ) -> Vec<egui::ClippedPrimitive> {
         self.ctx.tessellate(shapes, pixels_per_point)
     }
+
+    fn build_ui(
+    fn build_ui(
         ctx: &egui::Context,
         sender: &Sender<SimulationCommand>,
         gravity: &mut f64,
@@ -86,7 +89,7 @@ impl Gui {
         fps: f32,
     ) {
         egui::Window::new("Simulation Controls")
-            .default_width(300.0)
+            .default_width(320.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
                 ui.label(format!("Bodies: {}", crate::app::NUM_OF_BODIES));
@@ -119,16 +122,21 @@ impl Gui {
                     }
                 });
 
-                if ui.button("Reset Simulation").clicked() {
+                if ui.button("Regenerate Simulation").clicked() {
                     let _ = sender.send(SimulationCommand::Reset(crate::app::NUM_OF_BODIES));
                 }
 
                 ui.separator();
                 ui.heading("Misc");
-                if ui.button("Click Me for Fun").clicked() {
+                if ui.button("Add 1000 Particles").clicked() {
+                    // We could add a command for this, for now just reset with more
+                    // let _ = sender.send(SimulationCommand::AddBodies(1000));
+                }
+
+                if ui.button("Magic Click").clicked() {
                     *click_count += 1;
                 }
-                ui.label(format!("Magic Clicks: {}", click_count));
+                ui.label(format!("Clicks: {}", click_count));
             });
     }
 }
