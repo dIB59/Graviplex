@@ -62,7 +62,21 @@ impl Gui {
         })
     }
 
-    fn build_ui(
+    pub fn handle_platform_output(
+        &mut self,
+        window: &winit::window::Window,
+        platform_output: egui::PlatformOutput,
+    ) {
+        self.state.handle_platform_output(window, platform_output);
+    }
+
+    pub fn tessellate(
+        &self,
+        shapes: Vec<egui::epaint::ClippedShape>,
+        pixels_per_point: f32,
+    ) -> Vec<egui::ClippedPrimitive> {
+        self.ctx.tessellate(shapes, pixels_per_point)
+    }
         ctx: &egui::Context,
         sender: &Sender<SimulationCommand>,
         gravity: &mut f64,
