@@ -206,12 +206,17 @@ impl App {
                     let window = self.window.as_ref().unwrap();
                     let size = window.inner_size();
                     let scale_factor = window.scale_factor();
-                    let logical_size = [
-                        size.width as f32 / scale_factor as f32,
-                        size.height as f32 / scale_factor as f32,
-                    ];
 
-                    ui_renderer.render(&mut encoder, &view, &vtx, &idx, &primitives, logical_size);
+                    let physical_size = [size.width as f32, size.height as f32];
+                    ui_renderer.render(
+                        &mut encoder,
+                        &view,
+                        &vtx,
+                        &idx,
+                        &primitives,
+                        physical_size,
+                        scale_factor as f32,
+                    );
                     self.gpu.queue.submit(std::iter::once(encoder.finish()));
                 }
             }
