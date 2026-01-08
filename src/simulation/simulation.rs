@@ -5,9 +5,9 @@ use rand::Rng;
 const SPACE_SCALE: f64 = 100000.0;
 
 pub struct Simulation {
-    bodies: Vec<Body>,
-    next_id: u32,
-    gravity_constant: f64,
+    pub bodies: Vec<Body>,
+    pub next_id: u32,
+    pub gravity_constant: f64,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
     updates_buffer: Vec<([f64; 2], [f64; 2])>,

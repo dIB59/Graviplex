@@ -1,17 +1,26 @@
-use crate::app::NUM_OF_BODIES;
+use crate::simulation::SimulationCommand;
+use std::sync::mpsc::Sender;
 
 pub mod gui_renderer;
 
 pub struct Gui {
     ctx: egui::Context,
     state: egui_winit::State,
+    sender: Sender<SimulationCommand>,
+    // Local UI state
+    gravity_constant: f64,
+    theta: f64,
+    paused: bool,
     click_count: u32,
 }
 
 impl Gui {
-    pub fn new(event_loop: &winit::event_loop::ActiveEventLoop) -> Self {
+    pub fn new(
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        sender: Sender<SimulationCommand>,
+    ) -> Self {
         let ctx = egui::Context::default();
-        ctx.set_fonts(egui::FontDefinitions::default()); // normal fonts
+        ctx.set_fonts(egui::FontDefinitions::default());
         let state = egui_winit::State::new(
             ctx.clone(),
             egui::ViewportId::ROOT,
@@ -23,6 +32,10 @@ impl Gui {
         Self {
             ctx,
             state,
+            sender,
+            gravity_constant: 100.0,
+            theta: 0.5,
+            paused: false,
             click_count: 0,
         }
     }
@@ -37,45 +50,71 @@ impl Gui {
 
     pub fn run(&mut self, window: &winit::window::Window, fps: f32) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
+
+        let sender = &self.sender;
+        let gravity = &mut self.gravity_constant;
+        let theta = &mut self.theta;
+        let paused = &mut self.paused;
         let click_count = &mut self.click_count;
-        self.ctx
-            .run(raw_input, |ctx| Self::build_ui(ctx, click_count, fps))
+
+        self.ctx.run(raw_input, |ctx| {
+            Self::build_ui(ctx, sender, gravity, theta, paused, click_count, fps)
+        })
     }
 
-    pub fn handle_platform_output(
-        &mut self,
-        window: &winit::window::Window,
-        platform_output: egui::PlatformOutput,
+    fn build_ui(
+        ctx: &egui::Context,
+        sender: &Sender<SimulationCommand>,
+        gravity: &mut f64,
+        theta: &mut f64,
+        paused: &mut bool,
+        click_count: &mut u32,
+        fps: f32,
     ) {
-        self.state.handle_platform_output(window, platform_output);
-    }
-
-    pub fn tessellate(
-        &self,
-        shapes: Vec<egui::epaint::ClippedShape>,
-        pixels_per_point: f32,
-    ) -> Vec<egui::ClippedPrimitive> {
-        self.ctx.tessellate(shapes, pixels_per_point)
-    }
-
-    pub fn build_ui(ctx: &egui::Context, click_count: &mut u32, fps: f32) {
         egui::Window::new("Simulation Controls")
-            .default_width(1500.0)
+            .default_width(300.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
-                ui.label(format!("Bodies: {}", NUM_OF_BODIES));
+                ui.label(format!("Bodies: {}", crate::app::NUM_OF_BODIES));
                 ui.label(format!("FPS: {:.1}", fps));
                 ui.separator();
 
-                let button =
-                    egui::Button::new("Click Me").min_size(egui::Vec2 { x: 100.0, y: 100.0 });
-
-                if ui.add(button).clicked() {
-                    *click_count += 1;
-                    println!("Button clicked {} times", click_count);
+                ui.heading("Physics");
+                if ui
+                    .add(egui::Slider::new(gravity, 0.0..=1000.0).text("Gravity (G)"))
+                    .changed()
+                {
+                    let _ = sender.send(SimulationCommand::UpdateGravity(*gravity));
                 }
 
-                ui.label(format!("Button clicked: {} times", click_count));
+                if ui
+                    .add(egui::Slider::new(theta, 0.1..=1.5).text("Theta (Accuracy)"))
+                    .changed()
+                {
+                    let _ = sender.send(SimulationCommand::SetTheta(*theta));
+                }
+
+                ui.horizontal(|ui| {
+                    if ui.checkbox(paused, "Paused").changed() {
+                        let _ = sender.send(SimulationCommand::Pause(*paused));
+                    }
+                    if *paused {
+                        if ui.button("Step").clicked() {
+                            let _ = sender.send(SimulationCommand::Step);
+                        }
+                    }
+                });
+
+                if ui.button("Reset Simulation").clicked() {
+                    let _ = sender.send(SimulationCommand::Reset(crate::app::NUM_OF_BODIES));
+                }
+
+                ui.separator();
+                ui.heading("Misc");
+                if ui.button("Click Me for Fun").clicked() {
+                    *click_count += 1;
+                }
+                ui.label(format!("Magic Clicks: {}", click_count));
             });
     }
 }
