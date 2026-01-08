@@ -416,11 +416,6 @@ mod tests {
         // Give the simulation thread time to start and run a bit
         thread::sleep(Duration::from_millis(100));
         
-        // Get initial instances
-        let instances_before = bridge.get_instances();
-        let data_before = instances_before.read().unwrap().clone();
-        drop(data_before);
-        
         // Pause the simulation
         bridge.sender().send(SimulationCommand::Pause(true)).unwrap();
         thread::sleep(Duration::from_millis(100));
