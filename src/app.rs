@@ -25,7 +25,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 50000;
+pub const NUM_OF_BODIES: i32 = 150000;
 
 impl Default for App {
     fn default() -> Self {
@@ -76,7 +76,7 @@ impl ApplicationHandler for App {
             ));
 
             let mut gui = Gui::new(event_loop, self.simulation_bridge.sender());
-            let initial_output = gui.run(&window, 0.0);
+            let initial_output = gui.run(&window, 0.0, 0.0);
             let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
             ui_pipeline.handle_textures(initial_output.textures_delta);
 
@@ -187,6 +187,7 @@ impl App {
                     let full = gui.run(
                         self.window.as_ref().expect("Window not found"),
                         self.time.fps(),
+                        self.simulation_bridge.get_tps(),
                     );
 
                     ui_renderer.handle_textures(full.textures_delta);

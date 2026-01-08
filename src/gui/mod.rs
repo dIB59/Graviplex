@@ -48,7 +48,7 @@ impl Gui {
         self.state.on_window_event(window, event)
     }
 
-    pub fn run(&mut self, window: &winit::window::Window, fps: f32) -> egui::FullOutput {
+    pub fn run(&mut self, window: &winit::window::Window, fps: f32, tps: f32) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
 
         let sender = &self.sender;
@@ -58,7 +58,7 @@ impl Gui {
         let click_count = &mut self.click_count;
 
         self.ctx.run(raw_input, |ctx| {
-            Self::build_ui(ctx, sender, gravity, theta, paused, click_count, fps)
+            Self::build_ui(ctx, sender, gravity, theta, paused, click_count, fps, tps)
         })
     }
 
@@ -86,6 +86,7 @@ impl Gui {
         paused: &mut bool,
         click_count: &mut u32,
         fps: f32,
+        tps: f32,
     ) {
         egui::Window::new("Simulation Controls")
             .default_width(320.0)
@@ -93,6 +94,7 @@ impl Gui {
                 ui.heading("Statistics");
                 ui.label(format!("Bodies: {}", crate::app::NUM_OF_BODIES));
                 ui.label(format!("FPS: {:.1}", fps));
+                ui.label(format!("TPS: {:.1}", tps));
                 ui.separator();
 
                 ui.heading("Physics");

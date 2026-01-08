@@ -76,19 +76,22 @@ impl<T: Clone + Default> TripleBuffer<T> {
 pub struct SimulationBridge {
     tx: Sender<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
+    tps: Arc<RwLock<f32>>,
 }
 
 impl SimulationBridge {
     pub fn new(count: i32) -> Self {
         let (tx, rx) = mpsc::channel();
         let buffer = Arc::new(TripleBuffer::new());
+        let tps = Arc::new(RwLock::new(0.0));
 
         let worker_buffer = buffer.clone();
+        let worker_tps = tps.clone();
         std::thread::spawn(move || {
-            simulation_worker(rx, worker_buffer, count);
+            simulation_worker(rx, worker_buffer, worker_tps, count);
         });
 
-        Self { tx, buffer }
+        Self { tx, buffer, tps }
     }
 
     pub fn get_instances(&self) -> Arc<RwLock<Vec<Instance>>> {
@@ -98,17 +101,24 @@ impl SimulationBridge {
     pub fn sender(&self) -> Sender<SimulationCommand> {
         self.tx.clone()
     }
+
+    pub fn get_tps(&self) -> f32 {
+        *self.tps.read().unwrap()
+    }
 }
 
 fn simulation_worker(
     rx: Receiver<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
+    tps_shared: Arc<RwLock<f32>>,
     initial_count: i32,
 ) {
     let mut sim = Simulation::default();
     sim.generate_bodies(initial_count);
 
     let mut last_tick = Instant::now();
+    let mut last_tps_check = Instant::now();
+    let mut update_count = 0;
     let mut is_paused = false;
 
     loop {
@@ -137,6 +147,16 @@ fn simulation_worker(
 
         if !is_paused {
             sim.update(dt);
+            update_count += 1;
+        }
+
+        // Calculate TPS every second
+        let time_since_tps = now.duration_since(last_tps_check).as_secs_f32();
+        if time_since_tps >= 1.0 {
+            let mut tps_lock = tps_shared.write().unwrap();
+            *tps_lock = update_count as f32 / time_since_tps;
+            update_count = 0;
+            last_tps_check = now;
         }
 
         // 3. Convert to instances and submit
