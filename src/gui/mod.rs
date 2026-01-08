@@ -11,6 +11,7 @@ pub struct Gui {
     gravity_constant: f64,
     theta: f64,
     paused: bool,
+    particle_count: i32,
     click_count: u32,
 }
 
@@ -36,6 +37,7 @@ impl Gui {
             gravity_constant: 100.0,
             theta: 0.5,
             paused: false,
+            particle_count: crate::app::NUM_OF_BODIES,
             click_count: 0,
         }
     }
@@ -55,10 +57,21 @@ impl Gui {
         let gravity = &mut self.gravity_constant;
         let theta = &mut self.theta;
         let paused = &mut self.paused;
+        let particle_count = &mut self.particle_count;
         let click_count = &mut self.click_count;
 
         self.ctx.run(raw_input, |ctx| {
-            Self::build_ui(ctx, sender, gravity, theta, paused, click_count, fps, tps)
+            Self::build_ui(
+                ctx,
+                sender,
+                gravity,
+                theta,
+                paused,
+                particle_count,
+                click_count,
+                fps,
+                tps,
+            )
         })
     }
 
@@ -84,6 +97,7 @@ impl Gui {
         gravity: &mut f64,
         theta: &mut f64,
         paused: &mut bool,
+        particle_count: &mut i32,
         click_count: &mut u32,
         fps: f32,
         tps: f32,
@@ -123,8 +137,11 @@ impl Gui {
                     }
                 });
 
+                ui.heading("World");
+                ui.add(egui::Slider::new(particle_count, 100..=500000).text("Particle Count"));
+
                 if ui.button("Regenerate Simulation").clicked() {
-                    let _ = sender.send(SimulationCommand::Reset(crate::app::NUM_OF_BODIES));
+                    let _ = sender.send(SimulationCommand::Reset(*particle_count));
                 }
 
                 ui.separator();
