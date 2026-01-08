@@ -50,7 +50,13 @@ impl Gui {
         self.state.on_window_event(window, event)
     }
 
-    pub fn run(&mut self, window: &winit::window::Window, fps: f32, tps: f32) -> egui::FullOutput {
+    pub fn run(
+        &mut self,
+        window: &winit::window::Window,
+        fps: f32,
+        tps: f32,
+        body_count: usize,
+    ) -> egui::FullOutput {
         let raw_input = self.state.take_egui_input(window);
 
         let sender = &self.sender;
@@ -68,6 +74,7 @@ impl Gui {
                 theta,
                 paused,
                 particle_count,
+                body_count,
                 click_count,
                 fps,
                 tps,
@@ -98,6 +105,7 @@ impl Gui {
         theta: &mut f64,
         paused: &mut bool,
         particle_count: &mut i32,
+        body_count: usize,
         click_count: &mut u32,
         fps: f32,
         tps: f32,
@@ -106,7 +114,7 @@ impl Gui {
             .default_width(320.0)
             .show(ctx, |ui| {
                 ui.heading("Statistics");
-                ui.label(format!("Bodies: {}", crate::app::NUM_OF_BODIES));
+                ui.label(format!("Bodies: {}", body_count));
                 ui.label(format!("FPS: {:.1}", fps));
                 ui.label(format!("TPS: {:.1}", tps));
                 ui.separator();

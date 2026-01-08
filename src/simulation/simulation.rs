@@ -43,8 +43,8 @@ impl Simulation {
         let mut rng = rand::rng();
 
         // 1. Add central "Black Hole" or "Star"
-        let central_mass = count as f64 * 1000.0;
-        let central_radius = 1000.0;
+        let central_mass = count as f64 * 100.0;
+        let central_radius = count as f64 / 10.0;
         self.add_body(
             [1.0, -1.0],
             [0.0, 0.0],

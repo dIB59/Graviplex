@@ -77,6 +77,7 @@ pub struct SimulationBridge {
     tx: Sender<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
     tps: Arc<RwLock<f32>>,
+    current_body_count: Arc<RwLock<usize>>,
 }
 
 impl SimulationBridge {
@@ -84,14 +85,21 @@ impl SimulationBridge {
         let (tx, rx) = mpsc::channel();
         let buffer = Arc::new(TripleBuffer::new());
         let tps = Arc::new(RwLock::new(0.0));
+        let current_body_count = Arc::new(RwLock::new(count as usize));
 
         let worker_buffer = buffer.clone();
         let worker_tps = tps.clone();
+        let worker_count = current_body_count.clone();
         std::thread::spawn(move || {
-            simulation_worker(rx, worker_buffer, worker_tps, count);
+            simulation_worker(rx, worker_buffer, worker_tps, worker_count, count);
         });
 
-        Self { tx, buffer, tps }
+        Self {
+            tx,
+            buffer,
+            tps,
+            current_body_count,
+        }
     }
 
     pub fn get_instances(&self) -> Arc<RwLock<Vec<Instance>>> {
@@ -105,12 +113,17 @@ impl SimulationBridge {
     pub fn get_tps(&self) -> f32 {
         *self.tps.read().unwrap()
     }
+
+    pub fn get_body_count(&self) -> usize {
+        *self.current_body_count.read().unwrap()
+    }
 }
 
 fn simulation_worker(
     rx: Receiver<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
     tps_shared: Arc<RwLock<f32>>,
+    body_count_shared: Arc<RwLock<usize>>,
     initial_count: i32,
 ) {
     let mut sim = Simulation::default();
@@ -161,7 +174,16 @@ fn simulation_worker(
 
         // 3. Convert to instances and submit
         let instances: Vec<Instance> = sim.bodies().iter().map(Instance::from).collect();
+        let count = instances.len();
         buffer.submit(instances);
+
+        // Update body count periodically or on change
+        {
+            let mut count_lock = body_count_shared.write().unwrap();
+            if *count_lock != count {
+                *count_lock = count;
+            }
+        }
 
         // Optional: yield to prevent 100% CPU on spin-lock if simulation is ultra fast
         // std::thread::yield_now();
