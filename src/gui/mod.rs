@@ -79,7 +79,6 @@ impl Gui {
     }
 
     fn build_ui(
-    fn build_ui(
         ctx: &egui::Context,
         sender: &Sender<SimulationCommand>,
         gravity: &mut f64,
@@ -128,15 +127,10 @@ impl Gui {
 
                 ui.separator();
                 ui.heading("Misc");
-                if ui.button("Add 1000 Particles").clicked() {
-                    // We could add a command for this, for now just reset with more
-                    // let _ = sender.send(SimulationCommand::AddBodies(1000));
-                }
-
                 if ui.button("Magic Click").clicked() {
                     *click_count += 1;
                 }
-                ui.label(format!("Clicks: {}", click_count));
+                ui.label(format!("Magic Clicks: {}", click_count));
             });
     }
 }
