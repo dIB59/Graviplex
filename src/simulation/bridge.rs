@@ -196,6 +196,15 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
+    // Tolerance for floating-point position comparisons in tests
+    const POSITION_EPSILON: f32 = 0.0001;
+    
+    // Helper function to get expected body count
+    // generate_bodies creates count + 1 bodies (1 central body + count orbiting bodies)
+    const fn expected_body_count(requested_count: i32) -> usize {
+        (requested_count + 1) as usize
+    }
+
     #[test]
     fn test_triple_buffer_basic_submit_and_fetch() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
@@ -333,8 +342,7 @@ mod tests {
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
         
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(data.len(), 11);
+        assert_eq!(data.len(), expected_body_count(10));
     }
 
     #[test]
@@ -344,8 +352,7 @@ mod tests {
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
         
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(bridge.get_body_count(), 6);
+        assert_eq!(bridge.get_body_count(), expected_body_count(5));
     }
 
     #[test]
@@ -361,12 +368,11 @@ mod tests {
         // Wait for command to be processed
         thread::sleep(Duration::from_millis(200));
         
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(bridge.get_body_count(), 21);
+        assert_eq!(bridge.get_body_count(), expected_body_count(20));
         
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        assert_eq!(data.len(), 21);
+        assert_eq!(data.len(), expected_body_count(20));
     }
 
     #[test]
@@ -385,8 +391,7 @@ mod tests {
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(data.len(), 6);
+        assert_eq!(data.len(), expected_body_count(5));
     }
 
     #[test]
@@ -405,8 +410,7 @@ mod tests {
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(data.len(), 6);
+        assert_eq!(data.len(), expected_body_count(5));
     }
 
     #[test]
@@ -444,8 +448,8 @@ mod tests {
         // While paused, positions should not change significantly
         // (allowing for floating point precision)
         for (pos1, pos2) in positions_after_pause.iter().zip(positions_final.iter()) {
-            assert!((pos1[0] - pos2[0]).abs() < 0.0001);
-            assert!((pos1[1] - pos2[1]).abs() < 0.0001);
+            assert!((pos1[0] - pos2[0]).abs() < POSITION_EPSILON);
+            assert!((pos1[1] - pos2[1]).abs() < POSITION_EPSILON);
         }
         
         // Unpause
@@ -473,8 +477,7 @@ mod tests {
         // Simulation should still have same number of bodies
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(data.len(), 6);
+        assert_eq!(data.len(), expected_body_count(5));
     }
 
     #[test]
@@ -504,12 +507,11 @@ mod tests {
         // Wait for all commands to be processed
         thread::sleep(Duration::from_millis(300));
         
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(bridge.get_body_count(), 16);
+        assert_eq!(bridge.get_body_count(), expected_body_count(15));
         
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        assert_eq!(data.len(), 16);
+        assert_eq!(data.len(), expected_body_count(15));
     }
 
     #[test]
@@ -533,7 +535,6 @@ mod tests {
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        // generate_bodies creates count + 1 bodies (central body + count orbiting)
-        assert_eq!(data.len(), 6);
+        assert_eq!(data.len(), expected_body_count(5));
     }
 }
