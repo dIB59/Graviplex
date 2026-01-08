@@ -163,6 +163,7 @@ impl UiPipeline {
         indices: &[u32],
         primitives: &[ClippedPrimitive],
         screensize: [f32; 2],
+        pixels_per_point: f32,
     ) {
         log::debug!("=== RENDER CALL ===");
         log::debug!(
@@ -188,8 +189,12 @@ impl UiPipeline {
         self.queue
             .write_buffer(&self.idx_buf, 0, bytemuck::cast_slice(indices));
 
+        let logical_size = [
+            screensize[0] / pixels_per_point,
+            screensize[1] / pixels_per_point,
+        ];
         self.queue
-            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&screensize));
+            .write_buffer(&self.uniform_buf, 0, bytemuck::cast_slice(&logical_size));
 
         let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("ui"),
@@ -226,12 +231,26 @@ impl UiPipeline {
                     mesh.indices.len()
                 );
 
-                let scissor_x = min.x.max(0.0) as u32;
-                let scissor_y = min.y.max(0.0) as u32;
+                let scissor_x = (min.x * pixels_per_point).round().max(0.0) as u32;
+                let scissor_y = (min.y * pixels_per_point).round().max(0.0) as u32;
+                let scissor_w = ((max.x - min.x) * pixels_per_point).round().max(0.0) as u32;
+                let scissor_h = ((max.y - min.y) * pixels_per_point).round().max(0.0) as u32;
+
+                // Clamp to physical screen size
                 let scissor_w =
-                    ((max.x - min.x).max(0.0) as u32).min(screensize[0] as u32 - scissor_x);
+                    scissor_w.min(screensize[0] as u32 - scissor_x.min(screensize[0] as u32));
                 let scissor_h =
-                    ((max.y - min.y).max(0.0) as u32).min(screensize[1] as u32 - scissor_y);
+                    scissor_h.min(screensize[1] as u32 - scissor_y.min(screensize[1] as u32));
+
+                log::debug!(
+                    "  Scissor: x={}, y={}, w={}, h={}",
+                    scissor_x,
+                    scissor_y,
+                    scissor_w,
+                    scissor_h
+                );
+
+                rpass.set_scissor_rect(scissor_x, scissor_y, scissor_w, scissor_h);
 
                 log::debug!(
                     "  Scissor: x={}, y={}, w={}, h={}",

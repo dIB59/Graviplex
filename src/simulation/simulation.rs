@@ -2,12 +2,12 @@ use super::{BarnesHutGravityStrategy, KdTreeCollision};
 use super::{Body, CollisionStrategy, GravityStrategy};
 use rand::Rng;
 
-const SPACE_SCALE: f64 = 100000.0;
+const SPACE_SCALE: f64 = 250000.0;
 
 pub struct Simulation {
-    bodies: Vec<Body>,
-    next_id: u32,
-    gravity_constant: f64,
+    pub bodies: Vec<Body>,
+    pub next_id: u32,
+    pub gravity_constant: f64,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
     updates_buffer: Vec<([f64; 2], [f64; 2])>,
@@ -24,7 +24,7 @@ impl Simulation {
         Self {
             bodies: Vec::new(),
             next_id: 0,
-            gravity_constant: 500.0,
+            gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
             collision_strategy: Box::new(KdTreeCollision),
             updates_buffer: Vec::new(),
@@ -43,8 +43,8 @@ impl Simulation {
         let mut rng = rand::rng();
 
         // 1. Add central "Black Hole" or "Star"
-        let central_mass = count as f64 * 5000.0;
-        let central_radius = 200.0;
+        let central_mass = count as f64 * 100.0;
+        let central_radius = count as f64 / 10.0;
         self.add_body(
             [1.0, -1.0],
             [0.0, 0.0],
@@ -56,7 +56,7 @@ impl Simulation {
         // 2. Add orbiting bodies
         for _ in 0..count {
             // Distribution: Uniform in a circle
-            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.8;
+            let r = rng.random_range(0.1..1.0f64).sqrt() * SPACE_SCALE * 0.9;
             let angle = rng.random_range(0.0..std::f64::consts::TAU);
 
             let x = r * angle.cos();
@@ -70,16 +70,62 @@ impl Simulation {
             // Tangential vector is [-sin(angle), cos(angle)]
             let vel = [-angle.sin() * orbital_speed, angle.cos() * orbital_speed];
 
-            let radius = rng.random_range(10.0..50.0);
+            let radius = rng.random_range(5.0..200.0);
+            let t = (radius - 5.0) / 195.0; // 0.0 to 1.0 range
+            let percentile = (t * 100.0) as i32;
 
-            // Color based on radius: small = blue, large = red
-            let t = (radius - 10.0) / 40.0; // 0.0 to 1.0
-            let r_col = (t * 255.0) as u8;
-            let g_col = ((1.0f64 - (t - 0.5f64).abs() * 2.0f64).max(0.0f64) * 255.0) as u8;
-            let b_col = ((1.0 - t) * 255.0) as u8;
-
-            let color = [r_col, g_col, b_col, 255];
-
+            let color = match percentile {
+                0..=19 => {
+                    // Deep Crimson -> Blood Red
+                    let f = percentile as f64 / 19.0;
+                    [
+                        (139.0 + f * 60.0) as u8,
+                        (0.0 + f * 20.0) as u8,
+                        (0.0 + f * 20.0) as u8,
+                        255,
+                    ]
+                }
+                20..=39 => {
+                    // Deep Navy -> Royal Blue
+                    let f = (percentile - 20) as f64 / 19.0;
+                    [
+                        (0.0 + f * 25.0) as u8,
+                        (0.0 + f * 105.0) as u8,
+                        (128.0 + f * 77.0) as u8,
+                        255,
+                    ]
+                }
+                40..=59 => {
+                    // Forest Green -> Emerald
+                    let f = (percentile - 40) as f64 / 19.0;
+                    [
+                        (0.0 + f * 30.0) as u8,
+                        (100.0 + f * 56.0) as u8,
+                        (0.0 + f * 48.0) as u8,
+                        255,
+                    ]
+                }
+                60..=79 => {
+                    // Deep Navy -> Royal Blue (same as 20-39%)
+                    let f = (percentile - 60) as f64 / 19.0;
+                    [
+                        (0.0 + f * 25.0) as u8,
+                        (0.0 + f * 105.0) as u8,
+                        (128.0 + f * 77.0) as u8,
+                        255,
+                    ]
+                }
+                _ => {
+                    // Dark Orange -> Burnt Sienna
+                    let f = (percentile - 80) as f64 / 19.0;
+                    [
+                        (204.0 - f * 44.0) as u8,
+                        (85.0 - f * 30.0) as u8,
+                        (0.0 + f * 19.0) as u8,
+                        255,
+                    ]
+                }
+            };
             self.add_body(pos, vel, radius, color, radius);
         }
     }
@@ -119,6 +165,40 @@ impl Simulation {
     pub fn clear(&mut self) {
         self.bodies.clear();
         self.next_id = 0;
+    }
+
+    pub fn apply_interaction(&mut self, mouse_pos: [f64; 2], radius: f64, strength: f64) {
+        let radius_sq = radius * radius;
+        use rayon::prelude::*;
+
+        self.bodies.par_iter_mut().for_each(|body| {
+            let dx = mouse_pos[0] - body.position[0];
+            let dy = mouse_pos[1] - body.position[1];
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq < radius_sq && dist_sq > 0.1 {
+                let dist = dist_sq.sqrt();
+                // Strength is positive for attraction, negative for repulsion
+                // Linear falloff for smoother control
+                let force = strength * (1.0 - (dist / radius));
+
+                // Directional unit vector
+                let ux = dx / dist;
+                let uy = dy / dist;
+
+                if strength > 0.0 {
+                    // Attraction + Damping
+                    // Damping helps particles "settle" on the cursor rather than orbiting
+                    let damping = 0.95;
+                    body.velocity[0] = body.velocity[0] * damping + ux * force;
+                    body.velocity[1] = body.velocity[1] * damping + uy * force;
+                } else {
+                    // Repulsion (no damping needed for "explosive" feel)
+                    body.velocity[0] += ux * force;
+                    body.velocity[1] += uy * force;
+                }
+            }
+        });
     }
 
     pub fn update(&mut self, dt: f64) {

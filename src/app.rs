@@ -10,7 +10,7 @@ use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
 use crate::renderer::{Camera2D, CameraController, GpuContext, Instance, RenderPipeline, Vertex};
-use crate::simulation::Simulation;
+use crate::simulation::SimulationBridge;
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -20,18 +20,15 @@ pub struct App {
     camera_controller: CameraController,
     time: Time,
     input: InputState,
-    simulation: Simulation,
+    simulation_bridge: SimulationBridge,
     gui: Option<Gui>,
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 50000;
+pub const NUM_OF_BODIES: i32 = 200000;
 
 impl Default for App {
     fn default() -> Self {
-        let mut simulation = Simulation::default();
-        simulation.generate_bodies(NUM_OF_BODIES);
-
         Self {
             window: None,
             gpu: GpuContext::new(),
@@ -39,10 +36,10 @@ impl Default for App {
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
-                .with_zoom_range(0.001, 10.0),
+                .with_zoom_range(0.0001, 10.0),
             time: Time::new(),
             input: InputState::new(),
-            simulation,
+            simulation_bridge: SimulationBridge::new(NUM_OF_BODIES),
             gui: None,
             gui_renderer: None,
         }
@@ -57,9 +54,6 @@ impl ApplicationHandler for App {
                     .create_window(Window::default_attributes().with_title("Simulation"))
                     .expect("Unable to create window"),
             );
-
-            let scale_factor = window.scale_factor();
-            println!("Window scale factor: {}", scale_factor);
 
             self.gpu.init_surface(window.clone());
 
@@ -81,29 +75,21 @@ impl ApplicationHandler for App {
                 &self.camera,
             ));
 
-            // Create GUI FIRST
-            let mut gui = Gui::new(event_loop);
-
-            // Run one frame to generate font texture delta
-            log::debug!("Running initial egui frame to generate font texture...");
-            let initial_output = gui.run(&window, 0.0);
-            log::debug!(
-                "Initial texture deltas: set={}, free={}",
-                initial_output.textures_delta.set.len(),
-                initial_output.textures_delta.free.len()
+            let mut gui = Gui::new(event_loop, self.simulation_bridge.sender());
+            let initial_output = gui.run(
+                &window,
+                0.0,
+                0.0,
+                self.simulation_bridge.get_body_count(),
+                self.camera.scale,
+                false,
             );
-
-            // NOW create the UI pipeline
             let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
-
-            // Handle the initial texture deltas (this includes the font texture!)
             ui_pipeline.handle_textures(initial_output.textures_delta);
 
             self.window = Some(window);
             self.gui = Some(gui);
             self.gui_renderer = Some(ui_pipeline);
-
-            log::debug!("Initialization complete!");
         }
     }
 
@@ -116,7 +102,6 @@ impl ApplicationHandler for App {
         if let Some(gui) = &mut self.gui {
             if let Some(window) = &self.window {
                 let response = gui.handle_event(window, &event);
-                // If GUI consumed the event, don't pass it to your app
                 if response.consumed {
                     return;
                 }
@@ -139,6 +124,14 @@ impl ApplicationHandler for App {
 
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input.handle_keyboard_event(event);
+            }
+
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input.handle_cursor_moved(position);
+            }
+
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.input.handle_mouse_input(state, button);
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -168,9 +161,7 @@ impl ApplicationHandler for App {
 impl App {
     fn render(&mut self) {
         self.time.update();
-        self.simulation.update(self.time.delta() as f64);
 
-        // 2. Update camera if it moved
         if self.camera_controller.update_movement(
             &mut self.camera,
             self.time.delta(),
@@ -183,20 +174,42 @@ impl App {
             }
         }
 
-        // Prepare render data
+        // Particle Interaction
+        if let Some(gui) = &self.gui {
+            let left_down = self.input.is_mouse_down(winit::event::MouseButton::Left);
+            let right_down = self.input.is_mouse_down(winit::event::MouseButton::Right);
+
+            if left_down || right_down {
+                let (radius, strength) = gui.interaction_params();
+                let mouse_pos = self.input.mouse_pos();
+                let world_pos = self.camera.screen_to_world(mouse_pos);
+
+                let actual_strength = if left_down {
+                    strength as f64
+                } else {
+                    -(strength as f64) * 3.0 // Repel is slightly stronger for effect
+                };
+
+                let _ = self.simulation_bridge.sender().send(
+                    crate::simulation::bridge::SimulationCommand::Interaction {
+                        pos: [world_pos[0] as f64, world_pos[1] as f64],
+                        radius: radius as f64,
+                        strength: actual_strength,
+                    },
+                );
+            }
+        }
+
         let vertices = vec![
             Vertex { pos: [0.0, 5.0] },
             Vertex { pos: [4.33, -2.5] },
             Vertex { pos: [-4.33, -2.5] },
         ];
-        let instances: Vec<Instance> = self
-            .simulation
-            .bodies()
-            .iter()
-            .map(Instance::from)
-            .collect();
 
-        // Render
+        let instances_arc = self.simulation_bridge.get_instances();
+        let instances_read = instances_arc.read().unwrap();
+        let instances: &[Instance] = &instances_read;
+
         if let Ok(frame) = self.gpu.get_current_frame() {
             let view = frame.texture.create_view(&Default::default());
 
@@ -206,25 +219,29 @@ impl App {
                     &self.gpu.queue,
                     &view,
                     &vertices,
-                    &instances,
+                    instances,
                 );
             }
 
-            if let Some(ui) = &mut self.gui_renderer {
+            if let Some(ui_renderer) = &mut self.gui_renderer {
                 if let Some(gui) = &mut self.gui {
-                    // 1. single egui frame
+                    let left_down = self.input.is_mouse_down(winit::event::MouseButton::Left);
+                    let right_down = self.input.is_mouse_down(winit::event::MouseButton::Right);
+
                     let full = gui.run(
-                        &self.window.clone().expect("WINDOW NOT FOUND FOR UI"),
+                        self.window.as_ref().expect("Window not found"),
                         self.time.fps(),
-                    ); // shapes + textures
+                        self.simulation_bridge.get_tps(),
+                        self.simulation_bridge.get_body_count(),
+                        self.camera.scale,
+                        left_down || right_down,
+                    );
 
-                    ui.handle_textures(full.textures_delta);
+                    ui_renderer.handle_textures(full.textures_delta);
+                    let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
 
-                    let prim = gui.tessellate(full.shapes, full.pixels_per_point);
-
-                    // 2. flatten to slices UiPipeline expects
                     let (mut vtx, mut idx) = (vec![], vec![]);
-                    for p in &prim {
+                    for p in &primitives {
                         if let egui::epaint::Primitive::Mesh(ref m) = p.primitive {
                             let base = vtx.len() as u32;
                             vtx.extend_from_slice(&m.vertices);
@@ -232,32 +249,22 @@ impl App {
                         }
                     }
 
-                    // 3. draw
-                    let mut enc = self.gpu.device.create_command_encoder(&Default::default());
-
-                    // Get a reference to the window (unwrap since we know it exists at render time)
+                    let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
                     let window = self.window.as_ref().unwrap();
-
-                    // Get the window's inner size in physical pixels
-                    // Physical pixels = actual pixels on the screen (affected by DPI/monitor scaling)
                     let size = window.inner_size();
-
-                    // Get the scale factor (e.g., 1.0 for standard displays, 2.0 for Retina/HiDPI)
-                    // This tells us how many physical pixels = 1 logical pixel
                     let scale_factor = window.scale_factor();
 
-                    // Convert physical pixels to logical pixels for egui
-                    // Logical pixels are what egui uses internally - they're DPI-independent
-                    // For example: 1920 physical pixels ÷ 2.0 scale = 960 logical pixels
-                    let logical_size = [
-                        size.width as f32 / scale_factor as f32,  // Logical width
-                        size.height as f32 / scale_factor as f32, // Logical height
-                    ];
-
-                    // Pass the logical size to the UI renderer
-                    // This ensures egui's coordinate system matches what the user sees
-                    ui.render(&mut enc, &view, &vtx, &idx, &prim, logical_size);
-                    self.gpu.queue.submit(std::iter::once(enc.finish()));
+                    let physical_size = [size.width as f32, size.height as f32];
+                    ui_renderer.render(
+                        &mut encoder,
+                        &view,
+                        &vtx,
+                        &idx,
+                        &primitives,
+                        physical_size,
+                        scale_factor as f32,
+                    );
+                    self.gpu.queue.submit(std::iter::once(encoder.finish()));
                 }
             }
             frame.present();
