@@ -353,6 +353,15 @@ impl Quadtree {
 
         acc
     }
+
+    /// Returns all non-empty cell quads for visualization
+    pub fn get_cells(&self) -> Vec<Quad> {
+        self.nodes
+            .iter()
+            .filter(|n| n.mass > 0.0)
+            .map(|n| n.quad)
+            .collect()
+    }
 }
 
 // KD-Tree for collision detection

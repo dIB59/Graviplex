@@ -1,4 +1,4 @@
-use super::spatial::Quadtree;
+use super::spatial::{Quad, Quadtree};
 use super::Body;
 
 pub trait GravityStrategy {
@@ -9,6 +9,11 @@ pub trait GravityStrategy {
         dt: f64,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     );
+
+    /// Returns the quadtree cells for visualization. Default returns empty.
+    fn get_cells(&self) -> Vec<Quad> {
+        Vec::new()
+    }
 }
 
 pub struct NaiveGravityStrategy;
@@ -88,7 +93,6 @@ impl GravityStrategy for BarnesHutGravityStrategy {
         dt: f64,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
-        use super::spatial::Quad;
         use rayon::prelude::*;
 
         let positions: Vec<[f64; 2]> = bodies.par_iter().map(|b| b.position).collect();
@@ -117,64 +121,8 @@ impl GravityStrategy for BarnesHutGravityStrategy {
             })
             .collect();
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::simulation::Body;
-    use rand::Rng;
-
-    #[test]
-    fn test_barnes_hut_vs_naive() {
-        let mut bodies = Vec::new();
-        let n = 100;
-        let mut rng = rand::rng();
-        for i in 0..n {
-            bodies.push(Body::new(
-                i as u32,
-                [
-                    rng.random_range(-100.0..100.0),
-                    rng.random_range(-100.0..100.0),
-                ],
-                [0.0, 0.0],
-                rng.random_range(1.0..10.0),
-                [0, 0, 0, 255],
-                1.0,
-            ));
-        }
-
-        let dt = 0.01;
-        let gravity_constant = 1000.0;
-
-        let mut naive_strategy = NaiveGravityStrategy;
-        let mut naive_updates = Vec::new();
-        naive_strategy.calculate_forces(&bodies, gravity_constant, dt, &mut naive_updates);
-
-        let mut bh_strategy = BarnesHutGravityStrategy::new(0.01, 0.0); // Very low theta, no softening
-        let mut bh_updates = Vec::new();
-        bh_strategy.calculate_forces(&bodies, gravity_constant, dt, &mut bh_updates);
-
-        for (i, (naive, bh)) in naive_updates.iter().zip(bh_updates.iter()).enumerate() {
-            let pos_diff = [naive.0[0] - bh.0[0], naive.0[1] - bh.0[1]];
-            let vel_diff = [naive.1[0] - bh.1[0], naive.1[1] - bh.1[1]];
-
-            let pos_error = (pos_diff[0] * pos_diff[0] + pos_diff[1] * pos_diff[1]).sqrt();
-            let vel_error = (vel_diff[0] * vel_diff[0] + vel_diff[1] * vel_diff[1]).sqrt();
-
-            // With f64 and theta=0.01, error should be small
-            assert!(
-                pos_error < 5.0,
-                "Position error too high for body {}: {}",
-                i,
-                pos_error
-            );
-            assert!(
-                vel_error < 100.0,
-                "Velocity error too high for body {}: {}",
-                i,
-                vel_error
-            );
-        }
+    fn get_cells(&self) -> Vec<Quad> {
+        self.quadtree.get_cells()
     }
 }

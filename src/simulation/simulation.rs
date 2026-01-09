@@ -224,6 +224,11 @@ impl Simulation {
 
         self.collision_strategy.handle_collisions(&mut self.bodies);
     }
+
+    /// Get quadtree cells for visualization
+    pub fn get_cells(&self) -> Vec<super::spatial::Quad> {
+        self.gravity_strategy.get_cells()
+    }
 }
 
 #[cfg(test)]

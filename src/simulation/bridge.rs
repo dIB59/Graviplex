@@ -78,9 +78,17 @@ impl<T: Clone + Default> TripleBuffer<T> {
     }
 }
 
+/// Quad cell data for visualization (center and size)
+#[derive(Clone, Default)]
+pub struct QuadCell {
+    pub center: [f32; 2],
+    pub size: f32,
+}
+
 pub struct SimulationBridge {
     tx: Sender<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
+    quad_cells_buffer: Arc<TripleBuffer<Vec<QuadCell>>>,
     tps: Arc<RwLock<f32>>,
     current_body_count: Arc<RwLock<usize>>,
 }
@@ -89,19 +97,29 @@ impl SimulationBridge {
     pub fn new(count: i32) -> Self {
         let (tx, rx) = mpsc::channel();
         let buffer = Arc::new(TripleBuffer::new());
+        let quad_cells_buffer = Arc::new(TripleBuffer::new());
         let tps = Arc::new(RwLock::new(0.0));
         let current_body_count = Arc::new(RwLock::new(count as usize));
 
         let worker_buffer = buffer.clone();
+        let worker_quad_cells = quad_cells_buffer.clone();
         let worker_tps = tps.clone();
         let worker_count = current_body_count.clone();
         std::thread::spawn(move || {
-            simulation_worker(rx, worker_buffer, worker_tps, worker_count, count);
+            simulation_worker(
+                rx,
+                worker_buffer,
+                worker_quad_cells,
+                worker_tps,
+                worker_count,
+                count,
+            );
         });
 
         Self {
             tx,
             buffer,
+            quad_cells_buffer,
             tps,
             current_body_count,
         }
@@ -122,11 +140,16 @@ impl SimulationBridge {
     pub fn get_body_count(&self) -> usize {
         *self.current_body_count.read().unwrap()
     }
+
+    pub fn get_quad_cells(&self) -> Arc<RwLock<Vec<QuadCell>>> {
+        self.quad_cells_buffer.fetch()
+    }
 }
 
 fn simulation_worker(
     rx: Receiver<SimulationCommand>,
     buffer: Arc<TripleBuffer<Vec<Instance>>>,
+    quad_cells_buffer: Arc<TripleBuffer<Vec<QuadCell>>>,
     tps_shared: Arc<RwLock<f32>>,
     body_count_shared: Arc<RwLock<usize>>,
     initial_count: i32,
@@ -197,6 +220,17 @@ fn simulation_worker(
             }
         }
 
+        // 4. Convert quad cells and submit
+        let quad_cells: Vec<QuadCell> = sim
+            .get_cells()
+            .iter()
+            .map(|q| QuadCell {
+                center: [q.center[0] as f32, q.center[1] as f32],
+                size: q.size as f32,
+            })
+            .collect();
+        quad_cells_buffer.submit(quad_cells);
+
         // Optional: yield to prevent 100% CPU on spin-lock if simulation is ultra fast
         // std::thread::yield_now();
     }
@@ -210,7 +244,7 @@ mod tests {
 
     // Tolerance for floating-point position comparisons in tests
     const POSITION_EPSILON: f32 = 0.0001;
-    
+
     // Helper function to get expected body count
     // generate_bodies creates count + 1 bodies (1 central body + count orbiting bodies)
     const fn expected_body_count(requested_count: i32) -> usize {
@@ -220,10 +254,10 @@ mod tests {
     #[test]
     fn test_triple_buffer_basic_submit_and_fetch() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
-        
+
         // Submit some data
         buffer.submit(vec![1, 2, 3]);
-        
+
         // Fetch should return the submitted data
         let fetched = buffer.fetch();
         let data = fetched.read().unwrap();
@@ -233,12 +267,12 @@ mod tests {
     #[test]
     fn test_triple_buffer_multiple_submits() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
-        
+
         // Submit multiple times
         buffer.submit(vec![1, 2, 3]);
         buffer.submit(vec![4, 5, 6]);
         buffer.submit(vec![7, 8, 9]);
-        
+
         // Fetch should return the latest submitted data
         let fetched = buffer.fetch();
         let data = fetched.read().unwrap();
@@ -248,17 +282,17 @@ mod tests {
     #[test]
     fn test_triple_buffer_dirty_flag() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
-        
+
         // Initially dirty should be false (or true after first submit)
         buffer.submit(vec![1, 2, 3]);
-        
+
         // After submit, dirty should be true
         assert!(*buffer.dirty.read().unwrap());
-        
+
         // After fetch, dirty should be false
         buffer.fetch();
         assert!(!*buffer.dirty.read().unwrap());
-        
+
         // Fetch again without submit should keep dirty false
         buffer.fetch();
         assert!(!*buffer.dirty.read().unwrap());
@@ -267,23 +301,23 @@ mod tests {
     #[test]
     fn test_triple_buffer_no_swap_when_not_dirty() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
-        
+
         // Submit and fetch once
         buffer.submit(vec![1, 2, 3]);
         let first_fetch = buffer.fetch();
         let front_ptr_1 = Arc::as_ptr(&first_fetch);
-        
+
         // Fetch again without submitting - should return same front buffer
         let second_fetch = buffer.fetch();
         let front_ptr_2 = Arc::as_ptr(&second_fetch);
-        
+
         assert_eq!(front_ptr_1, front_ptr_2);
     }
 
     #[test]
     fn test_triple_buffer_concurrent_access() {
         let buffer = Arc::new(TripleBuffer::<Vec<i32>>::new());
-        
+
         // Spawn writer thread
         let writer_buffer = buffer.clone();
         let writer = thread::spawn(move || {
@@ -292,7 +326,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(10));
             }
         });
-        
+
         // Spawn reader thread
         let reader_buffer = buffer.clone();
         let reader = thread::spawn(move || {
@@ -309,7 +343,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(10));
             }
         });
-        
+
         writer.join().unwrap();
         reader.join().unwrap();
     }
@@ -317,24 +351,24 @@ mod tests {
     #[test]
     fn test_triple_buffer_buffer_rotation() {
         let buffer = TripleBuffer::<Vec<i32>>::new();
-        
+
         // Track initial indices
         let initial_front = *buffer.front_idx.lock().unwrap();
         let initial_mid = *buffer.mid_idx.lock().unwrap();
         let initial_back = *buffer.back_idx.lock().unwrap();
-        
+
         // All indices should be different
         assert_ne!(initial_front, initial_mid);
         assert_ne!(initial_front, initial_back);
         assert_ne!(initial_mid, initial_back);
-        
+
         // Submit should swap back and mid
         buffer.submit(vec![1]);
         let after_submit_mid = *buffer.mid_idx.lock().unwrap();
         let after_submit_back = *buffer.back_idx.lock().unwrap();
         assert_eq!(after_submit_mid, initial_back);
         assert_eq!(after_submit_back, initial_mid);
-        
+
         // Fetch should swap front and mid when dirty
         buffer.fetch();
         let after_fetch_front = *buffer.front_idx.lock().unwrap();
@@ -346,42 +380,42 @@ mod tests {
     #[test]
     fn test_simulation_bridge_creation() {
         let bridge = SimulationBridge::new(10);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Should be able to get instances
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
-        
+
         assert_eq!(data.len(), expected_body_count(10));
     }
 
     #[test]
     fn test_simulation_bridge_get_body_count() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         assert_eq!(bridge.get_body_count(), expected_body_count(5));
     }
 
     #[test]
     fn test_simulation_bridge_reset_command() {
         let bridge = SimulationBridge::new(10);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Send reset command with different count
         bridge.sender().send(SimulationCommand::Reset(20)).unwrap();
-        
+
         // Wait for command to be processed
         thread::sleep(Duration::from_millis(200));
-        
+
         assert_eq!(bridge.get_body_count(), expected_body_count(20));
-        
+
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
         assert_eq!(data.len(), expected_body_count(20));
@@ -390,16 +424,19 @@ mod tests {
     #[test]
     fn test_simulation_bridge_update_gravity_command() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Send update gravity command - should not panic
-        bridge.sender().send(SimulationCommand::UpdateGravity(100.0)).unwrap();
-        
+        bridge
+            .sender()
+            .send(SimulationCommand::UpdateGravity(100.0))
+            .unwrap();
+
         // Wait for command to be processed
         thread::sleep(Duration::from_millis(100));
-        
+
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
@@ -409,16 +446,19 @@ mod tests {
     #[test]
     fn test_simulation_bridge_set_theta_command() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Send set theta command - should not panic
-        bridge.sender().send(SimulationCommand::SetTheta(0.8)).unwrap();
-        
+        bridge
+            .sender()
+            .send(SimulationCommand::SetTheta(0.8))
+            .unwrap();
+
         // Wait for command to be processed
         thread::sleep(Duration::from_millis(100));
-        
+
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
@@ -428,14 +468,17 @@ mod tests {
     #[test]
     fn test_simulation_bridge_pause_command() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start and run a bit
         thread::sleep(Duration::from_millis(100));
-        
+
         // Pause the simulation
-        bridge.sender().send(SimulationCommand::Pause(true)).unwrap();
+        bridge
+            .sender()
+            .send(SimulationCommand::Pause(true))
+            .unwrap();
         thread::sleep(Duration::from_millis(100));
-        
+
         // Get instances after pause
         let instances_after_pause = bridge.get_instances();
         let positions_after_pause: Vec<_> = instances_after_pause
@@ -444,10 +487,10 @@ mod tests {
             .iter()
             .map(|i| i.position)
             .collect();
-        
+
         // Wait a bit more
         thread::sleep(Duration::from_millis(200));
-        
+
         // Positions should remain the same when paused
         let instances_final = bridge.get_instances();
         let positions_final: Vec<_> = instances_final
@@ -456,36 +499,42 @@ mod tests {
             .iter()
             .map(|i| i.position)
             .collect();
-        
+
         // While paused, positions should not change significantly
         // (allowing for floating point precision)
         for (pos1, pos2) in positions_after_pause.iter().zip(positions_final.iter()) {
             assert!((pos1[0] - pos2[0]).abs() < POSITION_EPSILON);
             assert!((pos1[1] - pos2[1]).abs() < POSITION_EPSILON);
         }
-        
+
         // Unpause
-        bridge.sender().send(SimulationCommand::Pause(false)).unwrap();
+        bridge
+            .sender()
+            .send(SimulationCommand::Pause(false))
+            .unwrap();
         thread::sleep(Duration::from_millis(100));
     }
 
     #[test]
     fn test_simulation_bridge_step_command() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Pause the simulation first
-        bridge.sender().send(SimulationCommand::Pause(true)).unwrap();
+        bridge
+            .sender()
+            .send(SimulationCommand::Pause(true))
+            .unwrap();
         thread::sleep(Duration::from_millis(100));
-        
+
         // Send step command - should advance by one fixed step
         bridge.sender().send(SimulationCommand::Step).unwrap();
-        
+
         // Wait for command to be processed
         thread::sleep(Duration::from_millis(100));
-        
+
         // Simulation should still have same number of bodies
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
@@ -495,10 +544,10 @@ mod tests {
     #[test]
     fn test_simulation_bridge_tps_tracking() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Wait for at least one TPS calculation (happens every second)
         thread::sleep(Duration::from_millis(1100));
-        
+
         // TPS should be greater than 0 (simulation is running)
         let tps = bridge.get_tps();
         assert!(tps > 0.0);
@@ -507,20 +556,26 @@ mod tests {
     #[test]
     fn test_simulation_bridge_multiple_commands() {
         let bridge = SimulationBridge::new(10);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Send multiple commands in sequence
-        bridge.sender().send(SimulationCommand::UpdateGravity(50.0)).unwrap();
-        bridge.sender().send(SimulationCommand::SetTheta(0.9)).unwrap();
+        bridge
+            .sender()
+            .send(SimulationCommand::UpdateGravity(50.0))
+            .unwrap();
+        bridge
+            .sender()
+            .send(SimulationCommand::SetTheta(0.9))
+            .unwrap();
         bridge.sender().send(SimulationCommand::Reset(15)).unwrap();
-        
+
         // Wait for all commands to be processed
         thread::sleep(Duration::from_millis(300));
-        
+
         assert_eq!(bridge.get_body_count(), expected_body_count(15));
-        
+
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();
         assert_eq!(data.len(), expected_body_count(15));
@@ -529,21 +584,25 @@ mod tests {
     #[test]
     fn test_simulation_bridge_sender_cloning() {
         let bridge = SimulationBridge::new(5);
-        
+
         // Give the simulation thread time to start
         thread::sleep(Duration::from_millis(100));
-        
+
         // Clone the sender
         let sender1 = bridge.sender();
         let sender2 = bridge.sender();
-        
+
         // Both senders should work
-        sender1.send(SimulationCommand::UpdateGravity(10.0)).unwrap();
-        sender2.send(SimulationCommand::UpdateGravity(20.0)).unwrap();
-        
+        sender1
+            .send(SimulationCommand::UpdateGravity(10.0))
+            .unwrap();
+        sender2
+            .send(SimulationCommand::UpdateGravity(20.0))
+            .unwrap();
+
         // Wait for commands to be processed
         thread::sleep(Duration::from_millis(100));
-        
+
         // Simulation should still be running
         let instances = bridge.get_instances();
         let data = instances.read().unwrap();

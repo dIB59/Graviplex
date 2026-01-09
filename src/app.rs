@@ -9,13 +9,17 @@ use crate::core::time::Time;
 use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
-use crate::renderer::{Camera2D, CameraController, GpuContext, Instance, RenderPipeline, Vertex};
+use crate::renderer::{
+    Camera2D, CameraController, GpuContext, Instance, LineInstance, LinePipeline, RenderPipeline,
+    Vertex,
+};
 use crate::simulation::SimulationBridge;
 
 pub struct App {
     window: Option<Arc<Window>>,
     gpu: GpuContext,
     pipeline: Option<RenderPipeline>,
+    line_pipeline: Option<LinePipeline>,
     camera: Camera2D,
     camera_controller: CameraController,
     time: Time,
@@ -33,6 +37,7 @@ impl Default for App {
             window: None,
             gpu: GpuContext::new(),
             pipeline: None,
+            line_pipeline: None,
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
@@ -70,6 +75,14 @@ impl ApplicationHandler for App {
             self.pipeline = Some(RenderPipeline::new(
                 "Circle Shader",
                 include_wgsl!("../src/shaders/circle_shader.wgsl"),
+                &self.gpu.device,
+                format,
+                &self.camera,
+            ));
+
+            self.line_pipeline = Some(LinePipeline::new(
+                "Quadtree Lines",
+                include_wgsl!("../src/shaders/line_shader.wgsl"),
                 &self.gpu.device,
                 format,
                 &self.camera,
@@ -118,6 +131,11 @@ impl ApplicationHandler for App {
                         .camera_gpu_data()
                         .update(&self.gpu.queue, &self.camera);
                 }
+                if let Some(line_pipeline) = &self.line_pipeline {
+                    line_pipeline
+                        .camera_gpu_data()
+                        .update(&self.gpu.queue, &self.camera);
+                }
             }
 
             WindowEvent::RedrawRequested => self.render(),
@@ -141,6 +159,11 @@ impl ApplicationHandler for App {
                 {
                     if let Some(pipeline) = &self.pipeline {
                         pipeline
+                            .camera_gpu_data()
+                            .update(&self.gpu.queue, &self.camera);
+                    }
+                    if let Some(line_pipeline) = &self.line_pipeline {
+                        line_pipeline
                             .camera_gpu_data()
                             .update(&self.gpu.queue, &self.camera);
                     }
@@ -169,6 +192,11 @@ impl App {
         ) {
             if let Some(pipeline) = &self.pipeline {
                 pipeline
+                    .camera_gpu_data()
+                    .update(&self.gpu.queue, &self.camera);
+            }
+            if let Some(line_pipeline) = &self.line_pipeline {
+                line_pipeline
                     .camera_gpu_data()
                     .update(&self.gpu.queue, &self.camera);
             }
@@ -221,6 +249,53 @@ impl App {
                     &vertices,
                     instances,
                 );
+            }
+
+            // Render quadtree lines
+            if let Some(line_pipeline) = &self.line_pipeline {
+                let quad_cells = self.simulation_bridge.get_quad_cells();
+                let cells_read = quad_cells.read().unwrap();
+
+                // Convert quad cells to line instances (4 edges per cell)
+                let line_instances: Vec<LineInstance> = cells_read
+                    .iter()
+                    .flat_map(|cell| {
+                        let half = cell.size * 0.5;
+                        let corners = [
+                            [cell.center[0] - half, cell.center[1] - half], // bottom-left
+                            [cell.center[0] + half, cell.center[1] - half], // bottom-right
+                            [cell.center[0] + half, cell.center[1] + half], // top-right
+                            [cell.center[0] - half, cell.center[1] + half], // top-left
+                        ];
+                        let color = [0.2, 0.6, 1.0, 0.3]; // Semi-transparent blue
+                        [
+                            LineInstance {
+                                start: corners[0],
+                                end: corners[1],
+                                color,
+                            },
+                            LineInstance {
+                                start: corners[1],
+                                end: corners[2],
+                                color,
+                            },
+                            LineInstance {
+                                start: corners[2],
+                                end: corners[3],
+                                color,
+                            },
+                            LineInstance {
+                                start: corners[3],
+                                end: corners[0],
+                                color,
+                            },
+                        ]
+                    })
+                    .collect();
+
+                let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+                line_pipeline.render(&mut encoder, &self.gpu.queue, &view, &line_instances);
+                self.gpu.queue.submit(std::iter::once(encoder.finish()));
             }
 
             if let Some(ui_renderer) = &mut self.gui_renderer {
