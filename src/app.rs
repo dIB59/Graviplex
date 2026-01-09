@@ -251,51 +251,58 @@ impl App {
                 );
             }
 
-            // Render quadtree lines
-            if let Some(line_pipeline) = &self.line_pipeline {
-                let quad_cells = self.simulation_bridge.get_quad_cells();
-                let cells_read = quad_cells.read().unwrap();
+            // Render quadtree lines (if enabled)
+            let show_quadtree = self
+                .gui
+                .as_ref()
+                .map(|g| g.show_quadtree())
+                .unwrap_or(false);
+            if show_quadtree {
+                if let Some(line_pipeline) = &self.line_pipeline {
+                    let quad_cells = self.simulation_bridge.get_quad_cells();
+                    let cells_read = quad_cells.read().unwrap();
 
-                // Convert quad cells to line instances (4 edges per cell)
-                let line_instances: Vec<LineInstance> = cells_read
-                    .iter()
-                    .flat_map(|cell| {
-                        let half = cell.size * 0.5;
-                        let corners = [
-                            [cell.center[0] - half, cell.center[1] - half], // bottom-left
-                            [cell.center[0] + half, cell.center[1] - half], // bottom-right
-                            [cell.center[0] + half, cell.center[1] + half], // top-right
-                            [cell.center[0] - half, cell.center[1] + half], // top-left
-                        ];
-                        let color = [0.2, 0.6, 1.0, 0.3]; // Semi-transparent blue
-                        [
-                            LineInstance {
-                                start: corners[0],
-                                end: corners[1],
-                                color,
-                            },
-                            LineInstance {
-                                start: corners[1],
-                                end: corners[2],
-                                color,
-                            },
-                            LineInstance {
-                                start: corners[2],
-                                end: corners[3],
-                                color,
-                            },
-                            LineInstance {
-                                start: corners[3],
-                                end: corners[0],
-                                color,
-                            },
-                        ]
-                    })
-                    .collect();
+                    // Convert quad cells to line instances (4 edges per cell)
+                    let line_instances: Vec<LineInstance> = cells_read
+                        .iter()
+                        .flat_map(|cell| {
+                            let half = cell.size * 0.5;
+                            let corners = [
+                                [cell.center[0] - half, cell.center[1] - half], // bottom-left
+                                [cell.center[0] + half, cell.center[1] - half], // bottom-right
+                                [cell.center[0] + half, cell.center[1] + half], // top-right
+                                [cell.center[0] - half, cell.center[1] + half], // top-left
+                            ];
+                            let color = [0.2, 0.6, 1.0, 0.3]; // Semi-transparent blue
+                            [
+                                LineInstance {
+                                    start: corners[0],
+                                    end: corners[1],
+                                    color,
+                                },
+                                LineInstance {
+                                    start: corners[1],
+                                    end: corners[2],
+                                    color,
+                                },
+                                LineInstance {
+                                    start: corners[2],
+                                    end: corners[3],
+                                    color,
+                                },
+                                LineInstance {
+                                    start: corners[3],
+                                    end: corners[0],
+                                    color,
+                                },
+                            ]
+                        })
+                        .collect();
 
-                let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
-                line_pipeline.render(&mut encoder, &self.gpu.queue, &view, &line_instances);
-                self.gpu.queue.submit(std::iter::once(encoder.finish()));
+                    let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+                    line_pipeline.render(&mut encoder, &self.gpu.queue, &view, &line_instances);
+                    self.gpu.queue.submit(std::iter::once(encoder.finish()));
+                }
             }
 
             if let Some(ui_renderer) = &mut self.gui_renderer {

@@ -15,6 +15,7 @@ pub struct Gui {
     interaction_radius: f32,
     interaction_strength: f32,
     click_count: u32,
+    show_quadtree: bool,
 }
 
 impl Gui {
@@ -43,6 +44,7 @@ impl Gui {
             interaction_radius: 100.0,
             interaction_strength: 10.0,
             click_count: 0,
+            show_quadtree: false,
         }
     }
 
@@ -101,6 +103,7 @@ impl Gui {
                 &mut self.interaction_strength,
                 body_count,
                 &mut self.click_count,
+                &mut self.show_quadtree,
                 fps,
                 tps,
             )
@@ -134,6 +137,7 @@ impl Gui {
         interaction_strength: &mut f32,
         body_count: usize,
         click_count: &mut u32,
+        show_quadtree: &mut bool,
         fps: f32,
         tps: f32,
     ) {
@@ -185,14 +189,15 @@ impl Gui {
                 ui.label("Left-click: Pull | Right-click: Repel");
 
                 ui.separator();
-                ui.heading("Misc");
-                if ui.button("Magic Click").clicked() {
-                    *click_count += 1;
-                }
-                ui.label(format!("Magic Clicks: {}", click_count));
+                ui.heading("Debug");
+                ui.checkbox(show_quadtree, "Show Quadtree");
             });
     }
     pub fn interaction_params(&self) -> (f32, f32) {
         (self.interaction_radius, self.interaction_strength)
+    }
+
+    pub fn show_quadtree(&self) -> bool {
+        self.show_quadtree
     }
 }
