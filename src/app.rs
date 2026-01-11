@@ -25,11 +25,12 @@ pub struct App {
     time: Time,
     input: InputState,
     simulation_bridge: SimulationBridge,
+    gpu_simulation: Option<crate::simulation::GpuEngine>,
     gui: Option<Gui>,
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 200000;
+pub const NUM_OF_BODIES: i32 = 20000;
 
 impl Default for App {
     fn default() -> Self {
@@ -45,6 +46,7 @@ impl Default for App {
             time: Time::new(),
             input: InputState::new(),
             simulation_bridge: SimulationBridge::new(NUM_OF_BODIES),
+            gpu_simulation: None,
             gui: None,
             gui_renderer: None,
         }
@@ -89,6 +91,27 @@ impl ApplicationHandler for App {
             ));
 
             let mut gui = Gui::new(event_loop, self.simulation_bridge.sender());
+
+            // Initialize GPU Simulation
+            let initial_bodies = self.simulation_bridge.get_initial_bodies();
+            let gpu_particles: Vec<crate::simulation::GpuParticle> = initial_bodies
+                .iter()
+                .map(|b| crate::simulation::GpuParticle {
+                    position: [b.position[0] as f32, b.position[1] as f32],
+                    radius: b.radius as f32,
+                    color: bytemuck::cast(b.color),
+                    velocity: [b.velocity[0] as f32, b.velocity[1] as f32],
+                    mass: b.mass as f32,
+                    id: b.id,
+                })
+                .collect();
+
+            self.gpu_simulation = Some(crate::simulation::GpuEngine::new(
+                &self.gpu.device,
+                &self.gpu.queue,
+                &gpu_particles,
+            ));
+
             let initial_output = gui.run(
                 &window,
                 0.0,
@@ -234,20 +257,34 @@ impl App {
             Vertex { pos: [-4.33, -2.5] },
         ];
 
-        let instances_arc = self.simulation_bridge.get_instances();
-        let instances_read = instances_arc.read().unwrap();
-        let instances: &[Instance] = &instances_read;
+        let instance_count = self.simulation_bridge.get_body_count() as u32;
+
+        if let Some(gpu_sim) = &self.gpu_simulation {
+            let gravity = self
+                .gui
+                .as_ref()
+                .map(|g| g.gravity_constant())
+                .unwrap_or(1.0);
+            gpu_sim.update(
+                &self.gpu.device,
+                &self.gpu.queue,
+                self.time.delta() as f32,
+                gravity as f32,
+            );
+        }
 
         if let Ok(frame) = self.gpu.get_current_frame() {
             let view = frame.texture.create_view(&Default::default());
 
             if let Some(pipeline) = &self.pipeline {
+                let ext_buffer = self.gpu_simulation.as_ref().map(|s| &s.particle_buffer);
                 pipeline.render(
                     &self.gpu.device,
                     &self.gpu.queue,
                     &view,
                     &vertices,
-                    instances,
+                    instance_count,
+                    ext_buffer,
                 );
             }
 

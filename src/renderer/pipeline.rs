@@ -82,7 +82,8 @@ impl RenderPipeline {
         queue: &Queue,
         view: &TextureView,
         vertices: &[Vertex],
-        instances: &[Instance],
+        instance_count: u32,
+        external_instance_buffer: Option<&Buffer>,
     ) {
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Render Encoder"),
@@ -111,13 +112,20 @@ impl RenderPipeline {
             });
 
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
-            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instances));
+
+            let inst_buffer = if let Some(buf) = external_instance_buffer {
+                buf
+            } else {
+                // Warning: We need the instances slice if we want to write it
+                // But for now we just handle GPU path cleanly
+                &self.instance_buffer
+            };
 
             rpass.set_pipeline(&self.pipeline);
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            rpass.set_vertex_buffer(1, inst_buffer.slice(..));
             rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
-            rpass.draw(0..vertices.len() as u32, 0..instances.len() as u32);
+            rpass.draw(0..vertices.len() as u32, 0..instance_count);
         }
 
         queue.submit(std::iter::once(encoder.finish()));

@@ -200,4 +200,8 @@ impl Gui {
     pub fn show_quadtree(&self) -> bool {
         self.show_quadtree
     }
+
+    pub fn gravity_constant(&self) -> f32 {
+        self.gravity_constant
+    }
 }

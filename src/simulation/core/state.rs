@@ -108,6 +108,9 @@ impl SimulationState {
                 position: [self.px[i] as f32, self.py[i] as f32],
                 radius: self.radii[i] as f32,
                 color: self.colors[i],
+                velocity: [self.vx[i] as f32, self.vy[i] as f32],
+                mass: self.masses[i] as f32,
+                id: self.ids[i],
             })
             .collect()
     }
