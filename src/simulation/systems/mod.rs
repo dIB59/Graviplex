@@ -1,11 +1,13 @@
 pub mod collision;
 pub mod gravity;
+pub mod integrator;
 
 pub use collision::{
     CollisionStrategy, KdTreeCollision, NaiveCollisionStrategy, NoCollisionStrategy,
     QuadtreeCollision,
 };
 pub use gravity::{BarnesHutGravityStrategy, GravityStrategy, NaiveGravityStrategy};
+pub use integrator::{EulerIntegrator, VerletIntegratorStage1, VerletIntegratorStage2};
 
 use super::core::state::SimulationState;
 use super::spatial::quadtree::Quadtree;

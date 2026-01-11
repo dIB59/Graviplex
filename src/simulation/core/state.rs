@@ -6,6 +6,7 @@ pub struct SimulationState {
     pub ids: Vec<u32>,
     pub positions: Vec<[f64; 2]>,
     pub velocities: Vec<[f64; 2]>,
+    pub accelerations: Vec<[f64; 2]>,
     pub masses: Vec<f64>,
     pub colors: Vec<[u8; 4]>,
     pub radii: Vec<f64>,
@@ -17,6 +18,7 @@ impl SimulationState {
             ids: Vec::new(),
             positions: Vec::new(),
             velocities: Vec::new(),
+            accelerations: Vec::new(),
             masses: Vec::new(),
             colors: Vec::new(),
             radii: Vec::new(),
@@ -28,6 +30,7 @@ impl SimulationState {
             ids: Vec::with_capacity(capacity),
             positions: Vec::with_capacity(capacity),
             velocities: Vec::with_capacity(capacity),
+            accelerations: Vec::with_capacity(capacity),
             masses: Vec::with_capacity(capacity),
             colors: Vec::with_capacity(capacity),
             radii: Vec::with_capacity(capacity),
@@ -38,6 +41,7 @@ impl SimulationState {
         self.ids.push(body.id);
         self.positions.push(body.position);
         self.velocities.push(body.velocity);
+        self.accelerations.push([0.0, 0.0]);
         self.masses.push(body.mass);
         self.colors.push(body.color);
         self.radii.push(body.radius);
@@ -47,6 +51,7 @@ impl SimulationState {
         self.ids.clear();
         self.positions.clear();
         self.velocities.clear();
+        self.accelerations.clear();
         self.masses.clear();
         self.colors.clear();
         self.radii.clear();

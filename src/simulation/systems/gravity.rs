@@ -2,7 +2,6 @@ use super::{SimulationContext, SimulationState, SimulationSystem};
 use crate::simulation::spatial::quadtree::{Quad, Quadtree};
 
 pub trait GravityStrategy: SimulationSystem {
-    /// Returns the quadtree cells for visualization. Default returns empty.
     fn get_cells(&self) -> Vec<Quad> {
         Vec::new()
     }
@@ -17,7 +16,6 @@ impl SimulationSystem for NaiveGravityStrategy {
         context: &SimulationContext,
         _quadtree: &Quadtree,
     ) {
-        let dt = context.dt as f64;
         let g = context.gravity_constant as f64;
         let len = state.len();
 
@@ -46,10 +44,7 @@ impl SimulationSystem for NaiveGravityStrategy {
                 acc[1] += dy * force_scale;
             }
 
-            state.velocities[i][0] += acc[0] * dt;
-            state.velocities[i][1] += acc[1] * dt;
-            state.positions[i][0] += state.velocities[i][0] * dt;
-            state.positions[i][1] += state.velocities[i][1] * dt;
+            state.accelerations[i] = acc;
         }
     }
 }
@@ -72,19 +67,14 @@ impl SimulationSystem for BarnesHutGravityStrategy {
         quadtree: &Quadtree,
     ) {
         use rayon::prelude::*;
-        let dt = context.dt as f64;
         let g = context.gravity_constant as f64;
 
         state
             .positions
-            .par_iter_mut()
-            .zip(state.velocities.par_iter_mut())
-            .for_each(|(pos, vel)| {
-                let acc = quadtree.acc(*pos, g);
-                vel[0] += acc[0] * dt;
-                vel[1] += acc[1] * dt;
-                pos[0] += vel[0] * dt;
-                pos[1] += vel[1] * dt;
+            .par_iter()
+            .zip(state.accelerations.par_iter_mut())
+            .for_each(|(pos, acc)| {
+                *acc = quadtree.acc(*pos, g);
             });
     }
 }

@@ -1,7 +1,7 @@
 use crate::simulation::core::{Body, SimulationState};
 use crate::simulation::spatial::{Quad, Quadtree};
 use crate::simulation::systems::{
-    BarnesHutGravityStrategy, CollisionStrategy, GravityStrategy, KdTreeCollision,
+    BarnesHutGravityStrategy, CollisionStrategy, GravityStrategy, KdTreeCollision, SimulationSystem,
 };
 use rand::Rng;
 
@@ -13,7 +13,6 @@ pub struct Simulation {
     pub gravity_constant: f32,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
-    updates_buffer: Vec<([f64; 2], [f64; 2])>,
     quadtree: Quadtree,
 }
 
@@ -31,7 +30,6 @@ impl Simulation {
             gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
             collision_strategy: Box::new(KdTreeCollision::new()),
-            updates_buffer: Vec::new(),
             quadtree: Quadtree::new(0.5, 0.01),
         }
     }
@@ -219,7 +217,6 @@ impl Simulation {
         }
 
         // 1. Build Quadtree ONCE
-        use rayon::prelude::*;
         let root_quad = Quad::new_containing(&self.state.positions);
         self.quadtree
             .build(&self.state.positions, &self.state.masses, root_quad);
@@ -230,12 +227,26 @@ impl Simulation {
             gravity_constant: self.gravity_constant,
         };
 
-        // 3. Execution Pipeline
-        // Gravity (Forces + Integration)
+        // 3. Execution Pipeline (Velocity Verlet)
+
+        // Stage 1: v += a * dt / 2; x += v * dt
+        let mut v1 = crate::simulation::systems::VerletIntegratorStage1;
+        v1.update(&mut self.state, &context, &self.quadtree);
+
+        // Stage 2: Recalculate forces for a(t+1)
+        // Rebuild Quadtree for new positions
+        let root_quad = Quad::new_containing(&self.state.positions);
+        self.quadtree
+            .build(&self.state.positions, &self.state.masses, root_quad);
+
         self.gravity_strategy
             .update(&mut self.state, &context, &self.quadtree);
 
-        // Collisions (Resolution)
+        // Stage 3: v += a(t+1) * dt / 2
+        let mut v2 = crate::simulation::systems::VerletIntegratorStage2;
+        v2.update(&mut self.state, &context, &self.quadtree);
+
+        // Stage 4: Collisions (Resolution)
         self.collision_strategy
             .update(&mut self.state, &context, &self.quadtree);
     }

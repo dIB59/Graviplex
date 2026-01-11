@@ -1,5 +1,4 @@
 use super::{SimulationContext, SimulationState, SimulationSystem};
-use crate::simulation::core::body::Body;
 use crate::simulation::spatial::kdtree::KdTree;
 use crate::simulation::spatial::quadtree::Quadtree;
 use rand::Rng;
@@ -238,6 +237,7 @@ mod tests {
             ids: state_seq.ids.clone(),
             positions: state_seq.positions.clone(),
             velocities: state_seq.velocities.clone(),
+            accelerations: state_seq.accelerations.clone(),
             masses: state_seq.masses.clone(),
             colors: state_seq.colors.clone(),
             radii: state_seq.radii.clone(),
