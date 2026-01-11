@@ -19,10 +19,7 @@ pub struct GpuParams {
     pub gravity: f32,
     pub num_particles: u32,
     pub seed: u32,
-    pub interaction_pos: [f32; 2],
-    pub interaction_radius: f32,
-    pub interaction_strength: f32,
-    pub _padding: [u32; 57], // Pad to 256 bytes (64 * 4 bytes)
+    pub _padding: [u32; 60], // Pad to 256 bytes (64 * 4 bytes)
 }
 
 pub struct GpuEngine {
@@ -166,10 +163,7 @@ impl GpuEngine {
             gravity: 0.0,
             num_particles: self.num_particles,
             seed: rand::random(),
-            interaction_pos: [0.0, 0.0],
-            interaction_radius: 0.0,
-            interaction_strength: 0.0,
-            _padding: [0; 57],
+            _padding: [0; 60],
         };
         queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 
@@ -191,27 +185,14 @@ impl GpuEngine {
         queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn update(
-        &self,
-        device: &Device,
-        queue: &Queue,
-        dt: f32,
-        gravity: f32,
-        _theta: f32,
-        interaction: Option<([f32; 2], f32, f32)>,
-    ) {
-        let (i_pos, i_rad, i_str) = interaction.unwrap_or(([0.0, 0.0], 0.0, 0.0));
-
+    pub fn update(&self, device: &Device, queue: &Queue, dt: f32, gravity: f32, _theta: f32) {
         // Only need one set of params for brute force
         let params = GpuParams {
             dt,
             gravity,
             num_particles: self.num_particles,
             seed: 0,
-            interaction_pos: i_pos,
-            interaction_radius: i_rad,
-            interaction_strength: i_str,
-            _padding: [0; 57],
+            _padding: [0; 60],
         };
 
         queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));

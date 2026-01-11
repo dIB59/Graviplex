@@ -122,14 +122,6 @@ fn update_gravity(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     v_i += acc * params.dt;
 
-    // GPU Interaction Force
-    let dist_to_mouse = distance(p_i, params.interaction_pos);
-    if dist_to_mouse < params.interaction_radius {
-        let pull_dir = normalize(params.interaction_pos - p_i);
-        let pull_strength = (1.0 - dist_to_mouse / params.interaction_radius) * params.interaction_strength;
-        v_i += pull_dir * (pull_strength * params.dt);
-    }
-
     p_i += v_i * params.dt;
 
     particles[i].position = p_i;
