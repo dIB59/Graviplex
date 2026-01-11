@@ -1,4 +1,8 @@
-use super::{BarnesHutGravityStrategy, KdTreeCollision};
+use crate::simulation::KdTreeCollision;
+
+use super::collision::QuadtreeCollision;
+use super::gravity::BarnesHutGravityStrategy;
+use super::spatial::{Quad, Quadtree};
 use super::{Body, CollisionStrategy, GravityStrategy};
 use rand::Rng;
 
@@ -11,6 +15,7 @@ pub struct Simulation {
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
     updates_buffer: Vec<([f64; 2], [f64; 2])>,
+    quadtree: Quadtree,
 }
 
 impl Default for Simulation {
@@ -28,6 +33,7 @@ impl Simulation {
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
             collision_strategy: Box::new(KdTreeCollision::new()),
             updates_buffer: Vec::new(),
+            quadtree: Quadtree::new(0.5, 0.01),
         }
     }
 
@@ -210,14 +216,21 @@ impl Simulation {
             return;
         }
 
+        // Build Quadtree ONCE
+        use rayon::prelude::*;
+        let positions: Vec<[f64; 2]> = self.bodies.par_iter().map(|b| b.position).collect();
+        let root_quad = Quad::new_containing(&positions);
+        let masses: Vec<f64> = self.bodies.par_iter().map(|b| b.mass).collect();
+        self.quadtree.build(&positions, &masses, root_quad);
+
         self.gravity_strategy.calculate_forces(
             &self.bodies,
             self.gravity_constant,
             dt,
             &mut self.updates_buffer,
+            &self.quadtree,
         );
 
-        use rayon::prelude::*;
         self.bodies
             .par_iter_mut()
             .zip(self.updates_buffer.par_iter())
@@ -226,12 +239,13 @@ impl Simulation {
                 body.velocity = velocity;
             });
 
-        self.collision_strategy.handle_collisions(&mut self.bodies);
+        self.collision_strategy
+            .handle_collisions(&mut self.bodies, &self.quadtree);
     }
 
     /// Get quadtree cells for visualization
-    pub fn get_cells(&self) -> Vec<super::spatial::Quad> {
-        self.gravity_strategy.get_cells()
+    pub fn get_cells(&self) -> Vec<Quad> {
+        self.quadtree.get_cells()
     }
 }
 

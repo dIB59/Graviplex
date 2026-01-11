@@ -1,27 +1,35 @@
-use super::spatial::KdTree;
+use super::spatial::{KdTree, Quadtree};
 use super::Body;
 use rand::Rng;
 
 pub trait CollisionStrategy {
-    fn handle_collisions(&mut self, bodies: &mut [Body]);
+    fn handle_collisions(&mut self, bodies: &mut [Body], quadtree: &Quadtree);
 }
 
 pub struct NoCollisionStrategy;
 
 impl CollisionStrategy for NoCollisionStrategy {
-    fn handle_collisions(&mut self, _bodies: &mut [Body]) {}
+    fn handle_collisions(&mut self, _bodies: &mut [Body], _quadtree: &Quadtree) {}
 }
 
 pub struct NaiveCollisionStrategy;
 
 impl CollisionStrategy for NaiveCollisionStrategy {
-    fn handle_collisions(&mut self, bodies: &mut [Body]) {
+    fn handle_collisions(&mut self, bodies: &mut [Body], _quadtree: &Quadtree) {
         for i in 0..bodies.len() {
             for j in (i + 1)..bodies.len() {
                 let (left, right) = bodies.split_at_mut(j);
                 resolve_collision(&mut left[i], &mut right[0]);
             }
         }
+    }
+}
+
+pub struct QuadtreeCollision;
+
+impl QuadtreeCollision {
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -37,8 +45,36 @@ impl KdTreeCollision {
     }
 }
 
+impl CollisionStrategy for QuadtreeCollision {
+    fn handle_collisions(&mut self, bodies: &mut [Body], quadtree: &Quadtree) {
+        use rayon::prelude::*;
+
+        let pairs: Vec<(usize, usize)> = (0..bodies.len())
+            .into_par_iter()
+            .flat_map_iter(|i| {
+                let mut neighbours = Vec::new();
+                let (pos_i, radius_i) = (bodies[i].position, bodies[i].radius);
+                quadtree.search_radius(pos_i, radius_i * 5.0, &mut neighbours);
+
+                neighbours
+                    .into_iter()
+                    .filter(move |&j| i < j)
+                    .map(move |j| (i, j))
+            })
+            .collect();
+
+        // Sort pairs for deterministic resolution order
+        //pairs.sort_unstable();
+
+        for (i, j) in pairs {
+            let (left, right) = bodies.split_at_mut(j);
+            resolve_collision(&mut left[i], &mut right[0]);
+        }
+    }
+}
+
 impl CollisionStrategy for KdTreeCollision {
-    fn handle_collisions(&mut self, bodies: &mut [Body]) {
+    fn handle_collisions(&mut self, bodies: &mut [Body], _quadtree: &Quadtree) {
         let mut points: Vec<(usize, [f64; 2])> = bodies
             .iter()
             .enumerate()
@@ -63,9 +99,8 @@ impl CollisionStrategy for KdTreeCollision {
                     .map(move |j| (i, j))
             })
             .collect();
-
         // Sort pairs for deterministic resolution order
-        pairs.sort_unstable();
+        //pairs.sort_unstable();
 
         for (i, j) in pairs {
             let (left, right) = bodies.split_at_mut(j);
@@ -139,24 +174,14 @@ mod tests {
     use crate::simulation::Body;
     use rand::Rng;
 
-    struct KdTreeCollisionSequential {
-        tree: KdTree,
-    }
-    impl CollisionStrategy for KdTreeCollisionSequential {
-        fn handle_collisions(&mut self, bodies: &mut [Body]) {
-            let mut points: Vec<(usize, [f64; 2])> = bodies
-                .iter()
-                .enumerate()
-                .map(|(idx, body)| (idx, body.position))
-                .collect();
-            self.tree.build(&mut points);
-
+    struct QuadtreeCollisionSequential;
+    impl CollisionStrategy for QuadtreeCollisionSequential {
+        fn handle_collisions(&mut self, bodies: &mut [Body], quadtree: &Quadtree) {
             let mut pairs = Vec::new();
             for i in 0..bodies.len() {
                 let mut neighbours = Vec::new();
                 let (pos_i, radius_i) = (bodies[i].position, bodies[i].radius);
-                self.tree
-                    .search_radius(pos_i, radius_i * 8.0, &mut neighbours);
+                quadtree.search_radius(pos_i, radius_i * 8.0, &mut neighbours);
                 for &j in neighbours.iter() {
                     if i < j {
                         pairs.push((i, j));
@@ -188,22 +213,26 @@ mod tests {
         }
 
         let mut bodies_par = bodies_seq.clone();
+        use crate::simulation::spatial::Quad;
 
-        KdTreeCollisionSequential {
-            tree: KdTree::new(),
-        }
-        .handle_collisions(&mut bodies_seq);
-        KdTreeCollision::new().handle_collisions(&mut bodies_par);
+        let positions: Vec<[f64; 2]> = bodies_seq.iter().map(|b| b.position).collect();
+        let masses: Vec<f64> = bodies_seq.iter().map(|b| b.mass).collect();
+        let root_quad = Quad::new_containing(&positions);
+        let mut quadtree = Quadtree::new(0.5, 0.01);
+        quadtree.build(&positions, &masses, root_quad);
+
+        QuadtreeCollisionSequential.handle_collisions(&mut bodies_seq, &quadtree);
+        KdTreeCollision::new().handle_collisions(&mut bodies_par, &quadtree);
 
         for i in 0..bodies_seq.len() {
             assert!(
                 (bodies_seq[i].position[0] - bodies_par[i].position[0]).abs() < 1e-12,
-                "Position mismatch at body {}",
+                "Position mismatch at body {} between Serial and KD-Tree",
                 i
             );
             assert!(
                 (bodies_seq[i].velocity[0] - bodies_par[i].velocity[0]).abs() < 1e-12,
-                "Velocity mismatch at body {}",
+                "Velocity mismatch at body {} between Serial and KD-Tree",
                 i
             );
         }

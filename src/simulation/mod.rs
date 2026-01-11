@@ -9,6 +9,7 @@ pub use body::Body;
 pub use bridge::{QuadCell, SimulationBridge, SimulationCommand};
 pub use collision::{
     CollisionStrategy, KdTreeCollision, NaiveCollisionStrategy, NoCollisionStrategy,
+    QuadtreeCollision,
 };
 pub use gravity::{BarnesHutGravityStrategy, GravityStrategy, NaiveGravityStrategy};
 pub use simulation::Simulation;

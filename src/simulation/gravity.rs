@@ -8,6 +8,7 @@ pub trait GravityStrategy {
         gravity_constant: f32,
         dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
+        quadtree: &Quadtree,
     );
 
     /// Returns the quadtree cells for visualization. Default returns empty.
@@ -25,6 +26,7 @@ impl GravityStrategy for NaiveGravityStrategy {
         gravity_constant: f32,
         dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
+        _quadtree: &Quadtree,
     ) {
         updates.clear();
         updates.reserve(bodies.len());
@@ -77,15 +79,11 @@ impl GravityStrategy for NaiveGravityStrategy {
     }
 }
 
-pub struct BarnesHutGravityStrategy {
-    quadtree: Quadtree,
-}
+pub struct BarnesHutGravityStrategy;
 
 impl BarnesHutGravityStrategy {
-    pub fn new(theta: f64, epsilon: f64) -> Self {
-        Self {
-            quadtree: Quadtree::new(theta, epsilon),
-        }
+    pub fn new(_theta: f64, _epsilon: f64) -> Self {
+        Self
     }
 }
 
@@ -96,20 +94,14 @@ impl GravityStrategy for BarnesHutGravityStrategy {
         gravity_constant: f32,
         dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
+        quadtree: &Quadtree,
     ) {
         use rayon::prelude::*;
-
-        let positions: Vec<[f64; 2]> = bodies.par_iter().map(|b| b.position).collect();
-        let root_quad = Quad::new_containing(&positions);
-        self.quadtree.clear(root_quad);
-
-        let masses: Vec<f64> = bodies.par_iter().map(|b| b.mass).collect();
-        self.quadtree.build(&positions, &masses, root_quad);
 
         *updates = bodies
             .par_iter()
             .map(|body| {
-                let acc = self.quadtree.acc(body.position, gravity_constant as f64);
+                let acc = quadtree.acc(body.position, gravity_constant as f64);
 
                 let new_velocity = [
                     body.velocity[0] + acc[0] * dt as f64,
@@ -127,6 +119,8 @@ impl GravityStrategy for BarnesHutGravityStrategy {
     }
 
     fn get_cells(&self) -> Vec<Quad> {
-        self.quadtree.get_cells()
+        // This is tricky now because we don't own the quadtree.
+        // We'll handle visualization separately in Simulation.
+        Vec::new()
     }
 }

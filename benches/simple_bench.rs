@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 
 use graviplex::simulation::{
     BarnesHutGravityStrategy, KdTreeCollision, NaiveCollisionStrategy, NaiveGravityStrategy,
-    NoCollisionStrategy, Simulation,
+    NoCollisionStrategy, QuadtreeCollision, Simulation,
 };
 
 fn bench_simulation_update(c: &mut Criterion) {
@@ -52,7 +52,18 @@ fn bench_simulation_strategies(c: &mut Criterion) {
 fn bench_collision_strategies(c: &mut Criterion) {
     let mut group = c.benchmark_group("collision_strategies");
 
-    // KD-Tree (default)
+    // Quadtree (default)
+    group.bench_function("quadtree_10000", |b| {
+        let mut sim = Simulation::new();
+        sim.set_collision_strategy(Box::new(QuadtreeCollision::new()));
+        sim.generate_bodies(10000);
+
+        b.iter(|| {
+            sim.update(black_box(0.01f32));
+        });
+    });
+
+    // KD-Tree
     group.bench_function("kd_tree_10000", |b| {
         let mut sim = Simulation::new();
         sim.set_collision_strategy(Box::new(KdTreeCollision::new()));
@@ -123,46 +134,37 @@ fn bench_quadtree_only(c: &mut Criterion) {
         b.iter(|| {
             let mut quadtree = Quadtree::new(0.5, 0.01f64);
             let positions: Vec<[f64; 2]> = bodies.iter().map(|b| b.position).collect();
+            let masses: Vec<f64> = bodies.iter().map(|b| b.mass).collect();
             let root_quad = Quad::new_containing(&positions);
-            quadtree.clear(root_quad);
-
-            for body in &bodies {
-                quadtree.insert(body.position, body.mass);
-            }
-
-            quadtree.propagate();
+            quadtree.build(&positions, &masses, root_quad);
 
             black_box(&quadtree);
         });
     });
 
-    group.bench_function("query_10000", |b| {
+    group.bench_function("search_radius_10000", |b| {
         let mut sim = Simulation::new();
         sim.generate_bodies(10000);
         let bodies: Vec<_> = sim.bodies().to_vec();
 
-        // Pre-build tree
         let mut quadtree = Quadtree::new(0.5, 0.01f64);
         let positions: Vec<[f64; 2]> = bodies.iter().map(|b| b.position).collect();
+        let masses: Vec<f64> = bodies.iter().map(|b| b.mass).collect();
         let root_quad = Quad::new_containing(&positions);
-        quadtree.clear(root_quad);
-
-        for body in &bodies {
-            quadtree.insert(body.position, body.mass);
-        }
-        quadtree.propagate();
+        quadtree.build(&positions, &masses, root_quad);
 
         b.iter(|| {
+            let mut results = Vec::new();
             for body in &bodies {
-                let acc = quadtree.acc(body.position, 100.0);
-                black_box(acc);
+                quadtree.search_radius(body.position, body.radius * 5.0, &mut results);
+                black_box(&results);
+                results.clear();
             }
         });
     });
 
     group.finish();
 }
-
 fn bench_kdtree_only(c: &mut Criterion) {
     use graviplex::simulation::spatial::KdTree;
 
