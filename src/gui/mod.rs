@@ -8,7 +8,7 @@ pub struct Gui {
     state: egui_winit::State,
     sender: Sender<SimulationCommand>,
     // Local UI state
-    gravity_constant: f64,
+    gravity_constant: f32,
     theta: f64,
     paused: bool,
     particle_count: i32,
@@ -129,7 +129,7 @@ impl Gui {
     fn build_ui(
         ctx: &egui::Context,
         sender: &Sender<SimulationCommand>,
-        gravity: &mut f64,
+        gravity: &mut f32,
         theta: &mut f64,
         paused: &mut bool,
         particle_count: &mut i32,

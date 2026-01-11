@@ -5,7 +5,7 @@ pub trait GravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f64,
+        gravity_constant: f32,
         dt: f64,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     );
@@ -22,7 +22,7 @@ impl GravityStrategy for NaiveGravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f64,
+        gravity_constant: f32,
         dt: f64,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
@@ -49,19 +49,23 @@ impl GravityStrategy for NaiveGravityStrategy {
                     continue;
                 }
 
-                let force_magnitude = gravity_constant * body1.mass * body2.mass / distance_sq;
-                let force_x = force_magnitude * (dx / distance);
-                let force_y = force_magnitude * (dy / distance);
+                let force_magnitude =
+                    gravity_constant * (body1.mass * body2.mass / distance_sq) as f32;
+                let force_x = force_magnitude * (dx / distance) as f32;
+                let force_y = force_magnitude * (dy / distance) as f32;
 
                 total_force[0] += force_x;
                 total_force[1] += force_y;
             }
 
             let body = &bodies[i];
-            let acceleration = [total_force[0] / body.mass, total_force[1] / body.mass];
+            let acceleration = [
+                total_force[0] / body.mass as f32,
+                total_force[1] / body.mass as f32,
+            ];
             let new_velocity = [
-                body.velocity[0] + acceleration[0] * dt,
-                body.velocity[1] + acceleration[1] * dt,
+                body.velocity[0] + (acceleration[0] * dt as f32) as f64,
+                body.velocity[1] + (acceleration[1] * dt as f32) as f64,
             ];
             let new_position = [
                 body.position[0] + new_velocity[0] * dt,
@@ -89,7 +93,7 @@ impl GravityStrategy for BarnesHutGravityStrategy {
     fn calculate_forces(
         &mut self,
         bodies: &[Body],
-        gravity_constant: f64,
+        gravity_constant: f32,
         dt: f64,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
@@ -105,7 +109,7 @@ impl GravityStrategy for BarnesHutGravityStrategy {
         *updates = bodies
             .par_iter()
             .map(|body| {
-                let acc = self.quadtree.acc(body.position, gravity_constant);
+                let acc = self.quadtree.acc(body.position, gravity_constant as f64);
 
                 let new_velocity = [
                     body.velocity[0] + acc[0] * dt,

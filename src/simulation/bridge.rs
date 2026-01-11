@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 pub enum SimulationCommand {
-    UpdateGravity(f64),
+    UpdateGravity(f32),
     Reset(i32),
     SetTheta(f64),
     Pause(bool),

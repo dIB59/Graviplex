@@ -7,7 +7,7 @@ const SPACE_SCALE: f64 = 250000.0;
 pub struct Simulation {
     pub bodies: Vec<Body>,
     pub next_id: u32,
-    pub gravity_constant: f64,
+    pub gravity_constant: f32,
     gravity_strategy: Box<dyn GravityStrategy>,
     collision_strategy: Box<dyn CollisionStrategy>,
     updates_buffer: Vec<([f64; 2], [f64; 2])>,
@@ -43,7 +43,7 @@ impl Simulation {
         let mut rng = rand::rng();
 
         // 1. Add central "Black Hole" or "Star"
-        let central_mass = count as f64 * 100.0;
+        let central_mass = count as f32 * 100.0;
         let central_radius = count as f64 / 10.0;
         self.add_body(
             [1.0, -1.0],
@@ -65,10 +65,13 @@ impl Simulation {
 
             // Velocity: Tangential to create orbital motion
             // v = sqrt(G * M_central / r)
-            let orbital_speed = (self.gravity_constant * central_mass / r).sqrt();
+            let orbital_speed = (self.gravity_constant * central_mass / r as f32).sqrt();
 
             // Tangential vector is [-sin(angle), cos(angle)]
-            let vel = [-angle.sin() * orbital_speed, angle.cos() * orbital_speed];
+            let vel = [
+                -angle.sin() * orbital_speed as f64,
+                angle.cos() * orbital_speed as f64,
+            ];
 
             let radius = rng.random_range(5.0..200.0);
             let t = (radius - 5.0) / 195.0; // 0.0 to 1.0 range
@@ -126,7 +129,8 @@ impl Simulation {
                     ]
                 }
             };
-            self.add_body(pos, vel, radius, color, radius);
+            let mass = radius;
+            self.add_body(pos, vel, mass, color, radius as f64);
         }
     }
 
@@ -134,13 +138,13 @@ impl Simulation {
         &mut self,
         position: [f64; 2],
         velocity: [f64; 2],
-        mass: f64,
+        mass: f32,
         color: [u8; 4],
         radius: f64,
     ) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
-        let body = Body::new(id, position, velocity, mass, color, radius);
+        let body = Body::new(id, position, velocity, mass as f64, color, radius);
         self.bodies.push(body);
         id
     }
