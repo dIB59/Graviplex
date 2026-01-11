@@ -55,7 +55,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
     // KD-Tree (default)
     group.bench_function("kd_tree_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_collision_strategy(Box::new(KdTreeCollision));
+        sim.set_collision_strategy(Box::new(KdTreeCollision::new()));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -164,7 +164,7 @@ fn bench_quadtree_only(c: &mut Criterion) {
 }
 
 fn bench_kdtree_only(c: &mut Criterion) {
-    use graviplex::simulation::spatial::{build_kd_tree, search_radius};
+    use graviplex::simulation::spatial::KdTree;
 
     let mut group = c.benchmark_group("kdtree_operations");
 
@@ -179,8 +179,8 @@ fn bench_kdtree_only(c: &mut Criterion) {
                 .enumerate()
                 .map(|(idx, body)| (idx, body.position))
                 .collect();
-
-            let tree = build_kd_tree(&mut points, 0);
+            let mut tree = KdTree::new();
+            tree.build(&mut points);
             black_box(tree);
         });
     });
@@ -196,12 +196,13 @@ fn bench_kdtree_only(c: &mut Criterion) {
             .enumerate()
             .map(|(idx, body)| (idx, body.position))
             .collect();
-        let tree = build_kd_tree(&mut points, 0);
+        let mut tree = KdTree::new();
+        tree.build(&mut points);
 
         b.iter(|| {
             let mut results = Vec::new();
             for body in &bodies {
-                search_radius(&tree, body.position, body.radius * 5.0, 0, &mut results);
+                tree.search_radius(body.position, body.radius * 5.0, &mut results);
                 black_box(&results);
                 results.clear();
             }

@@ -136,7 +136,7 @@ impl Gui {
         interaction_radius: &mut f32,
         interaction_strength: &mut f32,
         body_count: usize,
-        click_count: &mut u32,
+        _click_count: &mut u32,
         show_quadtree: &mut bool,
         fps: f32,
         tps: f32,

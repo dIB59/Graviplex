@@ -1,4 +1,4 @@
-use super::spatial::{build_kd_tree, search_radius};
+use super::spatial::KdTree;
 use super::Body;
 use rand::Rng;
 
@@ -25,7 +25,17 @@ impl CollisionStrategy for NaiveCollisionStrategy {
     }
 }
 
-pub struct KdTreeCollision;
+pub struct KdTreeCollision {
+    tree: KdTree,
+}
+
+impl KdTreeCollision {
+    pub fn new() -> Self {
+        Self {
+            tree: KdTree::new(),
+        }
+    }
+}
 
 impl CollisionStrategy for KdTreeCollision {
     fn handle_collisions(&mut self, bodies: &mut [Body]) {
@@ -35,7 +45,7 @@ impl CollisionStrategy for KdTreeCollision {
             .map(|(idx, body)| (idx, body.position))
             .collect();
 
-        let tree = build_kd_tree(&mut points, 0);
+        self.tree.build(&mut points);
 
         use rayon::prelude::*;
 
@@ -44,7 +54,8 @@ impl CollisionStrategy for KdTreeCollision {
             .flat_map_iter(|i| {
                 let mut neighbours = Vec::new();
                 let (pos_i, radius_i) = (bodies[i].position, bodies[i].radius);
-                search_radius(&tree, pos_i, radius_i * 5.0, 0, &mut neighbours);
+                self.tree
+                    .search_radius(pos_i, radius_i * 5.0, &mut neighbours);
 
                 neighbours
                     .into_iter()
@@ -128,7 +139,9 @@ mod tests {
     use crate::simulation::Body;
     use rand::Rng;
 
-    struct KdTreeCollisionSequential;
+    struct KdTreeCollisionSequential {
+        tree: KdTree,
+    }
     impl CollisionStrategy for KdTreeCollisionSequential {
         fn handle_collisions(&mut self, bodies: &mut [Body]) {
             let mut points: Vec<(usize, [f64; 2])> = bodies
@@ -136,13 +149,14 @@ mod tests {
                 .enumerate()
                 .map(|(idx, body)| (idx, body.position))
                 .collect();
-            let tree = build_kd_tree(&mut points, 0);
+            self.tree.build(&mut points);
 
             let mut pairs = Vec::new();
             for i in 0..bodies.len() {
                 let mut neighbours = Vec::new();
                 let (pos_i, radius_i) = (bodies[i].position, bodies[i].radius);
-                search_radius(&tree, pos_i, radius_i * 8.0, 0, &mut neighbours);
+                self.tree
+                    .search_radius(pos_i, radius_i * 8.0, &mut neighbours);
                 for &j in neighbours.iter() {
                     if i < j {
                         pairs.push((i, j));
@@ -175,8 +189,11 @@ mod tests {
 
         let mut bodies_par = bodies_seq.clone();
 
-        KdTreeCollisionSequential.handle_collisions(&mut bodies_seq);
-        KdTreeCollision.handle_collisions(&mut bodies_par);
+        KdTreeCollisionSequential {
+            tree: KdTree::new(),
+        }
+        .handle_collisions(&mut bodies_seq);
+        KdTreeCollision::new().handle_collisions(&mut bodies_par);
 
         for i in 0..bodies_seq.len() {
             assert!(

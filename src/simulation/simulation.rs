@@ -26,7 +26,7 @@ impl Simulation {
             next_id: 0,
             gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
-            collision_strategy: Box::new(KdTreeCollision),
+            collision_strategy: Box::new(KdTreeCollision::new()),
             updates_buffer: Vec::new(),
         }
     }
