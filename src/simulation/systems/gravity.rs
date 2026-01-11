@@ -2,7 +2,7 @@ use super::{SimulationContext, SimulationState, SimulationSystem};
 use crate::simulation::spatial::quadtree::{Quad, Quadtree};
 
 pub trait GravityStrategy: SimulationSystem {
-    fn get_cells(&self) -> Vec<Quad> {
+    fn get_cells(&self, _tree: &Quadtree) -> Vec<Quad> {
         Vec::new()
     }
 }
@@ -79,4 +79,8 @@ impl SimulationSystem for BarnesHutGravityStrategy {
     }
 }
 
-impl GravityStrategy for BarnesHutGravityStrategy {}
+impl GravityStrategy for BarnesHutGravityStrategy {
+    fn get_cells(&self, tree: &Quadtree) -> Vec<Quad> {
+        tree.get_cells()
+    }
+}
