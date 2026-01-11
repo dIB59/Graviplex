@@ -1,5 +1,5 @@
 use crate::renderer::Instance;
-use crate::simulation::{BarnesHutGravityStrategy, Simulation};
+use crate::simulation::{BarnesHutGravityStrategy, GravityStrategyEnum, Simulation};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
@@ -172,7 +172,9 @@ fn simulation_worker(
                     sim.generate_bodies(count);
                 }
                 SimulationCommand::SetTheta(theta) => {
-                    sim.set_gravity_strategy(Box::new(BarnesHutGravityStrategy::new(theta, 0.01)));
+                    sim.set_gravity_strategy(GravityStrategyEnum::BarnesHut(
+                        BarnesHutGravityStrategy::new(theta, 0.01),
+                    ));
                 }
                 SimulationCommand::Pause(p) => is_paused = p,
                 SimulationCommand::Step => {
@@ -208,7 +210,7 @@ fn simulation_worker(
         }
 
         // 3. Convert to instances and submit
-        let instances: Vec<Instance> = sim.bodies().iter().map(Instance::from).collect();
+        let instances: Vec<Instance> = sim.state.to_instances();
         let count = instances.len();
         buffer.submit(instances);
 

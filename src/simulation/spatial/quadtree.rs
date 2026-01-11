@@ -8,23 +8,36 @@ pub struct Quad {
 
 impl Quad {
     pub const MIN_SIZE: f64 = 1e-8;
-    pub fn new_containing(positions: &[[f64; 2]]) -> Self {
-        if positions.is_empty() {
+    pub fn new_containing(px: &[f64], py: &[f64]) -> Self {
+        if px.is_empty() {
             return Self {
                 center: [0.0, 0.0],
                 size: 2.0,
             };
         }
 
-        let mut min = [f64::MAX, f64::MAX];
-        let mut max = [f64::MIN, f64::MIN];
-
-        for &pos in positions {
-            min[0] = min[0].min(pos[0]);
-            min[1] = min[1].min(pos[1]);
-            max[0] = max[0].max(pos[0]);
-            max[1] = max[1].max(pos[1]);
-        }
+        let (min, max) = px
+            .par_iter()
+            .zip(py.par_iter())
+            .fold(
+                || ([f64::MAX, f64::MAX], [f64::MIN, f64::MIN]),
+                |(mut min, mut max), (&x, &y)| {
+                    min[0] = min[0].min(x);
+                    min[1] = min[1].min(y);
+                    max[0] = max[0].max(x);
+                    max[1] = max[1].max(y);
+                    (min, max)
+                },
+            )
+            .reduce(
+                || ([f64::MAX, f64::MAX], [f64::MIN, f64::MIN]),
+                |(min1, max1), (min2, max2)| {
+                    (
+                        [min1[0].min(min2[0]), min1[1].min(min2[1])],
+                        [max1[0].max(max2[0]), max1[1].max(max2[1])],
+                    )
+                },
+            );
 
         let center = [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5];
         let size = ((max[0] - min[0]).max(max[1] - min[1]) * 1.1).max(Self::MIN_SIZE);
@@ -152,23 +165,20 @@ impl Quadtree {
         self.nodes.push(Node::new(0, quad));
     }
 
-    pub fn build(&mut self, positions: &[[f64; 2]], masses: &[f64], quad: Quad) {
+    pub fn build(&mut self, px: &[f64], py: &[f64], masses: &[f64], quad: Quad) {
         self.nodes.clear();
 
-        if positions.is_empty() {
+        let len = px.len();
+        if len == 0 {
             self.nodes.push(Node::new(0, quad));
             return;
         }
 
-        let mut bodies: Vec<_> = (0..positions.len())
+        let mut bodies: Vec<_> = (0..len)
             .into_par_iter()
             .map(|i| {
-                (
-                    positions[i],
-                    masses[i],
-                    get_morton_code(positions[i], &quad),
-                    i,
-                )
+                let pos = [px[i], py[i]];
+                (pos, masses[i], get_morton_code(pos, &quad), i)
             })
             .collect();
 
@@ -379,7 +389,7 @@ mod tests {
             size: 2.0,
         };
 
-        qt.build(&[[0.5, 0.5]], &[1.0], quad);
+        qt.build(&[0.5], &[0.5], &[1.0], quad);
 
         assert_eq!(qt.nodes[Quadtree::ROOT].mass, 1.0);
         assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.5, 0.5]);
@@ -393,10 +403,11 @@ mod tests {
             size: 2.0,
         };
 
-        let positions = [[0.1, 0.1], [-0.1, -0.1]];
+        let px = [0.1, -0.1];
+        let py = [0.1, -0.1];
         let masses = [1.0, 1.0];
 
-        qt.build(&positions, &masses, quad);
+        qt.build(&px, &py, &masses, quad);
 
         assert_eq!(qt.nodes[Quadtree::ROOT].mass, 2.0);
         assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.0, 0.0]);
@@ -411,10 +422,11 @@ mod tests {
             size: 100.0,
         };
 
-        let positions = [[1.0, 0.0], [-1.0, 0.0]];
+        let px = [1.0, -1.0];
+        let py = [0.0, 0.0];
         let masses = [1.0, 1.0];
 
-        qt.build(&positions, &masses, quad);
+        qt.build(&px, &py, &masses, quad);
 
         let target = [0.0, 0.0];
         let acc = qt.acc(target, 1.0);
@@ -440,10 +452,11 @@ mod tests {
             size: 10.0,
         };
 
-        let positions = [[1.0, 1.0], [2.0, 2.0], [-1.0, -1.0]];
+        let px = [1.0, 2.0, -1.0];
+        let py = [1.0, 2.0, -1.0];
         let masses = [1.0, 1.0, 1.0];
 
-        qt.build(&positions, &masses, quad);
+        qt.build(&px, &py, &masses, quad);
 
         let mut results = Vec::new();
         qt.search_radius([1.5, 1.5], 1.0, &mut results);

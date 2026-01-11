@@ -25,3 +25,54 @@ pub trait SimulationSystem {
         quadtree: &Quadtree,
     );
 }
+
+pub enum GravityStrategyEnum {
+    Naive(NaiveGravityStrategy),
+    BarnesHut(BarnesHutGravityStrategy),
+}
+
+impl GravityStrategyEnum {
+    pub fn get_cells(&self, quadtree: &Quadtree) -> Vec<super::spatial::quadtree::Quad> {
+        match self {
+            Self::Naive(_) => Vec::new(),
+            Self::BarnesHut(s) => s.get_cells(quadtree),
+        }
+    }
+}
+
+impl SimulationSystem for GravityStrategyEnum {
+    fn update(
+        &mut self,
+        state: &mut SimulationState,
+        context: &SimulationContext,
+        quadtree: &Quadtree,
+    ) {
+        match self {
+            Self::Naive(s) => s.update(state, context, quadtree),
+            Self::BarnesHut(s) => s.update(state, context, quadtree),
+        }
+    }
+}
+
+pub enum CollisionStrategyEnum {
+    None(NoCollisionStrategy),
+    Naive(NaiveCollisionStrategy),
+    KdTree(KdTreeCollision),
+    Quadtree(QuadtreeCollision),
+}
+
+impl SimulationSystem for CollisionStrategyEnum {
+    fn update(
+        &mut self,
+        state: &mut SimulationState,
+        context: &SimulationContext,
+        quadtree: &Quadtree,
+    ) {
+        match self {
+            Self::None(s) => s.update(state, context, quadtree),
+            Self::Naive(s) => s.update(state, context, quadtree),
+            Self::KdTree(s) => s.update(state, context, quadtree),
+            Self::Quadtree(s) => s.update(state, context, quadtree),
+        }
+    }
+}

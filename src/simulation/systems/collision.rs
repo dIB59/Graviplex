@@ -57,11 +57,12 @@ impl SimulationSystem for QuadtreeCollision {
         use rayon::prelude::*;
 
         let len = state.len();
-        let pairs: Vec<(usize, usize)> = (0..len)
+        let mut pairs: Vec<(usize, usize)> = (0..len)
             .into_par_iter()
             .flat_map_iter(|i| {
                 let mut neighbours = Vec::new();
-                let (pos_i, radius_i) = (state.positions[i], state.radii[i]);
+                let pos_i = [state.px[i], state.py[i]];
+                let radius_i = state.radii[i];
                 quadtree.search_radius(pos_i, radius_i * 8.0, &mut neighbours);
 
                 neighbours
@@ -70,6 +71,8 @@ impl SimulationSystem for QuadtreeCollision {
                     .map(move |j| (i, j))
             })
             .collect();
+
+        pairs.sort_unstable();
 
         for (i, j) in pairs {
             resolve_collision_soa(state, i, j);
@@ -98,19 +101,21 @@ impl SimulationSystem for KdTreeCollision {
         _context: &SimulationContext,
         _quadtree: &Quadtree,
     ) {
-        let mut points: Vec<(usize, [f64; 2])> =
-            (0..state.len()).map(|i| (i, state.positions[i])).collect();
+        let mut points: Vec<(usize, [f64; 2])> = (0..state.len())
+            .map(|i| (i, [state.px[i], state.py[i]]))
+            .collect();
 
         self.tree.build(&mut points);
 
         use rayon::prelude::*;
 
         let len = state.len();
-        let pairs: Vec<(usize, usize)> = (0..len)
+        let mut pairs: Vec<(usize, usize)> = (0..len)
             .into_par_iter()
             .flat_map_iter(|i| {
                 let mut neighbours = Vec::new();
-                let (pos_i, radius_i) = (state.positions[i], state.radii[i]);
+                let pos_i = [state.px[i], state.py[i]];
+                let radius_i = state.radii[i];
                 self.tree
                     .search_radius(pos_i, radius_i * 8.0, &mut neighbours);
 
@@ -121,6 +126,8 @@ impl SimulationSystem for KdTreeCollision {
             })
             .collect();
 
+        pairs.sort_unstable();
+
         for (i, j) in pairs {
             resolve_collision_soa(state, i, j);
         }
@@ -130,8 +137,8 @@ impl SimulationSystem for KdTreeCollision {
 impl CollisionStrategy for KdTreeCollision {}
 
 fn resolve_collision_soa(state: &mut SimulationState, i: usize, j: usize) {
-    let dx = state.positions[j][0] - state.positions[i][0];
-    let dy = state.positions[j][1] - state.positions[i][1];
+    let dx = state.px[j] - state.px[i];
+    let dy = state.py[j] - state.py[i];
     let dist_sq = dx * dx + dy * dy;
     let radius_sum = state.radii[i] + state.radii[j];
 
@@ -142,10 +149,10 @@ fn resolve_collision_soa(state: &mut SimulationState, i: usize, j: usize) {
         let ny = angle.sin();
         let overlap = radius_sum;
 
-        state.positions[i][0] -= nx * (overlap * 0.5);
-        state.positions[i][1] -= ny * (overlap * 0.5);
-        state.positions[j][0] += nx * (overlap * 0.5);
-        state.positions[j][1] += ny * (overlap * 0.5);
+        state.px[i] -= nx * (overlap * 0.5);
+        state.py[i] -= ny * (overlap * 0.5);
+        state.px[j] += nx * (overlap * 0.5);
+        state.py[j] += ny * (overlap * 0.5);
         return;
     }
 
@@ -158,13 +165,13 @@ fn resolve_collision_soa(state: &mut SimulationState, i: usize, j: usize) {
     let ny = dy / dist;
     let overlap = radius_sum - dist;
 
-    state.positions[i][0] -= nx * (overlap * 0.5);
-    state.positions[i][1] -= ny * (overlap * 0.5);
-    state.positions[j][0] += nx * (overlap * 0.5);
-    state.positions[j][1] += ny * (overlap * 0.5);
+    state.px[i] -= nx * (overlap * 0.5);
+    state.py[i] -= ny * (overlap * 0.5);
+    state.px[j] += nx * (overlap * 0.5);
+    state.py[j] += ny * (overlap * 0.5);
 
-    let rvx = state.velocities[j][0] - state.velocities[i][0];
-    let rvy = state.velocities[j][1] - state.velocities[i][1];
+    let rvx = state.vx[j] - state.vx[i];
+    let rvy = state.vy[j] - state.vy[i];
     let vel_along_normal = rvx * nx + rvy * ny;
     if vel_along_normal > 0.0 {
         return;
@@ -177,10 +184,13 @@ fn resolve_collision_soa(state: &mut SimulationState, i: usize, j: usize) {
     let impulse_x = j_imp * nx;
     let impulse_y = j_imp * ny;
 
-    state.velocities[i][0] -= 1.0 / state.masses[i] * impulse_x;
-    state.velocities[i][1] -= 1.0 / state.masses[i] * impulse_y;
-    state.velocities[j][0] += 1.0 / state.masses[j] * impulse_x;
-    state.velocities[j][1] += 1.0 / state.masses[j] * impulse_y;
+    let inv_m_i = 1.0 / state.masses[i];
+    let inv_m_j = 1.0 / state.masses[j];
+
+    state.vx[i] -= inv_m_i * impulse_x;
+    state.vy[i] -= inv_m_i * impulse_y;
+    state.vx[j] += inv_m_j * impulse_x;
+    state.vy[j] += inv_m_j * impulse_y;
 }
 
 #[cfg(test)]
@@ -202,7 +212,8 @@ mod tests {
             let mut pairs = Vec::new();
             for i in 0..state.len() {
                 let mut neighbours = Vec::new();
-                let (pos_i, radius_i) = (state.positions[i], state.radii[i]);
+                let pos_i = [state.px[i], state.py[i]];
+                let radius_i = state.radii[i];
                 quadtree.search_radius(pos_i, radius_i * 8.0, &mut neighbours);
                 for &j in neighbours.iter() {
                     if i < j {
@@ -235,17 +246,20 @@ mod tests {
 
         let mut state_par = SimulationState {
             ids: state_seq.ids.clone(),
-            positions: state_seq.positions.clone(),
-            velocities: state_seq.velocities.clone(),
-            accelerations: state_seq.accelerations.clone(),
+            px: state_seq.px.clone(),
+            py: state_seq.py.clone(),
+            vx: state_seq.vx.clone(),
+            vy: state_seq.vy.clone(),
+            ax: state_seq.ax.clone(),
+            ay: state_seq.ay.clone(),
             masses: state_seq.masses.clone(),
             colors: state_seq.colors.clone(),
             radii: state_seq.radii.clone(),
         };
 
-        let root_quad = Quad::new_containing(&state_seq.positions);
+        let root_quad = Quad::new_containing(&state_seq.px, &state_seq.py);
         let mut quadtree = Quadtree::new(0.5, 0.01);
-        quadtree.build(&state_seq.positions, &state_seq.masses, root_quad);
+        quadtree.build(&state_seq.px, &state_seq.py, &state_seq.masses, root_quad);
 
         let context = SimulationContext {
             dt: 0.016,
@@ -257,7 +271,7 @@ mod tests {
 
         for i in 0..state_seq.len() {
             assert!(
-                (state_seq.positions[i][0] - state_par.positions[i][0]).abs() < 1e-12,
+                (state_seq.px[i] - state_par.px[i]).abs() < 1e-12,
                 "Position mismatch at body {} between Serial and KD-Tree",
                 i
             );

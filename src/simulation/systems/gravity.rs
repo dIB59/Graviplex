@@ -20,18 +20,19 @@ impl SimulationSystem for NaiveGravityStrategy {
         let len = state.len();
 
         for i in 0..len {
-            let mut acc = [0.0, 0.0];
-            let pos_i = state.positions[i];
+            let mut acc_x = 0.0;
+            let mut acc_y = 0.0;
+            let (px_i, py_i) = (state.px[i], state.py[i]);
 
             for j in 0..len {
                 if i == j {
                     continue;
                 }
-                let pos_j = state.positions[j];
+                let (px_j, py_j) = (state.px[j], state.py[j]);
                 let mass_j = state.masses[j];
 
-                let dx = pos_j[0] - pos_i[0];
-                let dy = pos_j[1] - pos_i[1];
+                let dx = px_j - px_i;
+                let dy = py_j - py_i;
                 let dist_sq = dx * dx + dy * dy;
                 let dist = dist_sq.sqrt();
 
@@ -40,11 +41,12 @@ impl SimulationSystem for NaiveGravityStrategy {
                 }
 
                 let force_scale = g * mass_j / (dist_sq * dist);
-                acc[0] += dx * force_scale;
-                acc[1] += dy * force_scale;
+                acc_x += dx * force_scale;
+                acc_y += dy * force_scale;
             }
 
-            state.accelerations[i] = acc;
+            state.ax[i] = acc_x;
+            state.ay[i] = acc_y;
         }
     }
 }
@@ -69,13 +71,18 @@ impl SimulationSystem for BarnesHutGravityStrategy {
         use rayon::prelude::*;
         let g = context.gravity_constant as f64;
 
-        state
-            .positions
-            .par_iter()
-            .zip(state.accelerations.par_iter_mut())
-            .for_each(|(pos, acc)| {
-                *acc = quadtree.acc(*pos, g);
-            });
+        let results: Vec<[f64; 2]> = (0..state.len())
+            .into_par_iter()
+            .map(|i| {
+                let pos = [state.px[i], state.py[i]];
+                quadtree.acc(pos, g)
+            })
+            .collect();
+
+        for i in 0..state.len() {
+            state.ax[i] = results[i][0];
+            state.ay[i] = results[i][1];
+        }
     }
 }
 

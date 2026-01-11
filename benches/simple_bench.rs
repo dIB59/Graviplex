@@ -1,8 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use graviplex::simulation::{
-    BarnesHutGravityStrategy, KdTreeCollision, NaiveCollisionStrategy, NaiveGravityStrategy,
-    NoCollisionStrategy, QuadtreeCollision, Simulation,
+    BarnesHutGravityStrategy, CollisionStrategyEnum, GravityStrategyEnum, KdTreeCollision,
+    NaiveCollisionStrategy, NaiveGravityStrategy, NoCollisionStrategy, QuadtreeCollision,
+    Simulation,
 };
 
 fn bench_simulation_update(c: &mut Criterion) {
@@ -27,7 +28,9 @@ fn bench_simulation_strategies(c: &mut Criterion) {
     // Barnes-Hut (default)
     group.bench_function("barnes_hut_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_gravity_strategy(Box::new(BarnesHutGravityStrategy::new(0.5, 0.01f64)));
+        sim.set_gravity_strategy(GravityStrategyEnum::BarnesHut(
+            BarnesHutGravityStrategy::new(0.5, 0.01f64),
+        ));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -38,7 +41,7 @@ fn bench_simulation_strategies(c: &mut Criterion) {
     // Naive (for comparison)
     group.bench_function("naive_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_gravity_strategy(Box::new(NaiveGravityStrategy));
+        sim.set_gravity_strategy(GravityStrategyEnum::Naive(NaiveGravityStrategy));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -55,7 +58,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
     // Quadtree (default)
     group.bench_function("quadtree_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_collision_strategy(Box::new(QuadtreeCollision::new()));
+        sim.set_collision_strategy(CollisionStrategyEnum::Quadtree(QuadtreeCollision::new()));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -66,7 +69,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
     // KD-Tree
     group.bench_function("kd_tree_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_collision_strategy(Box::new(KdTreeCollision::new()));
+        sim.set_collision_strategy(CollisionStrategyEnum::KdTree(KdTreeCollision::new()));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -77,7 +80,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
     // Naive collision
     group.bench_function("naive_collision_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_collision_strategy(Box::new(NaiveCollisionStrategy));
+        sim.set_collision_strategy(CollisionStrategyEnum::Naive(NaiveCollisionStrategy));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -88,7 +91,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
     // No collision
     group.bench_function("no_collision_10000", |b| {
         let mut sim = Simulation::new();
-        sim.set_collision_strategy(Box::new(NoCollisionStrategy));
+        sim.set_collision_strategy(CollisionStrategyEnum::None(NoCollisionStrategy));
         sim.generate_bodies(10000);
 
         b.iter(|| {
@@ -129,14 +132,14 @@ fn bench_quadtree_only(c: &mut Criterion) {
     group.bench_function("build_10000", |b| {
         let mut sim = Simulation::new();
         sim.generate_bodies(10000);
-        let bodies: Vec<_> = sim.bodies().to_vec();
+        let px = sim.state.px.clone();
+        let py = sim.state.py.clone();
+        let masses = sim.state.masses.clone();
 
         b.iter(|| {
             let mut quadtree = Quadtree::new(0.5, 0.01f64);
-            let positions: Vec<[f64; 2]> = bodies.iter().map(|b| b.position).collect();
-            let masses: Vec<f64> = bodies.iter().map(|b| b.mass).collect();
-            let root_quad = Quad::new_containing(&positions);
-            quadtree.build(&positions, &masses, root_quad);
+            let root_quad = Quad::new_containing(&px, &py);
+            quadtree.build(&px, &py, &masses, root_quad);
 
             black_box(&quadtree);
         });
@@ -145,18 +148,20 @@ fn bench_quadtree_only(c: &mut Criterion) {
     group.bench_function("search_radius_10000", |b| {
         let mut sim = Simulation::new();
         sim.generate_bodies(10000);
-        let bodies: Vec<_> = sim.bodies().to_vec();
+        let px = sim.state.px.clone();
+        let py = sim.state.py.clone();
+        let masses = sim.state.masses.clone();
+        let radii = sim.state.radii.clone();
 
         let mut quadtree = Quadtree::new(0.5, 0.01f64);
-        let positions: Vec<[f64; 2]> = bodies.iter().map(|b| b.position).collect();
-        let masses: Vec<f64> = bodies.iter().map(|b| b.mass).collect();
-        let root_quad = Quad::new_containing(&positions);
-        quadtree.build(&positions, &masses, root_quad);
+        let root_quad = Quad::new_containing(&px, &py);
+        quadtree.build(&px, &py, &masses, root_quad);
 
         b.iter(|| {
             let mut results = Vec::new();
-            for body in &bodies {
-                quadtree.search_radius(body.position, body.radius * 5.0, &mut results);
+            for i in 0..px.len() {
+                let pos = [px[i], py[i]];
+                quadtree.search_radius(pos, radii[i] * 5.0, &mut results);
                 black_box(&results);
                 results.clear();
             }
@@ -173,14 +178,12 @@ fn bench_kdtree_only(c: &mut Criterion) {
     group.bench_function("build_10000", |b| {
         let mut sim = Simulation::new();
         sim.generate_bodies(10000);
-        let bodies: Vec<_> = sim.bodies().to_vec();
+        let px = sim.state.px.clone();
+        let py = sim.state.py.clone();
 
         b.iter(|| {
-            let mut points: Vec<(usize, [f64; 2])> = bodies
-                .iter()
-                .enumerate()
-                .map(|(idx, body)| (idx, body.position))
-                .collect();
+            let mut points: Vec<(usize, [f64; 2])> =
+                (0..px.len()).map(|i| (i, [px[i], py[i]])).collect();
             let mut tree = KdTree::new();
             tree.build(&mut points);
             black_box(tree);
@@ -190,21 +193,21 @@ fn bench_kdtree_only(c: &mut Criterion) {
     group.bench_function("query_10000", |b| {
         let mut sim = Simulation::new();
         sim.generate_bodies(10000);
-        let bodies: Vec<_> = sim.bodies().to_vec();
+        let px = sim.state.px.clone();
+        let py = sim.state.py.clone();
+        let radii = sim.state.radii.clone();
 
         // Pre-build tree
-        let mut points: Vec<(usize, [f64; 2])> = bodies
-            .iter()
-            .enumerate()
-            .map(|(idx, body)| (idx, body.position))
-            .collect();
+        let mut points: Vec<(usize, [f64; 2])> =
+            (0..px.len()).map(|i| (i, [px[i], py[i]])).collect();
         let mut tree = KdTree::new();
         tree.build(&mut points);
 
         b.iter(|| {
             let mut results = Vec::new();
-            for body in &bodies {
-                tree.search_radius(body.position, body.radius * 5.0, &mut results);
+            for i in 0..px.len() {
+                let pos = [px[i], py[i]];
+                tree.search_radius(pos, radii[i] * 5.0, &mut results);
                 black_box(&results);
                 results.clear();
             }

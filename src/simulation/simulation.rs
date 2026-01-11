@@ -1,7 +1,8 @@
 use crate::simulation::core::{Body, SimulationState};
 use crate::simulation::spatial::{Quad, Quadtree};
 use crate::simulation::systems::{
-    BarnesHutGravityStrategy, CollisionStrategy, GravityStrategy, KdTreeCollision, SimulationSystem,
+    BarnesHutGravityStrategy, CollisionStrategyEnum, GravityStrategyEnum, KdTreeCollision,
+    SimulationSystem,
 };
 use rand::Rng;
 
@@ -11,8 +12,8 @@ pub struct Simulation {
     pub state: SimulationState,
     pub next_id: u32,
     pub gravity_constant: f32,
-    gravity_strategy: Box<dyn GravityStrategy>,
-    collision_strategy: Box<dyn CollisionStrategy>,
+    pub gravity_strategy: GravityStrategyEnum,
+    pub collision_strategy: CollisionStrategyEnum,
     quadtree: Quadtree,
 }
 
@@ -28,17 +29,19 @@ impl Simulation {
             state: SimulationState::new(),
             next_id: 0,
             gravity_constant: 100.0,
-            gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
-            collision_strategy: Box::new(KdTreeCollision::new()),
+            gravity_strategy: GravityStrategyEnum::BarnesHut(BarnesHutGravityStrategy::new(
+                0.5, 0.01,
+            )),
+            collision_strategy: CollisionStrategyEnum::KdTree(KdTreeCollision::new()),
             quadtree: Quadtree::new(0.5, 0.01),
         }
     }
 
-    pub fn set_gravity_strategy(&mut self, strategy: Box<dyn GravityStrategy>) {
+    pub fn set_gravity_strategy(&mut self, strategy: GravityStrategyEnum) {
         self.gravity_strategy = strategy;
     }
 
-    pub fn set_collision_strategy(&mut self, strategy: Box<dyn CollisionStrategy>) {
+    pub fn set_collision_strategy(&mut self, strategy: CollisionStrategyEnum) {
         self.collision_strategy = strategy;
     }
 
@@ -155,8 +158,12 @@ impl Simulation {
     pub fn remove_body(&mut self, id: u32) -> bool {
         if let Some(pos) = self.state.ids.iter().position(|&x| x == id) {
             self.state.ids.swap_remove(pos);
-            self.state.positions.swap_remove(pos);
-            self.state.velocities.swap_remove(pos);
+            self.state.px.swap_remove(pos);
+            self.state.py.swap_remove(pos);
+            self.state.vx.swap_remove(pos);
+            self.state.vy.swap_remove(pos);
+            self.state.ax.swap_remove(pos);
+            self.state.ay.swap_remove(pos);
             self.state.masses.swap_remove(pos);
             self.state.colors.swap_remove(pos);
             self.state.radii.swap_remove(pos);
@@ -183,14 +190,17 @@ impl Simulation {
         let radius_sq = radius * radius;
         use rayon::prelude::*;
 
-        // Refactored for SoA par_iter
-        self.state
-            .positions
-            .par_iter_mut()
-            .zip(self.state.velocities.par_iter_mut())
-            .for_each(|(pos, vel)| {
-                let dx = mouse_pos[0] - pos[0];
-                let dy = mouse_pos[1] - pos[1];
+        let len = self.state.len();
+        (0..len).into_par_iter().for_each(|i| {
+            // Safety: We ensure all vectors have the same length in SimulationState
+            unsafe {
+                let px = self.state.px.as_ptr();
+                let py = self.state.py.as_ptr();
+                let vx = self.state.vx.as_ptr() as *mut f64;
+                let vy = self.state.vy.as_ptr() as *mut f64;
+
+                let dx = mouse_pos[0] - *px.add(i);
+                let dy = mouse_pos[1] - *py.add(i);
                 let dist_sq = dx * dx + dy * dy;
 
                 if dist_sq < radius_sq && dist_sq > 0.1 {
@@ -201,14 +211,15 @@ impl Simulation {
 
                     if strength > 0.0 {
                         let damping = 0.95;
-                        vel[0] = vel[0] * damping + ux * force;
-                        vel[1] = vel[1] * damping + uy * force;
+                        *vx.add(i) = *vx.add(i) * damping + ux * force;
+                        *vy.add(i) = *vy.add(i) * damping + uy * force;
                     } else {
-                        vel[0] += ux * force;
-                        vel[1] += uy * force;
+                        *vx.add(i) += ux * force;
+                        *vy.add(i) += uy * force;
                     }
                 }
-            });
+            }
+        });
     }
 
     pub fn update(&mut self, dt: f32) {
@@ -217,9 +228,13 @@ impl Simulation {
         }
 
         // 1. Build Quadtree ONCE
-        let root_quad = Quad::new_containing(&self.state.positions);
-        self.quadtree
-            .build(&self.state.positions, &self.state.masses, root_quad);
+        let root_quad = Quad::new_containing(&self.state.px, &self.state.py);
+        self.quadtree.build(
+            &self.state.px,
+            &self.state.py,
+            &self.state.masses,
+            root_quad,
+        );
 
         // 2. Prepare Context
         let context = crate::simulation::systems::SimulationContext {
@@ -235,9 +250,13 @@ impl Simulation {
 
         // Stage 2: Recalculate forces for a(t+1)
         // Rebuild Quadtree for new positions
-        let root_quad = Quad::new_containing(&self.state.positions);
-        self.quadtree
-            .build(&self.state.positions, &self.state.masses, root_quad);
+        let root_quad = Quad::new_containing(&self.state.px, &self.state.py);
+        self.quadtree.build(
+            &self.state.px,
+            &self.state.py,
+            &self.state.masses,
+            root_quad,
+        );
 
         self.gravity_strategy
             .update(&mut self.state, &context, &self.quadtree);
