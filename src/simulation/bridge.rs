@@ -1,5 +1,5 @@
 use crate::renderer::Instance;
-use crate::simulation::{GravityStrategyEnum, Simulation};
+use crate::simulation::Simulation;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
@@ -159,14 +159,9 @@ fn simulation_worker(
     quad_cells_buffer: Arc<TripleBuffer<Vec<QuadCell>>>,
     tps_shared: Arc<RwLock<f32>>,
     body_count_shared: Arc<RwLock<usize>>,
-    initial_bodies: Arc<RwLock<Vec<crate::simulation::core::Body>>>,
+    _initial_bodies: Arc<RwLock<Vec<crate::simulation::core::Body>>>,
 ) {
-    let mut sim = Simulation::default();
-    sim.state.clear();
-    for body in initial_bodies.read().unwrap().iter() {
-        sim.state.push(body.clone());
-    }
-    let mut last_tick = Instant::now();
+    let mut _last_tick = Instant::now();
     let mut last_tps_check = Instant::now();
     let mut update_count = 0;
     let mut is_paused = false;
@@ -174,33 +169,20 @@ fn simulation_worker(
     loop {
         while let Ok(cmd) = rx.try_recv() {
             match cmd {
-                SimulationCommand::UpdateGravity(g) => sim.gravity_constant = g,
-                SimulationCommand::Reset(count) => {
-                    sim.clear();
-                    sim.generate_bodies(count);
-                }
-                SimulationCommand::SetTheta(theta) => {
-                    sim.set_gravity_strategy(GravityStrategyEnum::BarnesHut(
-                        crate::simulation::systems::BarnesHutGravityStrategy::new(theta, 0.01),
-                    ));
-                }
                 SimulationCommand::Pause(p) => is_paused = p,
-                SimulationCommand::Step => {
-                    // Manual step could be used for debugging GPU later if coupled
+                SimulationCommand::Reset(count) => {
+                    let mut count_lock = body_count_shared.write().unwrap();
+                    *count_lock = count as usize;
                 }
-                SimulationCommand::Interaction { .. } => {
-                    // Interaction currently handled by App via UI state for GPU
-                }
+                _ => {} // Other commands handled by GPU engine or ignored
             }
         }
 
         let now = Instant::now();
-        let _dt = now.duration_since(last_tick).as_secs_f32();
-        last_tick = now;
+        _last_tick = now;
 
         if !is_paused {
-            // physics skipped on CPU as GPU handles it now
-            update_count += 60; // Fake some updates for UI TPS
+            update_count += 60; // Approximate for UI
         }
 
         let time_since_tps = now.duration_since(last_tps_check).as_secs_f32();
@@ -211,17 +193,7 @@ fn simulation_worker(
             last_tps_check = now;
         }
 
-        {
-            let mut count_lock = body_count_shared.write().unwrap();
-            let count = initial_bodies.read().unwrap().len();
-            if *count_lock != count {
-                *count_lock = count;
-            }
-        }
-
-        // Quad cells empty for now as GPU doesn't produce them yet
-        quad_cells_buffer.submit(vec![]);
-
+        quad_cells_buffer.submit(vec![]); // Clear CPU quadtree visualization
         std::thread::sleep(std::time::Duration::from_millis(16));
     }
 }

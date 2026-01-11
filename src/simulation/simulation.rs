@@ -2,7 +2,6 @@ use crate::simulation::core::{Body, SimulationState};
 use crate::simulation::spatial::{Quad, Quadtree};
 use crate::simulation::systems::{
     BarnesHutGravityStrategy, CollisionStrategyEnum, GravityStrategyEnum, KdTreeCollision,
-    SimulationSystem,
 };
 use rand::Rng;
 
@@ -222,52 +221,9 @@ impl Simulation {
         });
     }
 
-    pub fn update(&mut self, dt: f32) {
-        if self.state.is_empty() {
-            return;
-        }
-
-        // 1. Build Quadtree ONCE
-        let root_quad = Quad::new_containing(&self.state.px, &self.state.py);
-        self.quadtree.build(
-            &self.state.px,
-            &self.state.py,
-            &self.state.masses,
-            root_quad,
-        );
-
-        // 2. Prepare Context
-        let context = crate::simulation::systems::SimulationContext {
-            dt,
-            gravity_constant: self.gravity_constant,
-        };
-
-        // 3. Execution Pipeline (Velocity Verlet)
-
-        // Stage 1: v += a * dt / 2; x += v * dt
-        let mut v1 = crate::simulation::systems::VerletIntegratorStage1;
-        v1.update(&mut self.state, &context, &self.quadtree);
-
-        // Stage 2: Recalculate forces for a(t+1)
-        // Rebuild Quadtree for new positions
-        let root_quad = Quad::new_containing(&self.state.px, &self.state.py);
-        self.quadtree.build(
-            &self.state.px,
-            &self.state.py,
-            &self.state.masses,
-            root_quad,
-        );
-
-        self.gravity_strategy
-            .update(&mut self.state, &context, &self.quadtree);
-
-        // Stage 3: v += a(t+1) * dt / 2
-        let mut v2 = crate::simulation::systems::VerletIntegratorStage2;
-        v2.update(&mut self.state, &context, &self.quadtree);
-
-        // Stage 4: Collisions (Resolution)
-        self.collision_strategy
-            .update(&mut self.state, &context, &self.quadtree);
+    pub fn update(&mut self, _dt: f32) {
+        // CPU physics removed for 1M particle 'Zero-Sync' GPU simulation.
+        // All movement, gravity, and spatial indexing (Quadtree) happen on GPU.
     }
 
     /// Get quadtree cells for visualization

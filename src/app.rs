@@ -10,8 +10,7 @@ use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
 use crate::renderer::{
-    Camera2D, CameraController, GpuContext, Instance, LineInstance, LinePipeline, RenderPipeline,
-    Vertex,
+    Camera2D, CameraController, GpuContext, LineInstance, LinePipeline, RenderPipeline, Vertex,
 };
 use crate::simulation::SimulationBridge;
 
@@ -30,7 +29,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 20000;
+pub const NUM_OF_BODIES: i32 = 1_048_576;
 
 impl Default for App {
     fn default() -> Self {
@@ -93,24 +92,13 @@ impl ApplicationHandler for App {
             let mut gui = Gui::new(event_loop, self.simulation_bridge.sender());
 
             // Initialize GPU Simulation
-            let initial_bodies = self.simulation_bridge.get_initial_bodies();
-            let gpu_particles: Vec<crate::simulation::GpuParticle> = initial_bodies
-                .iter()
-                .map(|b| crate::simulation::GpuParticle {
-                    position: [b.position[0] as f32, b.position[1] as f32],
-                    radius: b.radius as f32,
-                    color: bytemuck::cast(b.color),
-                    velocity: [b.velocity[0] as f32, b.velocity[1] as f32],
-                    mass: b.mass as f32,
-                    id: b.id,
-                })
-                .collect();
-
-            self.gpu_simulation = Some(crate::simulation::GpuEngine::new(
+            let gpu_sim = crate::simulation::GpuEngine::new(
                 &self.gpu.device,
                 &self.gpu.queue,
-                &gpu_particles,
-            ));
+                NUM_OF_BODIES as u32,
+            );
+            gpu_sim.init(&self.gpu.queue);
+            self.gpu_simulation = Some(gpu_sim);
 
             let initial_output = gui.run(
                 &window,
@@ -257,7 +245,7 @@ impl App {
             Vertex { pos: [-4.33, -2.5] },
         ];
 
-        let instance_count = self.simulation_bridge.get_body_count() as u32;
+        let instance_count = NUM_OF_BODIES as u32;
 
         if let Some(gpu_sim) = &self.gpu_simulation {
             let gravity = self
