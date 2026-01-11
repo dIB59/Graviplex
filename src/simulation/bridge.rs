@@ -190,7 +190,7 @@ fn simulation_worker(
 
         // 2. Update simulation
         let now = Instant::now();
-        let dt = now.duration_since(last_tick).as_secs_f64();
+        let dt = now.duration_since(last_tick).as_secs_f32();
         last_tick = now;
 
         if !is_paused {

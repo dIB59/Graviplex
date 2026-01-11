@@ -6,7 +6,7 @@ pub trait GravityStrategy {
         &mut self,
         bodies: &[Body],
         gravity_constant: f32,
-        dt: f64,
+        dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     );
 
@@ -23,7 +23,7 @@ impl GravityStrategy for NaiveGravityStrategy {
         &mut self,
         bodies: &[Body],
         gravity_constant: f32,
-        dt: f64,
+        dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
         updates.clear();
@@ -64,12 +64,12 @@ impl GravityStrategy for NaiveGravityStrategy {
                 total_force[1] / body.mass as f32,
             ];
             let new_velocity = [
-                body.velocity[0] + (acceleration[0] * dt as f32) as f64,
-                body.velocity[1] + (acceleration[1] * dt as f32) as f64,
+                body.velocity[0] + (acceleration[0] * dt) as f64,
+                body.velocity[1] + (acceleration[1] * dt) as f64,
             ];
             let new_position = [
-                body.position[0] + new_velocity[0] * dt,
-                body.position[1] + new_velocity[1] * dt,
+                body.position[0] + new_velocity[0] * dt as f64,
+                body.position[1] + new_velocity[1] * dt as f64,
             ];
 
             updates.push((new_position, new_velocity));
@@ -94,7 +94,7 @@ impl GravityStrategy for BarnesHutGravityStrategy {
         &mut self,
         bodies: &[Body],
         gravity_constant: f32,
-        dt: f64,
+        dt: f32,
         updates: &mut Vec<([f64; 2], [f64; 2])>,
     ) {
         use rayon::prelude::*;
@@ -112,13 +112,13 @@ impl GravityStrategy for BarnesHutGravityStrategy {
                 let acc = self.quadtree.acc(body.position, gravity_constant as f64);
 
                 let new_velocity = [
-                    body.velocity[0] + acc[0] * dt,
-                    body.velocity[1] + acc[1] * dt,
+                    body.velocity[0] + acc[0] * dt as f64,
+                    body.velocity[1] + acc[1] * dt as f64,
                 ];
 
                 let new_position = [
-                    body.position[0] + new_velocity[0] * dt,
-                    body.position[1] + new_velocity[1] * dt,
+                    body.position[0] + new_velocity[0] * dt as f64,
+                    body.position[1] + new_velocity[1] * dt as f64,
                 ];
 
                 (new_position, new_velocity)

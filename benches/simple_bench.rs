@@ -14,7 +14,7 @@ fn bench_simulation_update(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -31,7 +31,7 @@ fn bench_simulation_strategies(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -42,7 +42,7 @@ fn bench_simulation_strategies(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -59,7 +59,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -70,7 +70,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -81,7 +81,7 @@ fn bench_collision_strategies(c: &mut Criterion) {
         sim.generate_bodies(10000);
 
         b.iter(|| {
-            sim.update(black_box(0.01f64));
+            sim.update(black_box(0.01f32));
         });
     });
 
@@ -101,7 +101,7 @@ fn bench_scaling(c: &mut Criterion) {
                 sim.generate_bodies(count);
 
                 b.iter(|| {
-                    sim.update(black_box(0.01f64));
+                    sim.update(black_box(0.01f32));
                 });
             },
         );

@@ -205,7 +205,7 @@ impl Simulation {
         });
     }
 
-    pub fn update(&mut self, dt: f64) {
+    pub fn update(&mut self, dt: f32) {
         if self.bodies.len() < 2 {
             return;
         }
