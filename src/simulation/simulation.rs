@@ -1,15 +1,14 @@
-use crate::simulation::KdTreeCollision;
-
-use super::collision::QuadtreeCollision;
-use super::gravity::BarnesHutGravityStrategy;
-use super::spatial::{Quad, Quadtree};
-use super::{Body, CollisionStrategy, GravityStrategy};
+use crate::simulation::core::{Body, SimulationState};
+use crate::simulation::spatial::{Quad, Quadtree};
+use crate::simulation::systems::{
+    BarnesHutGravityStrategy, CollisionStrategy, GravityStrategy, KdTreeCollision,
+};
 use rand::Rng;
 
 const SPACE_SCALE: f64 = 250000.0;
 
 pub struct Simulation {
-    pub bodies: Vec<Body>,
+    pub state: SimulationState,
     pub next_id: u32,
     pub gravity_constant: f32,
     gravity_strategy: Box<dyn GravityStrategy>,
@@ -27,7 +26,7 @@ impl Default for Simulation {
 impl Simulation {
     pub fn new() -> Self {
         Self {
-            bodies: Vec::new(),
+            state: SimulationState::new(),
             next_id: 0,
             gravity_constant: 100.0,
             gravity_strategy: Box::new(BarnesHutGravityStrategy::new(0.5, 0.01)),
@@ -151,29 +150,34 @@ impl Simulation {
         let id = self.next_id;
         self.next_id += 1;
         let body = Body::new(id, position, velocity, mass as f64, color, radius);
-        self.bodies.push(body);
+        self.state.push(body);
         id
     }
 
     pub fn remove_body(&mut self, id: u32) -> bool {
-        if let Some(pos) = self.bodies.iter().position(|b| b.id == id) {
-            self.bodies.swap_remove(pos);
+        if let Some(pos) = self.state.ids.iter().position(|&x| x == id) {
+            self.state.ids.swap_remove(pos);
+            self.state.positions.swap_remove(pos);
+            self.state.velocities.swap_remove(pos);
+            self.state.masses.swap_remove(pos);
+            self.state.colors.swap_remove(pos);
+            self.state.radii.swap_remove(pos);
             true
         } else {
             false
         }
     }
 
-    pub fn bodies(&self) -> &[Body] {
-        &self.bodies
+    pub fn bodies(&self) -> Vec<Body> {
+        self.state.to_bodies()
     }
 
     pub fn body_count(&self) -> usize {
-        self.bodies.len()
+        self.state.len()
     }
 
     pub fn clear(&mut self) {
-        self.bodies.clear();
+        self.state.clear();
         self.next_id = 0;
     }
 
@@ -181,66 +185,59 @@ impl Simulation {
         let radius_sq = radius * radius;
         use rayon::prelude::*;
 
-        self.bodies.par_iter_mut().for_each(|body| {
-            let dx = mouse_pos[0] - body.position[0];
-            let dy = mouse_pos[1] - body.position[1];
-            let dist_sq = dx * dx + dy * dy;
+        // Refactored for SoA par_iter
+        self.state
+            .positions
+            .par_iter_mut()
+            .zip(self.state.velocities.par_iter_mut())
+            .for_each(|(pos, vel)| {
+                let dx = mouse_pos[0] - pos[0];
+                let dy = mouse_pos[1] - pos[1];
+                let dist_sq = dx * dx + dy * dy;
 
-            if dist_sq < radius_sq && dist_sq > 0.1 {
-                let dist = dist_sq.sqrt();
-                // Strength is positive for attraction, negative for repulsion
-                // Linear falloff for smoother control
-                let force = strength * (1.0 - (dist / radius));
+                if dist_sq < radius_sq && dist_sq > 0.1 {
+                    let dist = dist_sq.sqrt();
+                    let force = strength * (1.0 - (dist / radius));
+                    let ux = dx / dist;
+                    let uy = dy / dist;
 
-                // Directional unit vector
-                let ux = dx / dist;
-                let uy = dy / dist;
-
-                if strength > 0.0 {
-                    // Attraction + Damping
-                    // Damping helps particles "settle" on the cursor rather than orbiting
-                    let damping = 0.95;
-                    body.velocity[0] = body.velocity[0] * damping + ux * force;
-                    body.velocity[1] = body.velocity[1] * damping + uy * force;
-                } else {
-                    // Repulsion (no damping needed for "explosive" feel)
-                    body.velocity[0] += ux * force;
-                    body.velocity[1] += uy * force;
+                    if strength > 0.0 {
+                        let damping = 0.95;
+                        vel[0] = vel[0] * damping + ux * force;
+                        vel[1] = vel[1] * damping + uy * force;
+                    } else {
+                        vel[0] += ux * force;
+                        vel[1] += uy * force;
+                    }
                 }
-            }
-        });
+            });
     }
 
     pub fn update(&mut self, dt: f32) {
-        if self.bodies.len() < 2 {
+        if self.state.is_empty() {
             return;
         }
 
-        // Build Quadtree ONCE
+        // 1. Build Quadtree ONCE
         use rayon::prelude::*;
-        let positions: Vec<[f64; 2]> = self.bodies.par_iter().map(|b| b.position).collect();
-        let root_quad = Quad::new_containing(&positions);
-        let masses: Vec<f64> = self.bodies.par_iter().map(|b| b.mass).collect();
-        self.quadtree.build(&positions, &masses, root_quad);
+        let root_quad = Quad::new_containing(&self.state.positions);
+        self.quadtree
+            .build(&self.state.positions, &self.state.masses, root_quad);
 
-        self.gravity_strategy.calculate_forces(
-            &self.bodies,
-            self.gravity_constant,
+        // 2. Prepare Context
+        let context = crate::simulation::systems::SimulationContext {
             dt,
-            &mut self.updates_buffer,
-            &self.quadtree,
-        );
+            gravity_constant: self.gravity_constant,
+        };
 
-        self.bodies
-            .par_iter_mut()
-            .zip(self.updates_buffer.par_iter())
-            .for_each(|(body, &(position, velocity))| {
-                body.position = position;
-                body.velocity = velocity;
-            });
+        // 3. Execution Pipeline
+        // Gravity (Forces + Integration)
+        self.gravity_strategy
+            .update(&mut self.state, &context, &self.quadtree);
 
+        // Collisions (Resolution)
         self.collision_strategy
-            .handle_collisions(&mut self.bodies, &self.quadtree);
+            .update(&mut self.state, &context, &self.quadtree);
     }
 
     /// Get quadtree cells for visualization

@@ -298,16 +298,8 @@ impl Quadtree {
         }
 
         if node.is_leaf() {
-            // Check individual bodies in this node's range
             for i in node.body_range.0..node.body_range.1 {
                 let body_idx = self.body_indices[i];
-                // Note: we don't have body positions here directly in Quadtree struct anymore
-                // except in build phase. If we want range search to be efficient, we might
-                // need to store positions or pass them in.
-                // However, many implementations use the approximate center of mass for distant nodes.
-                // For collision, we need EXACT positions.
-                // Let's assume we pass positions in or the caller filters.
-                // Actually, the current search_radius in KdTree also took target pos.
                 results.push(body_idx);
             }
             return;
@@ -350,110 +342,12 @@ impl Quadtree {
         acc
     }
 
-    /// Returns all non-empty cell quads for visualization
     pub fn get_cells(&self) -> Vec<Quad> {
         self.nodes
             .iter()
             .filter(|n| n.mass > 0.0)
             .map(|n| n.quad)
             .collect()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct KdNode {
-    pub point: [f64; 2],
-    pub idx: usize,
-    pub left: Option<usize>,
-    pub right: Option<usize>,
-}
-
-pub struct KdTree {
-    pub nodes: Vec<KdNode>,
-    pub root: Option<usize>,
-}
-
-impl KdTree {
-    pub fn new() -> Self {
-        Self {
-            nodes: Vec::with_capacity(1000),
-            root: None,
-        }
-    }
-
-    pub fn build(&mut self, points: &mut [(usize, [f64; 2])]) {
-        self.nodes.clear();
-        self.root = self.build_recursive(points, 0);
-    }
-
-    fn build_recursive(&mut self, points: &mut [(usize, [f64; 2])], depth: usize) -> Option<usize> {
-        if points.is_empty() {
-            return None;
-        }
-
-        let axis = depth % 2;
-        let mid = points.len() / 2;
-
-        points.select_nth_unstable_by(mid, |a, b| {
-            a.1[axis]
-                .partial_cmp(&b.1[axis])
-                .expect("Invalid float comparison")
-        });
-
-        let (idx, point) = points[mid];
-
-        let node_idx = self.nodes.len();
-        // Placeholder to get index
-        self.nodes.push(KdNode {
-            point,
-            idx,
-            left: None,
-            right: None,
-        });
-
-        let left = self.build_recursive(&mut points[..mid], depth + 1);
-        let right = self.build_recursive(&mut points[mid + 1..], depth + 1);
-
-        self.nodes[node_idx].left = left;
-        self.nodes[node_idx].right = right;
-
-        Some(node_idx)
-    }
-
-    pub fn search_radius(&self, target: [f64; 2], radius: f64, results: &mut Vec<usize>) {
-        if let Some(root) = self.root {
-            self.search_recursive(root, target, radius, 0, results);
-        }
-    }
-
-    fn search_recursive(
-        &self,
-        node_idx: usize,
-        target: [f64; 2],
-        radius: f64,
-        depth: usize,
-        results: &mut Vec<usize>,
-    ) {
-        let n = &self.nodes[node_idx];
-        let axis = depth % 2;
-        let dist_sq = (n.point[0] - target[0]).powi(2) + (n.point[1] - target[1]).powi(2);
-
-        if dist_sq <= radius.powi(2) {
-            results.push(n.idx);
-        }
-
-        let diff = target[axis] - n.point[axis];
-
-        if diff <= radius {
-            if let Some(left) = n.left {
-                self.search_recursive(left, target, radius, depth + 1, results);
-            }
-        }
-        if diff >= -radius {
-            if let Some(right) = n.right {
-                self.search_recursive(right, target, radius, depth + 1, results);
-            }
-        }
     }
 }
 
@@ -470,11 +364,9 @@ mod tests {
         let sub = quad.subdivide();
         assert_eq!(sub.len(), 4);
 
-        // Quadrant 0: Bottom-Left (assuming into_quadrant logic)
         assert_eq!(sub[0].center, [-0.5, -0.5]);
         assert_eq!(sub[0].size, 1.0);
 
-        // Quadrant 3: Top-Right
         assert_eq!(sub[3].center, [0.5, 0.5]);
         assert_eq!(sub[3].size, 1.0);
     }
@@ -513,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_quadtree_acceleration() {
-        let mut qt = Quadtree::new(0.0, 0.0); // No approximation, theta=0
+        let mut qt = Quadtree::new(0.0, 0.0);
         let quad = Quad {
             center: [0.0, 0.0],
             size: 100.0,
@@ -527,7 +419,6 @@ mod tests {
         let target = [0.0, 0.0];
         let acc = qt.acc(target, 1.0);
 
-        // Forces should cancel out at the center
         assert!((acc[0].abs() < 1e-6));
         assert!((acc[1].abs() < 1e-6));
 
@@ -539,27 +430,6 @@ mod tests {
             "Expected ~-1.111, got {}",
             acc2[0]
         );
-    }
-
-    #[test]
-    fn test_quadtree_build() {
-        let mut qt = Quadtree::new(0.0, 0.0);
-        let quad = Quad {
-            center: [0.0, 0.0],
-            size: 100.0,
-        };
-
-        let positions = [[1.0, 0.0], [-1.0, 0.0]];
-        let masses = [1.0, 1.0];
-
-        qt.build(&positions, &masses, quad);
-
-        assert_eq!(qt.nodes[Quadtree::ROOT].mass, 2.0);
-        assert_eq!(qt.nodes[Quadtree::ROOT].pos, [0.0, 0.0]);
-
-        let target = [2.0, 0.0];
-        let acc = qt.acc(target, 1.0);
-        assert!((acc[0] - (-1.111111)).abs() < 1e-5);
     }
 
     #[test]
@@ -578,7 +448,6 @@ mod tests {
         let mut results = Vec::new();
         qt.search_radius([1.5, 1.5], 1.0, &mut results);
 
-        // results should contain indices 0 and 1
         assert_eq!(results.len(), 2);
         assert!(results.contains(&0));
         assert!(results.contains(&1));
