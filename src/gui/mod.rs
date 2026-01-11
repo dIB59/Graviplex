@@ -204,4 +204,8 @@ impl Gui {
     pub fn gravity_constant(&self) -> f32 {
         self.gravity_constant
     }
+
+    pub fn theta(&self) -> f32 {
+        self.theta as f32
+    }
 }

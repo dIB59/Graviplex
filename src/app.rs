@@ -29,7 +29,7 @@ pub struct App {
     gui_renderer: Option<UiPipeline>,
 }
 
-pub const NUM_OF_BODIES: i32 = 1_048_576;
+pub const NUM_OF_BODIES: i32 = 1 << 14;
 
 impl Default for App {
     fn default() -> Self {
@@ -214,6 +214,7 @@ impl App {
         }
 
         // Particle Interaction
+        let mut interaction_params = None;
         if let Some(gui) = &self.gui {
             let left_down = self.input.is_mouse_down(winit::event::MouseButton::Left);
             let right_down = self.input.is_mouse_down(winit::event::MouseButton::Right);
@@ -228,6 +229,12 @@ impl App {
                 } else {
                     -(strength as f64) * 3.0 // Repel is slightly stronger for effect
                 };
+
+                interaction_params = Some((
+                    [world_pos[0] as f32, world_pos[1] as f32],
+                    radius,
+                    actual_strength as f32,
+                ));
 
                 let _ = self.simulation_bridge.sender().send(
                     crate::simulation::bridge::SimulationCommand::Interaction {
@@ -248,16 +255,18 @@ impl App {
         let instance_count = NUM_OF_BODIES as u32;
 
         if let Some(gpu_sim) = &self.gpu_simulation {
-            let gravity = self
+            let (gravity, theta) = self
                 .gui
                 .as_ref()
-                .map(|g| g.gravity_constant())
-                .unwrap_or(1.0);
+                .map(|g| (g.gravity_constant(), g.theta()))
+                .unwrap_or((500.0, 0.5));
             gpu_sim.update(
                 &self.gpu.device,
                 &self.gpu.queue,
                 self.time.delta() as f32,
                 gravity as f32,
+                theta as f32,
+                interaction_params,
             );
         }
 

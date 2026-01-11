@@ -20,7 +20,8 @@ pub struct GpuNode {
     pub mass: f32,
     pub parent: i32,
     pub size: f32,
-    pub _padding: [u32; 3],
+    pub next: i32,
+    pub _padding: [u32; 2],
 }
 
 #[repr(C)]
@@ -33,7 +34,10 @@ pub struct GpuParams {
     pub seed: u32,
     pub pass_index: u32,
     pub num_nodes: u32,
-    pub _padding: u32,
+    pub interaction_pos: [f32; 2],
+    pub interaction_radius: f32,
+    pub interaction_strength: f32,
+    pub _padding: [u32; 53], // Pad to 256 bytes
 }
 
 pub struct GpuEngine {
@@ -42,14 +46,18 @@ pub struct GpuEngine {
     pub sort_data_buffer: Buffer,
     pub sort_temp_buffer: Buffer,
     pub histogram_buffer: Buffer,
+    pub atomic_counters_buffer: Buffer,
     pub params_buffer: Buffer,
 
     pub morton_pipeline: ComputePipeline,
     pub radix_histogram_pipeline: ComputePipeline,
     pub radix_shuffle_pipeline: ComputePipeline,
     pub tree_build_pipeline: ComputePipeline,
+    pub compute_mass_pipeline: ComputePipeline,
+    pub resolve_collisions_pipeline: ComputePipeline,
     pub init_pipeline: ComputePipeline,
     pub update_pipeline: ComputePipeline,
+    pub bitonic_sort_pipeline: ComputePipeline,
 
     bind_group: BindGroup,
     num_particles: u32,
@@ -99,9 +107,16 @@ impl GpuEngine {
             mapped_at_creation: false,
         });
 
+        let atomic_counters_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Atomic Counters"),
+            size: (num_particles * 2 * 4) as u64, // 2N * u32
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let params_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Simulation Params"),
-            size: std::mem::size_of::<GpuParams>() as u64,
+            size: (std::mem::size_of::<GpuParams>() * 256) as u64, // Space for 256 aligned chunks
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -128,8 +143,11 @@ impl GpuEngine {
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                        has_dynamic_offset: true,
+                        min_binding_size: Some(
+                            core::num::NonZeroU64::new(std::mem::size_of::<GpuParams>() as u64)
+                                .unwrap(),
+                        ),
                     },
                     count: None,
                 },
@@ -177,6 +195,17 @@ impl GpuEngine {
                     },
                     count: None,
                 },
+                // 6: Atomic Counters
+                BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -190,7 +219,14 @@ impl GpuEngine {
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: params_buffer.as_entire_binding(),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: &params_buffer,
+                        offset: 0,
+                        size: Some(
+                            core::num::NonZeroU64::new(std::mem::size_of::<GpuParams>() as u64)
+                                .unwrap(),
+                        ),
+                    }),
                 },
                 BindGroupEntry {
                     binding: 2,
@@ -207,6 +243,10 @@ impl GpuEngine {
                 BindGroupEntry {
                     binding: 5,
                     resource: histogram_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: atomic_counters_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -253,6 +293,25 @@ impl GpuEngine {
             compilation_options: Default::default(),
         });
 
+        let compute_mass_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Compute Mass Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("compute_mass"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let resolve_collisions_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("Resolve Collisions Pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: Some("resolve_collisions"),
+                cache: None,
+                compilation_options: Default::default(),
+            });
+
         let init_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Simulation Init Pipeline"),
             layout: Some(&pipeline_layout),
@@ -271,19 +330,32 @@ impl GpuEngine {
             compilation_options: Default::default(),
         });
 
+        let bitonic_sort_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Bitonic Sort Pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("bitonic_sort_step"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
         Self {
             particle_buffer,
             node_buffer,
             sort_data_buffer,
             sort_temp_buffer,
             histogram_buffer,
+            atomic_counters_buffer,
             params_buffer,
             morton_pipeline,
             radix_histogram_pipeline,
             radix_shuffle_pipeline,
             tree_build_pipeline,
+            compute_mass_pipeline,
+            resolve_collisions_pipeline,
             init_pipeline,
             update_pipeline,
+            bitonic_sort_pipeline,
             bind_group,
             num_particles,
             device: device.clone(),
@@ -299,7 +371,10 @@ impl GpuEngine {
             seed: rand::random(),
             pass_index: 0,
             num_nodes: 0,
-            _padding: 0,
+            interaction_pos: [0.0, 0.0],
+            interaction_radius: 0.0,
+            interaction_strength: 0.0,
+            _padding: [0; 53],
         };
         queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 
@@ -314,67 +389,65 @@ impl GpuEngine {
                 timestamp_writes: None,
             });
             cpass.set_pipeline(&self.init_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[]);
+            cpass.set_bind_group(0, &self.bind_group, &[0]);
             let workgroups = (self.num_particles + 255) / 256;
             cpass.dispatch_workgroups(workgroups, 1, 1);
         }
         queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn update(&self, device: &Device, queue: &Queue, dt: f32, gravity: f32) {
+    pub fn update(
+        &self,
+        device: &Device,
+        queue: &Queue,
+        dt: f32,
+        gravity: f32,
+        theta: f32,
+        interaction: Option<([f32; 2], f32, f32)>,
+    ) {
+        let (i_pos, i_rad, i_str) = interaction.unwrap_or(([0.0, 0.0], 0.0, 0.0));
+
+        // Only need one set of params for brute force
+        let params = GpuParams {
+            dt,
+            gravity,
+            num_particles: self.num_particles,
+            theta,
+            seed: 0,
+            pass_index: 0,
+            num_nodes: 0,
+            interaction_pos: i_pos,
+            interaction_radius: i_rad,
+            interaction_strength: i_str,
+            _padding: [0; 53],
+        };
+
+        queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
+
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Simulation Encoder"),
         });
 
-        // 1. Morton Encode
-        {
-            let params = GpuParams {
-                dt,
-                gravity,
-                num_particles: self.num_particles,
-                theta: 0.5,
-                seed: rand::random(),
-                pass_index: 0,
-                num_nodes: 0,
-                _padding: 0,
-            };
-            queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
-
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Morton Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.morton_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[]);
-            let workgroups = (self.num_particles + 255) / 256;
-            cpass.dispatch_workgroups(workgroups, 1, 1);
-        }
-
-        // 2. Radix Sort (8 passes for 32-bit keys, 4 bits per pass)
-        // For simplicity in this "Zero-Sync" 1M demo, we'll use bitonic sort logic
-        // if Radix is too complex to implement fully without a scan kernel.
-        // But let's try to at least dispatch the tree build.
-
-        // 3. Tree Build
-        {
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Tree Build Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.tree_build_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[]);
-            let workgroups = (self.num_particles + 255) / 256;
-            cpass.dispatch_workgroups(workgroups, 1, 1);
-        }
-
-        // 4. Gravity Update
+        // 1. Physics Pass (Brute Force)
         {
             let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Physics Pass"),
                 timestamp_writes: None,
             });
             cpass.set_pipeline(&self.update_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[]);
+            cpass.set_bind_group(0, &self.bind_group, &[0]);
+            let workgroups = (self.num_particles + 255) / 256;
+            cpass.dispatch_workgroups(workgroups, 1, 1);
+        }
+
+        // 2. Collision Pass (Brute Force)
+        {
+            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("Collision Pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.resolve_collisions_pipeline);
+            cpass.set_bind_group(0, &self.bind_group, &[0]);
             let workgroups = (self.num_particles + 255) / 256;
             cpass.dispatch_workgroups(workgroups, 1, 1);
         }
