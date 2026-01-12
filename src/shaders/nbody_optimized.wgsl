@@ -1,3 +1,8 @@
+/// NOTE:
+/// This only works for 32 bits
+/// the Max Quadtree level is 15 including the root
+
+
 struct Particle {
     position: vec2<f32>,
     radius: f32,
@@ -29,11 +34,6 @@ fn rand_f32(n: u32) -> f32 {
     return f32(hash(n)) / 4294967295.0;
 }
 
-/// biggest number 
-fn rand_num_upto_u8(n: u32) -> u32 {
-    return hash(n) & 0xFFu;
-}
-
 @compute @workgroup_size(256)
 fn init_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let i = global_id.x;
@@ -41,7 +41,7 @@ fn init_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let seed = params.seed + i;
     // Spread out more: radius up to 1800
-    let r = sqrt(rand_f32(seed)) * 100000.0;
+    let r = sqrt(rand_f32(seed)) * 1800.0;
     let theta = rand_f32(seed + 1000000u) * 6.2831853;
 
     let pos = vec2<f32>(r * cos(theta), r * sin(theta));
@@ -49,23 +49,12 @@ fn init_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // For a 1M particle simulation, we just scale it to look good.
     let vel_mag = 0.001 * sqrt(800.0 / (r + 1.0));
     let vel = vec2<f32>(-pos.y, pos.x) * vel_mag;
-    let radius = rand_num_upto_u8(seed + 10000u);
-    let mass = radius * radius;
-    // Generate color from radius
-    var color = 0x00BFFFu; // Deep Sky Blue
-    if radius > 49u {
-        color = 0x4169E1u; // Royal Blue
-    }
-    if radius > 200u {
-        color = 0x00008Bu; // Dark Blue
-    }
-
 
     particles[i].position = pos;
     particles[i].velocity = vel;
-    particles[i].radius = f32(radius);
-    particles[i].mass = f32(mass);
-    particles[i].color = color;
+    particles[i].radius = 1.0;
+    particles[i].mass = 1.0;
+    particles[i].color = 0xFFFFFFFFu;
     particles[i].id = i;
 }
 
@@ -139,4 +128,88 @@ fn update_gravity(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     particles[i].position = p_i;
     particles[i].velocity = v_i;
+}
+
+/// De-interleave a 32-bit unsigned integer (extracts every other bit)
+fn deinterleave32(x: u32) -> u32 {
+    var y: u32 = x;
+    // Step 1: spread bits apart by 1, mask every other bit
+    y = (y | (y >> 1u)) & 0x33333333u;
+    
+    // Step 2: spread bits apart by 2, mask 2-bit groups
+    y = (y | (y >> 2u)) & 0x0F0F0F0Fu;
+    
+    // Step 3: spread bits apart by 4, mask 4-bit groups
+    y = (y | (y >> 4u)) & 0x00FF00FFu;
+    
+    // Step 4: spread bits apart by 8, mask 8-bit groups
+    y = (y | (y >> 8u)) & 0x0000FFFFu;
+    
+    // Step 5: return lower 16 bits, which is the de-interleaved number
+    return y & 0x0000FFFFu;
+}
+
+struct MortonKey {
+    level: u32,
+    pos: vec2<u32>,
+}
+
+/// Retrieve column major position and level from a 32-bit word
+fn decode_morton(key: u32) -> MortonKey {
+    var res: MortonKey;
+    var out_pos: vec2<u32>;
+    var out_level = key & 0xFu;
+    out_pos.x = deinterleave32((key >> 4u) & 0x55555555u);
+    out_pos.y = deinterleave32((key >> 5u) & 0x55555555u);
+    res.level = out_level;
+    res.pos = out_pos;
+    return res;
+}
+
+/// Generate children nodes from a quadtree encoded in a 32-bit word
+fn generate_children(key_in: u32) -> array<u32, 4> {
+    var children: array<u32, 4>;
+
+    var k = key_in + 1u;
+    k = (k & 0xFu) | ((k & ~0xFu) << 2u);
+
+    children[0] = k;
+    children[1] = k | 0x10u;
+    children[2] = k | 0x20u;
+    children[3] = k | 0x30u;
+
+    return children;
+}
+
+/// Generate parent node from a quadtree encoded in a 32-bit word
+fn generate_parent(key_in: u32) -> u32 {
+    var k = key_in - 1u;
+
+    return (k & 0xFu) | ((key_in >> 2u) & 0x3FFFFFF0u);
+}
+
+fn is_upper_left(key_in: u32) -> bool {
+    return (key_in & 0x30u) == 0u;
+}
+
+/// P is in [0,1)
+/// Size is in [0,1]
+struct CellResult {
+    p: vec2<f32>,
+    size: f32,
+};
+
+// Retrieve normalized coordinates and size of the cell
+fn get_cell(key: u32) -> CellResult {
+    var pos: vec2<u32>;
+    var level: u32;
+    var result: CellResult;
+
+    // Assumes lt_decode_2_15 is defined elsewhere to update 'level' and 'pos'
+    lt_decode_2_15(key, &level, &pos);
+
+    result.size = 1.0 / f32(1u << level); // in [0,1]
+    result.p = vec2<f32>(pos) * result.size; // in [0,1)
+
+    return result;
 }

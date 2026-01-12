@@ -263,7 +263,7 @@ mod tests {
 
         let context = SimulationContext {
             dt: 0.016,
-            gravity_constant: 100.0,
+            gravity_constant: 10.0,
         };
 
         QuadtreeCollisionSequential.update(&mut state_seq, &context, &quadtree);

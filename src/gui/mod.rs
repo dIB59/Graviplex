@@ -35,7 +35,7 @@ impl Gui {
             ctx,
             state,
             sender,
-            gravity_constant: 100.0,
+            gravity_constant: 10.0,
             theta: 0.5,
             paused: false,
             particle_count: crate::app::NUM_OF_BODIES,
