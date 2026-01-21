@@ -29,14 +29,4 @@ pub trait GameLoop: 'static {
     fn gui(&mut self, ctx: &egui::Context) {
         let _ = ctx;
     }
-
-    /// Return the number of instances to render (for particle systems).
-    fn instance_count(&self) -> u32 {
-        0
-    }
-
-    /// Return the external instance buffer (if any) for GPU-driven rendering.
-    fn instance_buffer(&self) -> Option<&wgpu::Buffer> {
-        None
-    }
 }

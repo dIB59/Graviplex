@@ -1,5 +1,5 @@
 use crate::nbody::Simulation;
-use graviplex_engine::renderer::Instance;
+use graviplex::renderer::Instance;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;

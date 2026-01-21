@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
-use graviplex::simulation::{
+use graviplex_sim::nbody::{
     BarnesHutGravityStrategy, CollisionStrategyEnum, GravityStrategyEnum, KdTreeCollision,
     NaiveCollisionStrategy, NaiveGravityStrategy, NoCollisionStrategy, QuadtreeCollision,
     Simulation,
@@ -125,7 +125,7 @@ fn bench_scaling(c: &mut Criterion) {
 }
 
 fn bench_quadtree_only(c: &mut Criterion) {
-    use graviplex::simulation::spatial::{Quad, Quadtree};
+    use graviplex_sim::nbody::{Quad, Quadtree};
 
     let mut group = c.benchmark_group("quadtree_operations");
 
@@ -171,7 +171,7 @@ fn bench_quadtree_only(c: &mut Criterion) {
     group.finish();
 }
 fn bench_kdtree_only(c: &mut Criterion) {
-    use graviplex::simulation::spatial::KdTree;
+    use graviplex_sim::nbody::KdTree;
 
     let mut group = c.benchmark_group("kdtree_operations");
 

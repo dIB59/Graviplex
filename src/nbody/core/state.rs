@@ -100,11 +100,11 @@ impl SimulationState {
 
     /// Optimized conversion direct to render instances.
     /// Converts f64 physics ground-truth to f32 for the GPU.
-    pub fn to_instances(&self) -> Vec<graviplex_engine::renderer::Instance> {
+    pub fn to_instances(&self) -> Vec<graviplex::renderer::Instance> {
         use rayon::prelude::*;
         (0..self.len())
             .into_par_iter()
-            .map(|i| graviplex_engine::renderer::Instance {
+            .map(|i| graviplex::renderer::Instance {
                 position: [self.px[i] as f32, self.py[i] as f32],
                 radius: self.radii[i] as f32,
                 color: self.colors[i],

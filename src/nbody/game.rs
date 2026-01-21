@@ -1,6 +1,4 @@
-//! NBodyGame - Implements GameLoop for the n-body simulation
-
-use graviplex_engine::{Camera2D, GameLoop, GpuContext, InputState};
+use graviplex::{include_wgsl, Camera2D, GameLoop, GpuContext, InputState, RenderPipeline, Vertex};
 
 use crate::nbody::GpuEngine;
 
@@ -8,6 +6,7 @@ use crate::nbody::GpuEngine;
 pub struct NBodyGame {
     pub particle_count: u32,
     pub gpu_engine: Option<GpuEngine>,
+    pub pipeline: Option<RenderPipeline>,
     pub gravity: f32,
     pub theta: f32,
     pub show_quadtree: bool,
@@ -19,6 +18,7 @@ impl NBodyGame {
         Self {
             particle_count,
             gpu_engine: None,
+            pipeline: None,
             gravity: 500.0,
             theta: 0.5,
             show_quadtree: false,
@@ -31,6 +31,16 @@ impl GameLoop for NBodyGame {
         let engine = GpuEngine::new(&gpu.device, &gpu.queue, self.particle_count);
         engine.init(&gpu.queue);
         self.gpu_engine = Some(engine);
+
+        let format = gpu.config.as_ref().unwrap().format;
+        self.pipeline = Some(RenderPipeline::new(
+            "Circle Shader",
+            include_wgsl!("../../graviplex/src/shaders/circle_shader.wgsl"),
+            &gpu.device,
+            format,
+            // Camera doesn't matter here for layout
+            &Camera2D::new([0.0, 0.0], 1.0, [1.0, 1.0]),
+        ));
     }
 
     fn update(&mut self, dt: f32, gpu: &GpuContext) {
@@ -39,9 +49,25 @@ impl GameLoop for NBodyGame {
         }
     }
 
-    fn render(&mut self, _gpu: &GpuContext, _view: &wgpu::TextureView, _camera: &Camera2D) {
-        // Particles are rendered via instance_buffer
-        // Additional rendering (quadtree lines) can be added here
+    fn render(&mut self, gpu: &GpuContext, view: &wgpu::TextureView, camera: &Camera2D) {
+        if let (Some(engine), Some(pipeline)) = (&self.gpu_engine, &self.pipeline) {
+            let vertices = vec![
+                Vertex { pos: [0.0, 5.0] },
+                Vertex { pos: [4.33, -2.5] },
+                Vertex { pos: [-4.33, -2.5] },
+            ];
+
+            pipeline.camera_gpu_data().update(&gpu.queue, camera);
+
+            pipeline.render(
+                &gpu.device,
+                &gpu.queue,
+                view,
+                &vertices,
+                self.particle_count,
+                Some(&engine.particle_buffer),
+            );
+        }
     }
 
     fn handle_input(&mut self, _input: &InputState, _camera: &Camera2D) -> bool {
@@ -64,13 +90,5 @@ impl GameLoop for NBodyGame {
                 ui.heading("Debug");
                 ui.checkbox(&mut self.show_quadtree, "Show Quadtree");
             });
-    }
-
-    fn instance_count(&self) -> u32 {
-        self.particle_count
-    }
-
-    fn instance_buffer(&self) -> Option<&wgpu::Buffer> {
-        self.gpu_engine.as_ref().map(|e| &e.particle_buffer)
     }
 }

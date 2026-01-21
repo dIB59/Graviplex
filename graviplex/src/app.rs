@@ -1,7 +1,6 @@
 //! Generic App struct that runs games implementing GameLoop
 
 use std::sync::Arc;
-use wgpu::include_wgsl;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -11,9 +10,7 @@ use crate::core::time::Time;
 use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
-use crate::renderer::{
-    Camera2D, CameraController, GpuContext, LinePipeline, RenderPipeline, Vertex,
-};
+use crate::renderer::{Camera2D, CameraController, GpuContext};
 use crate::GameLoop;
 
 /// The main application struct that manages the game loop.
@@ -23,8 +20,6 @@ pub struct App<T: GameLoop> {
     game: T,
     window: Option<Arc<Window>>,
     gpu: GpuContext,
-    pipeline: Option<RenderPipeline>,
-    line_pipeline: Option<LinePipeline>,
     camera: Camera2D,
     camera_controller: CameraController,
     time: Time,
@@ -40,8 +35,6 @@ impl<T: GameLoop> App<T> {
             game,
             window: None,
             gpu: GpuContext::new(),
-            pipeline: None,
-            line_pipeline: None,
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
@@ -64,22 +57,12 @@ impl<T: GameLoop> App<T> {
     fn render_frame(&mut self) {
         self.time.update();
 
-        if self.camera_controller.update_movement(
+        // Update camera
+        self.camera_controller.update_movement(
             &mut self.camera,
             self.time.delta(),
             self.input.pressed_keys(),
-        ) {
-            if let Some(pipeline) = &self.pipeline {
-                pipeline
-                    .camera_gpu_data()
-                    .update(&self.gpu.queue, &self.camera);
-            }
-            if let Some(line_pipeline) = &self.line_pipeline {
-                line_pipeline
-                    .camera_gpu_data()
-                    .update(&self.gpu.queue, &self.camera);
-            }
-        }
+        );
 
         // Let game handle input
         self.game.handle_input(&self.input, &self.camera);
@@ -87,29 +70,10 @@ impl<T: GameLoop> App<T> {
         // Update game
         self.game.update(self.time.delta() as f32, &self.gpu);
 
-        let vertices = vec![
-            Vertex { pos: [0.0, 5.0] },
-            Vertex { pos: [4.33, -2.5] },
-            Vertex { pos: [-4.33, -2.5] },
-        ];
-
         if let Ok(frame) = self.gpu.get_current_frame() {
             let view = frame.texture.create_view(&Default::default());
 
-            // Render particles via the game's instance buffer
-            if let Some(pipeline) = &self.pipeline {
-                let ext_buffer = self.game.instance_buffer();
-                pipeline.render(
-                    &self.gpu.device,
-                    &self.gpu.queue,
-                    &view,
-                    &vertices,
-                    self.game.instance_count(),
-                    ext_buffer,
-                );
-            }
-
-            // Let game render additional content
+            // Let game render its content
             self.game.render(&self.gpu, &view, &self.camera);
 
             // Render GUI
@@ -160,7 +124,7 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         if self.window.is_none() {
             let window = Arc::new(
                 event_loop
-                    .create_window(Window::default_attributes().with_title("Graviplex Engine"))
+                    .create_window(Window::default_attributes().with_title("Graviplex"))
                     .expect("Unable to create window"),
             );
 
@@ -175,22 +139,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
                 .as_ref()
                 .expect("Unable to get TextureFormat")
                 .format;
-
-            self.pipeline = Some(RenderPipeline::new(
-                "Circle Shader",
-                include_wgsl!("shaders/circle_shader.wgsl"),
-                &self.gpu.device,
-                format,
-                &self.camera,
-            ));
-
-            self.line_pipeline = Some(LinePipeline::new(
-                "Lines",
-                include_wgsl!("shaders/line_shader.wgsl"),
-                &self.gpu.device,
-                format,
-                &self.camera,
-            ));
 
             let mut gui = Gui::new(event_loop);
             let initial_output = gui.run_empty(&window);
@@ -226,16 +174,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             WindowEvent::Resized(size) => {
                 self.gpu.resize(size.width, size.height);
                 self.camera.screen_size = [size.width as f32, size.height as f32];
-                if let Some(pipeline) = &self.pipeline {
-                    pipeline
-                        .camera_gpu_data()
-                        .update(&self.gpu.queue, &self.camera);
-                }
-                if let Some(line_pipeline) = &self.line_pipeline {
-                    line_pipeline
-                        .camera_gpu_data()
-                        .update(&self.gpu.queue, &self.camera);
-                }
             }
 
             WindowEvent::RedrawRequested => self.render_frame(),
@@ -253,21 +191,8 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                if self
-                    .camera_controller
-                    .handle_scroll(&mut self.camera, delta)
-                {
-                    if let Some(pipeline) = &self.pipeline {
-                        pipeline
-                            .camera_gpu_data()
-                            .update(&self.gpu.queue, &self.camera);
-                    }
-                    if let Some(line_pipeline) = &self.line_pipeline {
-                        line_pipeline
-                            .camera_gpu_data()
-                            .update(&self.gpu.queue, &self.camera);
-                    }
-                }
+                self.camera_controller
+                    .handle_scroll(&mut self.camera, delta);
             }
 
             _ => (),

@@ -23,3 +23,9 @@ pub use input::InputState;
 pub use renderer::{
     Camera2D, CameraController, GpuContext, LineInstance, LinePipeline, RenderPipeline, Vertex,
 };
+
+// Re-export dependencies for convenience
+pub use egui;
+pub use wgpu;
+pub use wgpu::include_wgsl;
+pub use winit;

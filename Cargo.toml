@@ -1,5 +1,27 @@
+[package]
+name = "graviplex-sim"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+graviplex = { workspace = true }
+bytemuck = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+egui = { workspace = true }
+egui-winit = { workspace = true }
+ultraviolet = { workspace = true }
+rand = { workspace = true }
+rayon = { workspace = true }
+pollster = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
 [workspace]
-members = ["crates/graviplex-engine", "crates/graviplex"]
+members = ["graviplex"]
 resolver = "2"
 
 [workspace.package]
@@ -28,4 +50,4 @@ log = "0.4.22"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Internal
-graviplex-engine = { path = "crates/graviplex-engine" }
+graviplex = { path = "graviplex" }

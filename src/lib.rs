@@ -4,4 +4,4 @@
 
 pub mod nbody;
 
-pub use nbody::{GpuEngine, NBodyGame};
+pub use nbody::*;
