@@ -21,7 +21,8 @@ pub use game_loop::GameLoop;
 pub use gui::{gui_renderer::UiPipeline, Gui};
 pub use input::InputState;
 pub use renderer::{
-    Camera2D, CameraController, GpuContext, LineInstance, LinePipeline, RenderPipeline, Vertex,
+    Camera2D, CameraController, CameraGpuData, CircleInstance, CirclePipeline, GpuContext,
+    LineInstance, LinePipeline, PhysicsInstance, RenderPipeline, Vertex,
 };
 
 // Re-export dependencies for convenience

@@ -20,7 +20,28 @@ impl Vertex {
 
 #[repr(C)]
 #[derive(Copy, Clone, NoUninit, Debug)]
-pub struct Instance {
+pub struct CircleInstance {
+    pub position: [f32; 2],
+    pub radius: f32,
+    pub color: [f32; 4],
+}
+
+impl CircleInstance {
+    const ATTRIBS: [wgpu::VertexAttribute; 3] =
+        wgpu::vertex_attr_array!(1 => Float32x2, 2 => Float32, 3 => Float32x4);
+
+    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<CircleInstance>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &Self::ATTRIBS,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, NoUninit, Debug)]
+pub struct PhysicsInstance {
     pub position: [f32; 2],
     pub radius: f32,
     pub color: [u8; 4],
@@ -30,13 +51,13 @@ pub struct Instance {
     pub id: u32,
 }
 
-impl Instance {
+impl PhysicsInstance {
     const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![1 => Float32x2, 2 => Float32, 3 => Unorm8x4];
+        wgpu::vertex_attr_array!(1 => Float32x2, 2 => Float32, 3 => Unorm8x4);
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: 32, // Stride for GpuParticle/Instance with physics data
+            array_stride: 32, // Stride for GpuParticle/PhysicsInstance
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
         }
