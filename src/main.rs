@@ -1,17 +1,10 @@
-use crate::app::App;
-use winit::error::EventLoopError;
-use winit::event_loop::{ControlFlow, EventLoop};
+//! Graviplex - N-Body Simulation Binary
 
-pub mod app;
-pub mod core;
-pub mod gui;
-pub mod input;
-pub mod renderer;
-pub mod simulation;
+use graviplex::App;
+use graviplex_sim::NBodyGame;
 
-fn main() -> Result<(), EventLoopError> {
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
-    let mut app = App::default();
-    event_loop.run_app(&mut app)
+fn main() -> Result<(), winit::error::EventLoopError> {
+    // 1M particles (1 << 20)
+    let game = NBodyGame::new(1 << 20);
+    App::new(game).run()
 }

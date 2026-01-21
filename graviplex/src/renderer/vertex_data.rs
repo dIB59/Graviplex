@@ -1,4 +1,3 @@
-use crate::simulation::Body;
 use bytemuck::NoUninit;
 
 #[repr(C)]
@@ -25,6 +24,10 @@ pub struct Instance {
     pub position: [f32; 2],
     pub radius: f32,
     pub color: [u8; 4],
+    // Physics data (renderer ignores this but keeps stride aligned with GpuParticle)
+    pub velocity: [f32; 2],
+    pub mass: f32,
+    pub id: u32,
 }
 
 impl Instance {
@@ -33,19 +36,9 @@ impl Instance {
 
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Instance>() as wgpu::BufferAddress,
+            array_stride: 32, // Stride for GpuParticle/Instance with physics data
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-impl From<&Body> for Instance {
-    fn from(body: &Body) -> Self {
-        Instance {
-            color: body.color,
-            position: [body.position[0] as f32, body.position[1] as f32],
-            radius: body.radius as f32,
         }
     }
 }

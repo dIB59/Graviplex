@@ -159,23 +159,20 @@ impl UiPipeline {
         &mut self,
         encoder: &mut CommandEncoder,
         dst: &TextureView,
-        vertices: &[egui::epaint::Vertex],
-        indices: &[u32],
         primitives: &[ClippedPrimitive],
         screensize: [f32; 2],
         pixels_per_point: f32,
     ) {
-        log::debug!("=== RENDER CALL ===");
-        log::debug!(
-            "Vertices: {}, Indices: {}, Primitives: {}",
-            vertices.len(),
-            indices.len(),
-            primitives.len()
-        );
-        log::debug!("Screen size: {:?}", screensize);
+        let (mut vertices, mut indices) = (vec![], vec![]);
+        for p in primitives {
+            if let Primitive::Mesh(ref m) = p.primitive {
+                let base = vertices.len() as u32;
+                vertices.extend_from_slice(&m.vertices);
+                indices.extend(m.indices.iter().map(|i| base + i));
+            }
+        }
 
         if vertices.is_empty() || indices.is_empty() {
-            log::warn!("Skipping render - no geometry");
             return;
         }
 
@@ -187,7 +184,7 @@ impl UiPipeline {
         };
         self.queue.write_buffer(&self.vtx_buf, 0, vtx_bytes);
         self.queue
-            .write_buffer(&self.idx_buf, 0, bytemuck::cast_slice(indices));
+            .write_buffer(&self.idx_buf, 0, bytemuck::cast_slice(&indices));
 
         let logical_size = [
             screensize[0] / pixels_per_point,
