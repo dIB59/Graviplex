@@ -55,6 +55,10 @@ impl<T: GameLoop> App<T> {
     }
 
     fn render_frame(&mut self) {
+        if self.window.is_none() {
+            return;
+        }
+
         self.time.update();
 
         // Update camera
@@ -70,88 +74,86 @@ impl<T: GameLoop> App<T> {
         // Update game
         self.game.update(self.time.delta() as f32, &self.gpu);
 
-        if let Ok(frame) = self.gpu.get_current_frame() {
-            let view = frame.texture.create_view(&Default::default());
+        let Ok(frame) = self.gpu.get_current_frame() else {
+            return;
+        };
+        let view = frame.texture.create_view(&Default::default());
 
-            // Let game render its content
-            self.game.render(&self.gpu, &view, &self.camera);
+        // Let game render its content
+        self.game.render(&self.gpu, &view, &self.camera);
 
-            // Render GUI
-            if let Some(ui_renderer) = &mut self.gui_renderer {
-                if let Some(gui) = &mut self.gui {
-                    // Let game add GUI elements
-                    gui.begin_frame(self.window.as_ref().unwrap());
-                    self.game.gui(gui.ctx());
-                    let full = gui.end_frame(self.time.fps());
+        // Render GUI
+        self.render_gui(&view);
 
-                    ui_renderer.handle_textures(full.textures_delta);
-                    let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
+        frame.present();
+    }
 
-                    let (mut vtx, mut idx) = (vec![], vec![]);
-                    for p in &primitives {
-                        if let egui::epaint::Primitive::Mesh(ref m) = p.primitive {
-                            let base = vtx.len() as u32;
-                            vtx.extend_from_slice(&m.vertices);
-                            idx.extend(m.indices.iter().map(|i| base + i));
-                        }
-                    }
+    fn render_gui(&mut self, view: &wgpu::TextureView) {
+        let (Some(window), Some(ui_renderer), Some(gui)) =
+            (&self.window, &mut self.gui_renderer, &mut self.gui)
+        else {
+            return;
+        };
 
-                    let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
-                    let window = self.window.as_ref().unwrap();
-                    let size = window.inner_size();
-                    let scale_factor = window.scale_factor();
+        // Let game add GUI elements
+        gui.begin_frame(window);
+        self.game.gui(gui.ctx());
+        let full = gui.end_frame(self.time.fps());
 
-                    let physical_size = [size.width as f32, size.height as f32];
-                    ui_renderer.render(
-                        &mut encoder,
-                        &view,
-                        &vtx,
-                        &idx,
-                        &primitives,
-                        physical_size,
-                        scale_factor as f32,
-                    );
-                    self.gpu.queue.submit(std::iter::once(encoder.finish()));
-                }
-            }
-            frame.present();
-        }
+        ui_renderer.handle_textures(full.textures_delta);
+        let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
+
+        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let size = window.inner_size();
+        let scale_factor = window.scale_factor();
+
+        let physical_size = [size.width as f32, size.height as f32];
+        ui_renderer.render(
+            &mut encoder,
+            view,
+            &primitives,
+            physical_size,
+            scale_factor as f32,
+        );
+        self.gpu.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 
 impl<T: GameLoop> ApplicationHandler for App<T> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
-            let window = Arc::new(
-                event_loop
-                    .create_window(Window::default_attributes().with_title("Graviplex"))
-                    .expect("Unable to create window"),
-            );
-
-            self.gpu.init_surface(window.clone());
-
-            let size = window.inner_size();
-            self.camera.screen_size = [size.width as f32, size.height as f32];
-
-            let format = self
-                .gpu
-                .config
-                .as_ref()
-                .expect("Unable to get TextureFormat")
-                .format;
-
-            let mut gui = Gui::new(event_loop);
-            let initial_output = gui.run_empty(&window);
-            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
-            ui_pipeline.handle_textures(initial_output.textures_delta);
-
-            // Initialize game
-            self.game.init(&self.gpu);
-
-            self.window = Some(window);
-            self.gui = Some(gui);
-            self.gui_renderer = Some(ui_pipeline);
+        if self.window.is_some() {
+            return;
         }
+
+        let window = Arc::new(
+            event_loop
+                .create_window(Window::default_attributes().with_title("Graviplex"))
+                .expect("Unable to create window"),
+        );
+
+        self.gpu.init_surface(window.clone());
+
+        let size = window.inner_size();
+        self.camera.screen_size = [size.width as f32, size.height as f32];
+
+        let format = self
+            .gpu
+            .config
+            .as_ref()
+            .expect("Unable to get TextureFormat")
+            .format;
+
+        let mut gui = Gui::new(event_loop);
+        let initial_output = gui.run_empty(&window);
+        let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
+        ui_pipeline.handle_textures(initial_output.textures_delta);
+
+        // Initialize game
+        self.game.init(&self.gpu);
+
+        self.window = Some(window);
+        self.gui = Some(gui);
+        self.gui_renderer = Some(ui_pipeline);
     }
 
     fn window_event(
@@ -160,14 +162,13 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(gui) = &mut self.gui {
-            if let Some(window) = &self.window {
-                let response = gui.handle_event(window, &event);
-                if response.consumed {
-                    return;
-                }
+        // Let GUI handle event first
+        if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
+            if gui.handle_event(window, &event).consumed {
+                return;
             }
         }
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
 
