@@ -40,8 +40,8 @@ fn init_particles(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if i >= params.num_particles { return; }
 
     let seed = params.seed + i;
-    // Spread out more: radius up to 1800
-    let r = sqrt(rand_f32(seed)) * 100000.0;
+    // Spread out for 256K+ particles: radius up to 400,000
+    let r = sqrt(rand_f32(seed)) * 400000.0;
     let theta = rand_f32(seed + 1000000u) * 6.2831853;
 
     let pos = vec2<f32>(r * cos(theta), r * sin(theta));

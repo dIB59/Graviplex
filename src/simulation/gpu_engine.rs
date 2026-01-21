@@ -580,12 +580,12 @@ impl GpuEngine {
         };
         queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 
-        // Initialize bounds with large values
+        // Initialize bounds with large values (slightly larger than max spawn radius of 400K)
         let initial_bounds = Bounds {
-            min_x: -100000.0,
-            min_y: -100000.0,
-            max_x: 100000.0,
-            max_y: 100000.0,
+            min_x: -1000000.0,
+            min_y: -1000000.0,
+            max_x: 1000000.0,
+            max_y: 1000000.0,
         };
         queue.write_buffer(&self.bounds_buffer, 0, bytemuck::bytes_of(&initial_bounds));
 
