@@ -90,7 +90,13 @@ pub struct GpuEngine {
 
     // Morton tree pipelines
     pub compute_morton_pipeline: ComputePipeline,
+    pub bitonic_local_pipeline: ComputePipeline,
+    pub bitonic_merge_pipeline: ComputePipeline,
+    pub bitonic_final_pipeline: ComputePipeline,
     pub build_tree_pipeline: ComputePipeline,
+    pub assign_particles_pipeline: ComputePipeline,
+    pub count_particles_pipeline: ComputePipeline,
+    pub propagate_counts_pipeline: ComputePipeline,
     pub compute_com_pipeline: ComputePipeline,
     pub barnes_hut_pipeline: ComputePipeline,
     pub integrate_pipeline: ComputePipeline,
@@ -434,6 +440,34 @@ impl GpuEngine {
             compilation_options: Default::default(),
         });
 
+        // Bitonic sort pipelines
+        let bitonic_local_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Bitonic Local Sort Pipeline"),
+            layout: Some(&tree_pipeline_layout),
+            module: &morton_shader,
+            entry_point: Some("bitonic_sort_local"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let bitonic_merge_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Bitonic Merge Pipeline"),
+            layout: Some(&tree_pipeline_layout),
+            module: &morton_shader,
+            entry_point: Some("bitonic_merge_global"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let bitonic_final_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Bitonic Final Merge Pipeline"),
+            layout: Some(&tree_pipeline_layout),
+            module: &morton_shader,
+            entry_point: Some("bitonic_final_merge"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
         let build_tree_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Build Tree Pipeline"),
             layout: Some(&tree_pipeline_layout),
@@ -442,6 +476,35 @@ impl GpuEngine {
             cache: None,
             compilation_options: Default::default(),
         });
+
+        let assign_particles_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("Assign Particles Pipeline"),
+                layout: Some(&tree_pipeline_layout),
+                module: &morton_shader,
+                entry_point: Some("assign_particles_to_nodes"),
+                cache: None,
+                compilation_options: Default::default(),
+            });
+
+        let count_particles_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Count Particles Pipeline"),
+            layout: Some(&tree_pipeline_layout),
+            module: &morton_shader,
+            entry_point: Some("count_particles_in_nodes"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
+        let propagate_counts_pipeline =
+            device.create_compute_pipeline(&ComputePipelineDescriptor {
+                label: Some("Propagate Counts Pipeline"),
+                layout: Some(&tree_pipeline_layout),
+                module: &morton_shader,
+                entry_point: Some("propagate_particle_counts"),
+                cache: None,
+                compilation_options: Default::default(),
+            });
 
         let compute_com_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Compute CoM Pipeline"),
@@ -482,7 +545,13 @@ impl GpuEngine {
             resolve_collisions_pipeline,
             init_pipeline,
             compute_morton_pipeline,
+            bitonic_local_pipeline,
+            bitonic_merge_pipeline,
+            bitonic_final_pipeline,
             build_tree_pipeline,
+            assign_particles_pipeline,
+            count_particles_pipeline,
+            propagate_counts_pipeline,
             compute_com_pipeline,
             barnes_hut_pipeline,
             integrate_pipeline,
@@ -586,15 +655,28 @@ impl GpuEngine {
         gravity: f32,
         theta: f32,
     ) {
+        // Full GPU Barnes-Hut pipeline:
+        // 1. Compute Morton codes for all particles
+        // 2. Bitonic sort particles by Morton code
+        // 3. Build tree structure on GPU
+        // 4. Assign particles to leaf nodes
+        // 5. Propagate particle counts up the tree
+        // 6. Compute centers of mass (bottom-up)
+        // 7. Barnes-Hut gravity calculation
+        // 8. Integrate positions
+
+        let max_depth: u32 = 4; // Tree depth (256 leaf nodes)
+        let total_nodes = (4u32.pow(max_depth + 1) - 1) / 3;
+
         // Update tree params
         let tree_params = TreeParams {
             num_particles: self.num_particles,
-            num_nodes: self.max_nodes,
+            num_nodes: total_nodes.min(self.max_nodes),
             theta_sq: theta * theta,
-            epsilon_sq: 1.0, // Softening factor
+            epsilon_sq: 1.0,
             gravity,
             dt,
-            max_level: 16, // Max tree depth
+            max_level: max_depth,
             _padding: 0,
         };
         queue.write_buffer(
@@ -604,13 +686,15 @@ impl GpuEngine {
         );
 
         let workgroups = (self.num_particles + 255) / 256;
-        let node_workgroups = (self.max_nodes + 255) / 256;
+        let node_workgroups = (total_nodes.min(self.max_nodes) + 255) / 256;
 
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Morton Tree Encoder"),
         });
 
+        // ================================================================
         // Pass 1: Compute Morton codes
+        // ================================================================
         {
             let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Compute Morton Pass"),
@@ -622,36 +706,245 @@ impl GpuEngine {
             cpass.dispatch_workgroups(workgroups, 1, 1);
         }
 
-        // Note: For a complete implementation, we would need to:
-        // 1. Run radix sort passes here (multiple passes)
-        // 2. Build tree hierarchy from sorted Morton codes
-        // For now, we skip sorting and build a simple tree
+        // Submit Morton computation before sorting
+        queue.submit(std::iter::once(encoder.finish()));
 
-        // Pass 2: Build tree (simplified - treats all particles as one node initially)
+        // ================================================================
+        // Pass 2: Bitonic Sort
+        // ================================================================
+        // Phase 2a: Local sort within workgroups (256 elements each)
         {
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Build Tree Pass"),
-                timestamp_writes: None,
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Bitonic Local Sort Encoder"),
             });
-            cpass.set_pipeline(&self.build_tree_pipeline);
-            cpass.set_bind_group(0, &self.tree_bind_group, &[]);
-            cpass.set_bind_group(1, &self.sort_bind_group, &[]);
-            cpass.dispatch_workgroups(node_workgroups, 1, 1);
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Bitonic Local Sort Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.bitonic_local_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
         }
 
-        // Pass 3: Compute centers of mass
-        {
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Compute CoM Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.compute_com_pipeline);
-            cpass.set_bind_group(0, &self.tree_bind_group, &[]);
-            cpass.set_bind_group(1, &self.sort_bind_group, &[]);
-            cpass.dispatch_workgroups(node_workgroups, 1, 1);
+        // Phase 2b: Global merge passes
+        // After local sort, we have sorted blocks of 256 elements
+        // We need to merge them: block sizes 512, 1024, 2048, ... up to N
+        let num_particles_pow2 = self.num_particles.next_power_of_two();
+        let local_sorted_block_size = 256u32;
+
+        // Start from the block size after local sort
+        let mut block_size = local_sorted_block_size * 2;
+        while block_size <= num_particles_pow2 {
+            // For each block size, we have multiple steps
+            let mut step_size = block_size;
+            while step_size > 1 {
+                step_size /= 2;
+
+                // Write sort parameters to histogram buffer
+                let sort_params: [u32; 2] = [block_size, step_size * 2];
+                queue.write_buffer(
+                    &self.histogram_buffer,
+                    0,
+                    bytemuck::cast_slice(&sort_params),
+                );
+
+                let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                    label: Some("Bitonic Merge Encoder"),
+                });
+                {
+                    let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                        label: Some("Bitonic Merge Pass"),
+                        timestamp_writes: None,
+                    });
+                    cpass.set_pipeline(&self.bitonic_merge_pipeline);
+                    cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                    cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                    cpass.dispatch_workgroups(workgroups, 1, 1);
+                }
+                queue.submit(std::iter::once(encoder.finish()));
+            }
+            block_size *= 2;
         }
 
-        // Pass 4: Barnes-Hut gravity calculation
+        // Phase 2c: Final ascending sort pass
+        // Ensure fully sorted in ascending order
+        let mut step_size = num_particles_pow2;
+        while step_size > 1 {
+            step_size /= 2;
+
+            let sort_params: [u32; 2] = [num_particles_pow2, step_size * 2];
+            queue.write_buffer(
+                &self.histogram_buffer,
+                0,
+                bytemuck::cast_slice(&sort_params),
+            );
+
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Bitonic Final Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Bitonic Final Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.bitonic_final_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // ================================================================
+        // Pass 3: Build tree structure
+        // ================================================================
+        {
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Build Tree Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Build Tree Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.build_tree_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(node_workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // ================================================================
+        // Pass 4: Assign particles to leaf nodes (set particle_start)
+        // ================================================================
+        {
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Assign Particles Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Assign Particles Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.assign_particles_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // ================================================================
+        // Pass 5: Count particles in leaf nodes (set particle_count)
+        // This must run AFTER assign_particles to avoid race condition
+        // ================================================================
+        {
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Count Particles Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Count Particles Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.count_particles_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // ================================================================
+        // Pass 6: Propagate particle counts up the tree (bottom-up)
+        // ================================================================
+        for level in (0..max_depth).rev() {
+            let level_tree_params = TreeParams {
+                num_particles: self.num_particles,
+                num_nodes: total_nodes.min(self.max_nodes),
+                theta_sq: theta * theta,
+                epsilon_sq: 1.0,
+                gravity,
+                dt,
+                max_level: level,
+                _padding: 0,
+            };
+            queue.write_buffer(
+                &self.tree_params_buffer,
+                0,
+                bytemuck::bytes_of(&level_tree_params),
+            );
+
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Propagate Counts Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Propagate Counts Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.propagate_counts_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(node_workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // ================================================================
+        // Pass 6: Compute centers of mass (bottom-up)
+        // ================================================================
+        for level in (0..=max_depth).rev() {
+            let level_tree_params = TreeParams {
+                num_particles: self.num_particles,
+                num_nodes: total_nodes.min(self.max_nodes),
+                theta_sq: theta * theta,
+                epsilon_sq: 1.0,
+                gravity,
+                dt,
+                max_level: level,
+                _padding: 0,
+            };
+            queue.write_buffer(
+                &self.tree_params_buffer,
+                0,
+                bytemuck::bytes_of(&level_tree_params),
+            );
+
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Compute CoM Encoder"),
+            });
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Compute CoM Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.compute_com_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
+                cpass.dispatch_workgroups(node_workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // Restore tree params for Barnes-Hut
+        queue.write_buffer(
+            &self.tree_params_buffer,
+            0,
+            bytemuck::bytes_of(&tree_params),
+        );
+
+        // ================================================================
+        // Pass 7: Barnes-Hut gravity calculation
+        // ================================================================
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Barnes-Hut Encoder"),
+        });
         {
             let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Barnes-Hut Pass"),
@@ -663,7 +956,9 @@ impl GpuEngine {
             cpass.dispatch_workgroups(workgroups, 1, 1);
         }
 
-        // Pass 5: Integrate (update positions)
+        // ================================================================
+        // Pass 8: Integrate (update positions)
+        // ================================================================
         {
             let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Integrate Pass"),
@@ -675,7 +970,12 @@ impl GpuEngine {
             cpass.dispatch_workgroups(workgroups, 1, 1);
         }
 
-        // Pass 6: Collisions (still brute force for now)
+        queue.submit(std::iter::once(encoder.finish()));
+
+        // ================================================================
+        // Pass 9: Collision detection (brute-force O(N²))
+        // Note: This is expensive for large N, but necessary for collision response
+        // ================================================================
         {
             let params = GpuParams {
                 dt,
@@ -685,18 +985,20 @@ impl GpuEngine {
                 _padding: [0; 60],
             };
             queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
-        }
 
-        {
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Collision Pass"),
-                timestamp_writes: None,
+            let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Collision Encoder"),
             });
-            cpass.set_pipeline(&self.resolve_collisions_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[0]);
-            cpass.dispatch_workgroups(workgroups, 1, 1);
+            {
+                let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Collision Pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.resolve_collisions_pipeline);
+                cpass.set_bind_group(0, &self.bind_group, &[0]);
+                cpass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            queue.submit(std::iter::once(encoder.finish()));
         }
-
-        queue.submit(std::iter::once(encoder.finish()));
     }
 }

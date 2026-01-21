@@ -178,100 +178,345 @@ fn compute_morton(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 // ============================================================================
-// Pass 3: Radix Sort (Per-digit histogram and scatter)
+// Pass 3: Bitonic Sort
+// ============================================================================
+// Bitonic sort is ideal for GPUs:
+// - Completely data-parallel (no atomics needed)
+// - Fixed comparison pattern (no data-dependent branches)
+// - O(N log²N) comparisons, fully parallelizable
+//
+// The sort is performed in two phases:
+// 1. Local sort: Each workgroup sorts 256 elements using shared memory
+// 2. Global merge: Multiple passes merge sorted blocks into larger sorted blocks
 // ============================================================================
 
-// Sort configuration
-const RADIX_BITS: u32 = 4u;
-const RADIX_SIZE: u32 = 16u; // 2^4
+const WORKGROUP_SIZE: u32 = 256u;
 
-// Note: For proper radix sort, histograms would need atomic<u32> type.
-// For now, these are simplified stubs until sorting is fully wired up.
+// Shared memory for local bitonic sort
+var<workgroup> local_morton: array<MortonEntry, 256>;
 
-// Build histogram for current radix digit
-// Note: This is a placeholder. Full implementation needs atomic histogram.
+/// Compare and swap two Morton entries based on sort direction
+fn compare_and_swap(a: ptr<function, MortonEntry>, b: ptr<function, MortonEntry>, ascending: bool) {
+    let should_swap = select((*a).key < (*b).key, (*a).key > (*b).key, ascending);
+    if should_swap {
+        let temp = *a;
+        *a = *b;
+        *b = temp;
+    }
+}
+
+// ============================================================================
+// Local Bitonic Sort (within workgroup using shared memory)
+// ============================================================================
 @compute @workgroup_size(256)
-fn sort_histogram(@builtin(global_invocation_id) global_id: vec3<u32>,
+fn bitonic_sort_local(@builtin(global_invocation_id) global_id: vec3<u32>,
     @builtin(local_invocation_id) local_id: vec3<u32>,
     @builtin(workgroup_id) wg_id: vec3<u32>) {
-    // Placeholder - actual radix sort requires atomic operations
-    // For now, particles remain unsorted
+    let tid = local_id.x;
+    let gid = global_id.x;
+    
+    // Load into shared memory
+    if gid < params.num_particles {
+        local_morton[tid] = morton_entries[gid];
+    } else {
+        // Pad with max values for out-of-bounds
+        local_morton[tid] = MortonEntry(0xFFFFFFFFu, 0xFFFFFFFFu);
+    }
+    workgroupBarrier();
+    
+    // Bitonic sort within workgroup (256 elements = 8 stages)
+    // Stage k creates bitonic sequences of length 2^(k+1)
+    for (var k = 0u; k < 8u; k = k + 1u) {
+        let block_size = 1u << (k + 1u);
+        
+        // Within each stage, we have multiple steps
+        for (var j = k + 1u; j > 0u; j = j - 1u) {
+            let step_size = 1u << j;
+            let half_step = step_size >> 1u;
+            
+            // Determine partner for this thread
+            let pos_in_block = tid & (step_size - 1u);
+            let is_first_half = pos_in_block < half_step;
+
+            if is_first_half {
+                let partner = tid + half_step;
+                if partner < WORKGROUP_SIZE {
+                    // Determine sort direction based on position in larger block
+                    let block_idx = tid / block_size;
+                    let ascending = (block_idx & 1u) == 0u;
+
+                    var a = local_morton[tid];
+                    var b = local_morton[partner];
+
+                    let should_swap = select(a.key < b.key, a.key > b.key, ascending);
+                    if should_swap {
+                        local_morton[tid] = b;
+                        local_morton[partner] = a;
+                    }
+                }
+            }
+            workgroupBarrier();
+        }
+    }
+    
+    // Write back to global memory
+    if gid < params.num_particles {
+        morton_entries[gid] = local_morton[tid];
+    }
 }
 
-// Prefix sum on histograms (placeholder)
+// ============================================================================
+// Global Bitonic Merge (merges sorted blocks across workgroups)
+// Uses histograms buffer to pass stage/step parameters:
+// histograms[0] = block_size (2^k for stage k)
+// histograms[1] = step_size (2^j for step j within stage)
+// ============================================================================
 @compute @workgroup_size(256)
-fn sort_prefix_sum(@builtin(local_invocation_id) local_id: vec3<u32>) {
-    // Placeholder - actual implementation needs global prefix sum
+fn bitonic_merge_global(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let gid = global_id.x;
+    if gid >= params.num_particles { return; }
+    
+    // Read sort parameters from histograms buffer
+    let block_size = histograms[0];
+    let step_size = histograms[1];
+    let half_step = step_size >> 1u;
+    
+    // Determine position within step
+    let pos_in_step = gid & (step_size - 1u);
+    let is_first_half = pos_in_step < half_step;
+
+    if !is_first_half { return; } // Only first half of each pair does the compare-swap
+
+    let partner = gid + half_step;
+    if partner >= params.num_particles { return; }
+    
+    // Determine sort direction based on position in block
+    let block_idx = gid / block_size;
+    let ascending = (block_idx & 1u) == 0u;
+
+    let a = morton_entries[gid];
+    let b = morton_entries[partner];
+
+    let should_swap = select(a.key < b.key, a.key > b.key, ascending);
+    if should_swap {
+        morton_entries[gid] = b;
+        morton_entries[partner] = a;
+    }
 }
 
-// Scatter elements to sorted positions (placeholder)
+// ============================================================================
+// Final Ascending Sort Pass
+// After bitonic sort, we have alternating ascending/descending blocks.
+// This pass ensures everything is sorted ascending.
+// histograms[1] = step_size for this pass
+// ============================================================================
 @compute @workgroup_size(256)
-fn sort_scatter(@builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(workgroup_id) wg_id: vec3<u32>) {
-    // Placeholder - actual implementation needs atomic scatter
-}
-
-// Copy back from temp buffer
-@compute @workgroup_size(256)
-fn sort_copy_back(@builtin(global_invocation_id) global_id: vec3<u32>) {
+fn bitonic_final_merge(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gid = global_id.x;
     if gid >= params.num_particles { return; }
 
-    morton_entries[gid] = morton_temp[gid];
+    let step_size = histograms[1];
+    let half_step = step_size >> 1u;
+
+    let pos_in_step = gid & (step_size - 1u);
+    let is_first_half = pos_in_step < half_step;
+
+    if !is_first_half { return; }
+
+    let partner = gid + half_step;
+    if partner >= params.num_particles { return; }
+
+    let a = morton_entries[gid];
+    let b = morton_entries[partner];
+    
+    // Always sort ascending in final pass
+    if a.key > b.key {
+        morton_entries[gid] = b;
+        morton_entries[partner] = a;
+    }
 }
 
 // ============================================================================
-// Pass 4: Build Tree (Detect prefix changes)
+// Pass 4: Build Tree from Sorted Morton Codes
+// ============================================================================
+// After sorting, particles are spatially ordered by Morton code.
+// We build a fixed-depth quadtree where:
+// - Level 0: 1 root node covering all particles
+// - Level 1: 4 nodes (each covers 1/4 of space)
+// - Level 2: 16 nodes (each covers 1/16 of space)
+// - etc.
+//
+// Node assignment: A particle at sorted position p belongs to the leaf node
+// whose Morton prefix matches the particle's Morton code prefix at that level.
 // ============================================================================
 
+/// Get the quadrant (0-3) of a Morton code at a given level
+/// Level 0 = root, Level 1 = first subdivision, etc.
+fn get_quadrant_at_level(morton_code: u32, level: u32) -> u32 {
+    // Morton codes interleave x,y bits: yxyx...
+    // At level L, we look at bits (31 - 2*L) and (30 - 2*L)
+    // Level 1: bits 30,31 (top 2 bits)
+    // Level 2: bits 28,29
+    // etc.
+    if level == 0u { return 0u; }
+    let shift = 32u - (level * 2u);
+    return (morton_code >> shift) & 3u;
+}
+
+/// Get the node index for a particle based on its Morton code
+/// Uses complete quadtree indexing: children of node i are at 4i+1, 4i+2, 4i+3, 4i+4
+fn get_leaf_node_for_morton(morton_code: u32, max_level: u32) -> u32 {
+    var node_idx = 0u; // Start at root
+    for (var level = 1u; level <= max_level; level = level + 1u) {
+        let quadrant = get_quadrant_at_level(morton_code, level);
+        node_idx = 4u * node_idx + 1u + quadrant;
+    }
+    return node_idx;
+}
+
+// Initialize tree structure (run once before particle assignment)
 @compute @workgroup_size(256)
 fn build_tree(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let idx = global_id.x;
-    if idx >= params.num_nodes { return; }
+    let node_idx = global_id.x;
+    if node_idx >= params.num_nodes { return; }
     
-    // Initialize node
+    // Calculate level from node index using complete quadtree formula
+    // Level 0: node 0
+    // Level 1: nodes 1-4
+    // Level 2: nodes 5-20
+    // etc.
+    // Formula: level = floor(log4((3*idx + 1)))
+
+    var level = 0u;
+    var level_start = 0u;
+    var level_size = 1u;
+    
+    // Find which level this node belongs to
+    while level_start + level_size <= node_idx {
+        level_start = level_start + level_size;
+        level_size = level_size * 4u;
+        level = level + 1u;
+    }
+
     var node: TreeNode;
-    node.first_child = 0u;
-    node.particle_start = 0u;
-    node.particle_count = 0u;
-    node.level = 0u;
+    node.level = level;
     node.center_of_mass = vec2<f32>(0.0);
     node.total_mass = 0.0;
     node._padding = 0.0;
-
-    if idx == 0u {
-        // Root node contains all particles
-        node.particle_start = 0u;
-        node.particle_count = params.num_particles;
-        node.level = 0u;
+    
+    // Set up children pointers for non-leaf nodes
+    if level < params.max_level {
+        // Children are at 4*idx + 1, 4*idx + 2, 4*idx + 3, 4*idx + 4
+        node.first_child = 4u * node_idx + 1u;
+    } else {
+        // Leaf node
+        node.first_child = 0u;
     }
+    
+    // Particle assignment will be done in the next pass
+    node.particle_start = 0u;
+    node.particle_count = 0u;
 
-    tree_nodes[idx] = node;
+    tree_nodes[node_idx] = node;
 }
 
-// Build tree hierarchy by finding Morton code prefix boundaries
+// Assign particles to leaf nodes based on sorted Morton codes
+// This uses a boundary detection approach:
+// - First particle in each node sets particle_start
+// - We separately count particles after synchronization
 @compute @workgroup_size(256)
-fn build_tree_hierarchy(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let idx = global_id.x;
-    if idx >= params.num_particles { return; }
-    
-    // Each sorted particle marks where tree nodes begin
-    // Detect level changes based on common prefix with neighbors
+fn assign_particles_to_nodes(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let particle_sorted_idx = global_id.x;
+    if particle_sorted_idx >= params.num_particles { return; }
 
-    let my_key = morton_entries[idx].key;
+    let morton_code = morton_entries[particle_sorted_idx].key;
+    let leaf_node = get_leaf_node_for_morton(morton_code, params.max_level);
+
+    if leaf_node >= params.num_nodes { return; }
     
-    // Compare with previous key to find level boundaries
-    if idx > 0u {
-        let prev_key = morton_entries[idx - 1u].key;
-        let prefix_len = common_prefix_length(my_key, prev_key);
-        
-        // A shorter common prefix means we've crossed a node boundary
-        // We'll use this to populate tree structure in a subsequent pass
+    // Detect if this is the first particle in its node
+    var is_first_in_node = true;
+    if particle_sorted_idx > 0u {
+        let prev_morton = morton_entries[particle_sorted_idx - 1u].key;
+        let prev_node = get_leaf_node_for_morton(prev_morton, params.max_level);
+        is_first_in_node = (leaf_node != prev_node);
+    }
+    
+    // First particle in node sets particle_start
+    if is_first_in_node {
+        tree_nodes[leaf_node].particle_start = particle_sorted_idx;
+    }
+}
+
+// Second pass: count particles in each leaf node
+// Called AFTER assign_particles_to_nodes to avoid race
+@compute @workgroup_size(256)
+fn count_particles_in_nodes(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let particle_sorted_idx = global_id.x;
+    if particle_sorted_idx >= params.num_particles { return; }
+
+    let morton_code = morton_entries[particle_sorted_idx].key;
+    let leaf_node = get_leaf_node_for_morton(morton_code, params.max_level);
+
+    if leaf_node >= params.num_nodes { return; }
+    
+    // Detect if this is the last particle in its node
+    var is_last_in_node = true;
+    if particle_sorted_idx + 1u < params.num_particles {
+        let next_morton = morton_entries[particle_sorted_idx + 1u].key;
+        let next_node = get_leaf_node_for_morton(next_morton, params.max_level);
+        is_last_in_node = (leaf_node != next_node);
+    }
+    
+    // Last particle in node sets particle_count
+    if is_last_in_node {
+        let start = tree_nodes[leaf_node].particle_start;
+        tree_nodes[leaf_node].particle_count = particle_sorted_idx - start + 1u;
+    }
+}
+
+// Propagate particle counts up the tree (run level by level, bottom-up)
+// This computes particle_start and particle_count for internal nodes
+@compute @workgroup_size(256)
+fn propagate_particle_counts(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let node_idx = global_id.x;
+    if node_idx >= params.num_nodes { return; }
+
+    let node = tree_nodes[node_idx];
+    
+    // Only process nodes at the current level (set via params.max_level)
+    if node.level != params.max_level { return; }
+    
+    // Skip if this is a leaf node or has no children
+    if node.first_child == 0u { return; }
+    
+    // Aggregate from children
+    var min_start = 0xFFFFFFFFu;
+    var max_end = 0u;
+    var total_count = 0u;
+
+    for (var i = 0u; i < 4u; i = i + 1u) {
+        let child_idx = node.first_child + i;
+        if child_idx < params.num_nodes {
+            let child = tree_nodes[child_idx];
+            if child.particle_count > 0u {
+                min_start = min(min_start, child.particle_start);
+                max_end = max(max_end, child.particle_start + child.particle_count);
+                total_count = total_count + child.particle_count;
+            }
+        }
+    }
+
+    if total_count > 0u {
+        tree_nodes[node_idx].particle_start = min_start;
+        tree_nodes[node_idx].particle_count = total_count;
     }
 }
 
 // ============================================================================
 // Pass 5: Compute Centers of Mass (Bottom-up)
+// Called once per level, from max_level down to 0
+// params.max_level indicates which level we're currently processing
 // ============================================================================
 
 @compute @workgroup_size(256)
@@ -281,48 +526,50 @@ fn compute_center_of_mass(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var node = tree_nodes[node_idx];
     
-    // For leaf nodes, compute CoM directly from particles
-    if node.first_child == 0u && node.particle_count > 0u {
-        var total_mass = 0.0f;
-        var weighted_pos = vec2<f32>(0.0);
-
-        for (var i = 0u; i < node.particle_count; i = i + 1u) {
-            let sorted_idx = node.particle_start + i;
-            let particle_idx = morton_entries[sorted_idx].particle_idx;
-            let p = particles[particle_idx];
-
-            total_mass += p.mass;
-            weighted_pos += p.position * p.mass;
-        }
-
-        if total_mass > 0.0 {
-            node.center_of_mass = weighted_pos / total_mass;
-        }
-        node.total_mass = total_mass;
-        tree_nodes[node_idx] = node;
-    }
-}
-
-// Propagate CoM up the tree (run multiple times for each level)
-@compute @workgroup_size(256)
-fn propagate_com_up(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let node_idx = global_id.x;
-    if node_idx >= params.num_nodes { return; }
-
-    var node = tree_nodes[node_idx];
+    // Only process nodes at the current level
+    if node.level != params.max_level { return; }
     
-    // Only process internal nodes at the current level
-    if node.first_child != 0u && node.level == params.max_level {
+    // Check if this is a leaf node (no children)
+    if node.first_child == 0u {
+        // Leaf node: compute CoM directly from particles
+        if node.particle_count > 0u {
+            var total_mass = 0.0f;
+            var weighted_pos = vec2<f32>(0.0);
+
+            // Limit iterations to prevent infinite loops
+            let max_particles = min(node.particle_count, 1024u);
+            for (var i = 0u; i < max_particles; i = i + 1u) {
+                let sorted_idx = node.particle_start + i;
+                if sorted_idx >= params.num_particles { break; }
+
+                let particle_idx = morton_entries[sorted_idx].particle_idx;
+                if particle_idx >= params.num_particles { continue; }
+
+                let p = particles[particle_idx];
+                total_mass += p.mass;
+                weighted_pos += p.position * p.mass;
+            }
+
+            if total_mass > 0.0 {
+                node.center_of_mass = weighted_pos / total_mass;
+            }
+            node.total_mass = total_mass;
+            tree_nodes[node_idx] = node;
+        }
+    } else {
+        // Internal node: aggregate from children
         var total_mass = 0.0f;
         var weighted_pos = vec2<f32>(0.0);
         
-        // Sum up children
+        // Sum up all 4 children
         for (var i = 0u; i < 4u; i = i + 1u) {
             let child_idx = node.first_child + i;
             if child_idx < params.num_nodes {
                 let child = tree_nodes[child_idx];
-                total_mass += child.total_mass;
-                weighted_pos += child.center_of_mass * child.total_mass;
+                if child.total_mass > 0.0 {
+                    total_mass += child.total_mass;
+                    weighted_pos += child.center_of_mass * child.total_mass;
+                }
             }
         }
 
