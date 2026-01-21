@@ -84,8 +84,7 @@ pub struct GpuEngine {
     pub tree_params_buffer: Buffer,
     pub histogram_buffer: Buffer,
 
-    // Original pipelines (for init and collisions)
-    pub resolve_collisions_pipeline: ComputePipeline,
+    // Original pipelines (for init)
     pub init_pipeline: ComputePipeline,
 
     // Morton tree pipelines
@@ -100,6 +99,7 @@ pub struct GpuEngine {
     pub compute_com_pipeline: ComputePipeline,
     pub barnes_hut_pipeline: ComputePipeline,
     pub integrate_pipeline: ComputePipeline,
+    pub tree_collisions_pipeline: ComputePipeline,
 
     // Bind groups
     bind_group: BindGroup,
@@ -411,15 +411,6 @@ impl GpuEngine {
         });
 
         // Original N-body pipelines
-        let resolve_collisions_pipeline =
-            device.create_compute_pipeline(&ComputePipelineDescriptor {
-                label: Some("Resolve Collisions Pipeline"),
-                layout: Some(&nbody_pipeline_layout),
-                module: &nbody_shader,
-                entry_point: Some("resolve_collisions"),
-                cache: None,
-                compilation_options: Default::default(),
-            });
 
         let init_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
             label: Some("Simulation Init Pipeline"),
@@ -533,6 +524,16 @@ impl GpuEngine {
             compilation_options: Default::default(),
         });
 
+        // Tree-based collision detection pipeline
+        let tree_collisions_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Tree Collisions Pipeline"),
+            layout: Some(&tree_pipeline_layout),
+            module: &morton_shader,
+            entry_point: Some("tree_collisions"),
+            cache: None,
+            compilation_options: Default::default(),
+        });
+
         Self {
             particle_buffer,
             params_buffer,
@@ -542,7 +543,6 @@ impl GpuEngine {
             bounds_buffer,
             tree_params_buffer,
             histogram_buffer,
-            resolve_collisions_pipeline,
             init_pipeline,
             compute_morton_pipeline,
             bitonic_local_pipeline,
@@ -555,6 +555,7 @@ impl GpuEngine {
             compute_com_pipeline,
             barnes_hut_pipeline,
             integrate_pipeline,
+            tree_collisions_pipeline,
             bind_group,
             tree_bind_group,
             sort_bind_group,
@@ -624,25 +625,13 @@ impl GpuEngine {
         };
         queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+        let encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Brute Force Encoder"),
         });
 
-        // Use original update_gravity from nbody.wgsl (need to add pipeline for this)
-        // For now, skip the physics pass when using brute force mode
-        // The user should define which mode they want
-
-        // Collision Pass
-        {
-            let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some("Collision Pass"),
-                timestamp_writes: None,
-            });
-            cpass.set_pipeline(&self.resolve_collisions_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[0]);
-            let workgroups = (self.num_particles + 255) / 256;
-            cpass.dispatch_workgroups(workgroups, 1, 1);
-        }
+        // Note: Brute-force mode is deprecated. Tree-based collision is now the only option.
+        // This method is kept for potential future use with a different approach.
+        // For now, do nothing in brute-force mode - use Morton tree mode instead.
 
         queue.submit(std::iter::once(encoder.finish()));
     }
@@ -973,29 +962,21 @@ impl GpuEngine {
         queue.submit(std::iter::once(encoder.finish()));
 
         // ================================================================
-        // Pass 9: Collision detection (brute-force O(N²))
-        // Note: This is expensive for large N, but necessary for collision response
+        // Pass 9: Tree-based collision detection O(N × W)
+        // Uses Morton code spatial locality for efficient collision detection
         // ================================================================
         {
-            let params = GpuParams {
-                dt,
-                gravity,
-                num_particles: self.num_particles,
-                seed: 0,
-                _padding: [0; 60],
-            };
-            queue.write_buffer(&self.params_buffer, 0, bytemuck::bytes_of(&params));
-
             let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Collision Encoder"),
+                label: Some("Tree Collision Encoder"),
             });
             {
                 let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                    label: Some("Collision Pass"),
+                    label: Some("Tree Collision Pass"),
                     timestamp_writes: None,
                 });
-                cpass.set_pipeline(&self.resolve_collisions_pipeline);
-                cpass.set_bind_group(0, &self.bind_group, &[0]);
+                cpass.set_pipeline(&self.tree_collisions_pipeline);
+                cpass.set_bind_group(0, &self.tree_bind_group, &[]);
+                cpass.set_bind_group(1, &self.sort_bind_group, &[]);
                 cpass.dispatch_workgroups(workgroups, 1, 1);
             }
             queue.submit(std::iter::once(encoder.finish()));

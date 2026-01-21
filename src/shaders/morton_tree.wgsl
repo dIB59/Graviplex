@@ -657,3 +657,78 @@ fn integrate(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     particles[idx].position += particles[idx].velocity * params.dt;
 }
+
+// ============================================================================
+// Tree-Based Collision Detection
+// ============================================================================
+// Exploits Morton code spatial locality: particles with similar Morton codes
+// are spatially close. We check collisions only within a sliding window
+// of the sorted array, achieving O(N × W) complexity where W = window size.
+// ============================================================================
+
+const COLLISION_WINDOW_SIZE: u32 = 64u;
+
+@compute @workgroup_size(256)
+fn tree_collisions(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let sorted_idx = global_id.x;
+    if sorted_idx >= params.num_particles { return; }
+
+    // Get the particle at this sorted position
+    let my_entry = morton_entries[sorted_idx];
+    let i = my_entry.particle_idx;
+    if i >= params.num_particles { return; }
+
+    var p_i = particles[i].position;
+    var v_i = particles[i].velocity;
+    let r_i = particles[i].radius;
+    let m_i = particles[i].mass;
+
+    // Check collisions within sliding window (spatial locality from Morton sort)
+    // Particles with nearby sorted indices have similar Morton codes = nearby in space
+    let start = select(0u, sorted_idx - COLLISION_WINDOW_SIZE, sorted_idx > COLLISION_WINDOW_SIZE);
+    let end = min(sorted_idx + COLLISION_WINDOW_SIZE + 1u, params.num_particles);
+
+    for (var k = start; k < end; k = k + 1u) {
+        if k == sorted_idx { continue; }
+
+        let other_entry = morton_entries[k];
+        let j = other_entry.particle_idx;
+        if j >= params.num_particles { continue; }
+
+        let p_j = particles[j].position;
+        let r_j = particles[j].radius;
+        let m_j = particles[j].mass;
+
+        let diff = p_j - p_i;
+        let dist_sq = dot(diff, diff);
+        let min_dist = r_i + r_j;
+
+        // Collision detected
+        if dist_sq < min_dist * min_dist && dist_sq > 0.0001 {
+            let dist = sqrt(dist_sq);
+            let normal = diff / dist;
+            let penetration = min_dist - dist;
+
+            // Penetration correction (push apart based on mass ratio)
+            let total_mass = m_i + m_j;
+            let mass_ratio_i = m_j / total_mass;  // Heavier particles move less
+            p_i -= normal * penetration * mass_ratio_i;
+
+            // Collision response (elastic collision)
+            let v_j = particles[j].velocity;
+            let relative_velocity = v_j - v_i;
+            let velocity_along_normal = dot(relative_velocity, normal);
+
+            // Only respond if particles are approaching
+            if velocity_along_normal < 0.0 {
+                let restitution = 0.5;
+                let impulse = (1.0 + restitution) * velocity_along_normal;
+                v_i += normal * (impulse * mass_ratio_i);
+            }
+        }
+    }
+
+    // Write back updated position and velocity
+    particles[i].position = p_i;
+    particles[i].velocity = v_i;
+}
