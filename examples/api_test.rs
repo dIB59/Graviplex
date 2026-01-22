@@ -1,40 +1,45 @@
-use graviplex::*;
+//! API demonstration example showing the new consolidated API.
+
+use graviplex::prelude::*;
+use graviplex::advanced::CircleInstance;
 
 struct ApiTestGame;
 
 impl GameLoop for ApiTestGame {
-    fn init(&mut self, _gpu: &GpuContext) {}
-    fn update(&mut self, _dt: f32, _gpu: &GpuContext) {}
+    fn init(&mut self, _gfx: &Graphics) {}
+    fn update(&mut self, _time: &Time, _gfx: &Graphics) {}
 
     fn render(&mut self, draw: &mut DrawContext) {
-        // Draw some circles
+        // Draw circles using rich domain types
         let c1 = Circle::new(Vec2::new(-200.0, 0.0), 50.0, Color::RED);
-        draw.draw_circle(c1);
-        draw.draw_circle([0.0, 0.0], 75.0, [0.0, 1.0, 0.0, 1.0]);
-        draw.draw_circle([200.0, 0.0], 50.0, [0.0, 0.0, 1.0, 1.0]);
+        draw.circle(c1);
 
-        // Draw some lines
-        draw.draw_line([-500.0, -500.0], [500.0, 500.0], [1.0, 1.0, 1.0, 0.5]);
-        draw.draw_line([-500.0, 500.0], [500.0, -500.0], [1.0, 1.0, 1.0, 0.5]);
+        // Draw using tuples with engine types
+        draw.circle((Vec2::new(0.0, 0.0), 75.0, Color::GREEN));
 
-        // Batch draw many small circles
+        // Draw using raw arrays
+        draw.circle(([200.0, 0.0], 50.0, [0.0, 0.0, 1.0, 1.0]));
+
+        // Draw lines using tuples
+        draw.line(([-500.0, -500.0], [500.0, 500.0], [1.0, 1.0, 1.0, 0.5]));
+        draw.line(([-500.0, 500.0], [500.0, -500.0], [1.0, 1.0, 1.0, 0.5]));
+
+        // Batch draw many small circles using CircleInstance
         let mut batch = Vec::new();
         for i in 0..100 {
             let angle = (i as f32) * 0.1;
             let x = angle.cos() * 300.0;
             let y = angle.sin() * 300.0;
-            batch.push(CircleInstance {
-                position: [x, y],
-                radius: 5.0,
-                color: [1.0, 1.0, 0.0, 1.0],
-            });
+            batch.push(CircleInstance::new([x, y], 5.0, [1.0, 1.0, 0.0, 1.0]));
         }
-        draw.draw_circles(&batch);
+        draw.circles(&batch);
     }
 }
 
 fn main() {
-    let game = ApiTestGame;
-    let app = App::new(game);
-    app.run().unwrap();
+    App::build(ApiTestGame)
+        .title("Graviplex API Test")
+        .size(1200, 800)
+        .run()
+        .unwrap();
 }

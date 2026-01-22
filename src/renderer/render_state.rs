@@ -1,4 +1,5 @@
-use crate::renderer::{Camera2D, GpuContext};
+use crate::renderer::gpu_context::GpuContext;
+use crate::renderer::Camera2D;
 use wgpu::TextureView;
 
 /// A bundle of state needed for a single render pass.

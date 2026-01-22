@@ -1,6 +1,12 @@
-//! Minimal egui integration for the engine
+//! egui integration for the Graviplex engine.
+//!
+//! This module is feature-gated behind the `gui` feature (enabled by default).
+//!
+//! Games can implement the `GameLoop::gui()` method to add custom UI elements.
 
 pub mod gui_renderer;
+
+pub use gui_renderer::UiPipeline as EguiRenderer;
 
 /// Gui wrapper for egui integration.
 /// Games add their own UI via the GameLoop::gui() method.

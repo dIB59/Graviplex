@@ -1,4 +1,7 @@
-use graviplex::*;
+//! Performance test rendering 1 million particles using GPU buffers.
+
+use graviplex::prelude::*;
+use graviplex::advanced::CircleInstance;
 use wgpu::util::DeviceExt;
 
 struct PerfTestGame {
@@ -6,7 +9,7 @@ struct PerfTestGame {
 }
 
 impl GameLoop for PerfTestGame {
-    fn init(&mut self, gpu: &GpuContext) {
+    fn init(&mut self, gfx: &Graphics) {
         let count = 1_000_000;
         let mut instances = Vec::with_capacity(count);
 
@@ -14,14 +17,14 @@ impl GameLoop for PerfTestGame {
             let x = (rand::random::<f32>() - 0.5) * 2000.0;
             let y = (rand::random::<f32>() - 0.5) * 2000.0;
             let r = rand::random::<f32>() * 5.0 + 1.0;
-            instances.push(CircleInstance {
-                position: [x, y],
-                radius: r,
-                color: [rand::random(), rand::random(), rand::random(), 1.0],
-            });
+            instances.push(CircleInstance::new(
+                [x, y],
+                r,
+                [rand::random(), rand::random(), rand::random(), 1.0],
+            ));
         }
 
-        let buffer = gpu
+        let buffer = gfx
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("1M Particle Buffer"),
@@ -31,19 +34,21 @@ impl GameLoop for PerfTestGame {
         self.particle_buffer = Some(buffer);
     }
 
-    fn update(&mut self, _dt: f32, _gpu: &GpuContext) {}
+    fn update(&mut self, _time: &Time, _gfx: &Graphics) {}
 
     fn render(&mut self, draw: &mut DrawContext) {
         if let Some(buffer) = &self.particle_buffer {
-            draw.draw_circles_raw(buffer, 1_000_000);
+            draw.circles_from_buffer(buffer, 1_000_000);
         }
     }
 }
 
 fn main() {
-    let game = PerfTestGame {
+    App::build(PerfTestGame {
         particle_buffer: None,
-    };
-    let app = App::new(game);
-    app.run().unwrap();
+    })
+    .title("Graviplex Performance Test - 1M Particles")
+    .size(1200, 800)
+    .run()
+    .unwrap();
 }

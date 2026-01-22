@@ -1,6 +1,7 @@
 use crate::core::geometry::Circle;
 use bytemuck::NoUninit;
 
+/// Basic vertex with 2D position.
 #[repr(C)]
 #[derive(Clone, Copy, NoUninit, Debug)]
 pub struct Vertex {
@@ -19,6 +20,7 @@ impl Vertex {
     }
 }
 
+/// GPU-compatible circle instance for batched rendering.
 #[repr(C)]
 #[derive(Copy, Clone, NoUninit, Debug)]
 pub struct CircleInstance {
@@ -36,6 +38,15 @@ impl CircleInstance {
             array_stride: std::mem::size_of::<CircleInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
+        }
+    }
+
+    /// Create a new circle instance.
+    pub fn new(position: [f32; 2], radius: f32, color: [f32; 4]) -> Self {
+        Self {
+            position,
+            radius,
+            color,
         }
     }
 }
@@ -56,49 +67,6 @@ impl From<&Circle> for CircleInstance {
             position: c.center.into(),
             radius: c.radius,
             color: c.color.into(),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, NoUninit, Debug)]
-pub struct PhysicsInstance {
-    pub position: [f32; 2],
-    pub radius: f32,
-    pub color: [u8; 4],
-    // Physics data (renderer ignores this but keeps stride aligned with GpuParticle)
-    pub velocity: [f32; 2],
-    pub mass: f32,
-    pub id: u32,
-}
-
-impl PhysicsInstance {
-    const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array!(1 => Float32x2, 2 => Float32, 3 => Unorm8x4);
-
-    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: 32, // Stride for GpuParticle/PhysicsInstance
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-impl From<Circle> for PhysicsInstance {
-    fn from(c: Circle) -> Self {
-        Self {
-            position: c.center.into(),
-            radius: c.radius,
-            color: [
-                (c.color.r * 255.0) as u8,
-                (c.color.g * 255.0) as u8,
-                (c.color.b * 255.0) as u8,
-                (c.color.a * 255.0) as u8,
-            ],
-            velocity: [0.0, 0.0],
-            mass: 1.0,
-            id: 0,
         }
     }
 }

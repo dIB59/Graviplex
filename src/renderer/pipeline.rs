@@ -1,4 +1,4 @@
-use super::{Camera2D, PhysicsInstance, Vertex};
+use super::{Camera2D, CircleInstance, Vertex};
 use crate::renderer::camera::CameraGpuData;
 use wgpu::*;
 
@@ -34,7 +34,7 @@ impl RenderPipeline {
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::desc(), PhysicsInstance::desc()],
+                buffers: &[Vertex::desc(), CircleInstance::desc()],
                 compilation_options: Default::default(),
             },
             primitive: PrimitiveState::default(),

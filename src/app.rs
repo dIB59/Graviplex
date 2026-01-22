@@ -1,4 +1,4 @@
-//! Generic App struct that runs games implementing GameLoop
+//! Application entry point and configuration builder
 
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
@@ -7,17 +7,228 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 use crate::core::time::Time;
-use crate::gui::gui_renderer::UiPipeline;
-use crate::gui::Gui;
 use crate::input::InputState;
 use crate::renderer::{
-    Camera2D, CameraController, CirclePipeline, DrawContext, GpuContext, LinePipeline,
+    Camera2D, CameraController, CirclePipeline, DrawContext, LinePipeline,
 };
+use crate::renderer::gpu_context::GpuContext;
 use crate::GameLoop;
+
+#[cfg(feature = "gui")]
+use crate::gui::gui_renderer::UiPipeline;
+#[cfg(feature = "gui")]
+use crate::gui::Gui;
+
+// =============================================================================
+// APP CONFIGURATION
+// =============================================================================
+
+/// Configuration for camera initialization.
+#[derive(Clone, Debug)]
+pub struct CameraConfig {
+    pub position: [f32; 2],
+    pub scale: f32,
+    pub zoom_speed: f32,
+    pub move_speed: f32,
+    pub min_zoom: f32,
+    pub max_zoom: f32,
+}
+
+impl Default for CameraConfig {
+    fn default() -> Self {
+        Self {
+            position: [0.0, 0.0],
+            scale: 10.0,
+            zoom_speed: 1.1,
+            move_speed: 250.0,
+            min_zoom: 0.0001,
+            max_zoom: 10.0,
+        }
+    }
+}
+
+impl CameraConfig {
+    /// Create a centered camera configuration.
+    pub fn centered() -> Self {
+        Self::default()
+    }
+
+    /// Set the initial scale (zoom level).
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Set the initial position.
+    pub fn with_position(mut self, x: f32, y: f32) -> Self {
+        self.position = [x, y];
+        self
+    }
+
+    /// Set the zoom speed multiplier.
+    pub fn with_zoom_speed(mut self, speed: f32) -> Self {
+        self.zoom_speed = speed;
+        self
+    }
+
+    /// Set the camera movement speed.
+    pub fn with_move_speed(mut self, speed: f32) -> Self {
+        self.move_speed = speed;
+        self
+    }
+
+    /// Set the zoom range.
+    pub fn with_zoom_range(mut self, min: f32, max: f32) -> Self {
+        self.min_zoom = min;
+        self.max_zoom = max;
+        self
+    }
+}
+
+// =============================================================================
+// APP BUILDER
+// =============================================================================
+
+/// Builder for configuring and creating an [`App`].
+///
+/// # Example
+///
+/// ```ignore
+/// use graviplex::prelude::*;
+///
+/// App::build(MyGame::new())
+///     .title("My Awesome Game")
+///     .size(1280, 720)
+///     .vsync(true)
+///     .camera(CameraConfig::centered().with_scale(100.0))
+///     .run()
+///     .unwrap();
+/// ```
+pub struct AppBuilder<T: GameLoop> {
+    game: T,
+    title: String,
+    width: u32,
+    height: u32,
+    vsync: bool,
+    camera_config: CameraConfig,
+    exit_time: Option<f32>,
+}
+
+impl<T: GameLoop> AppBuilder<T> {
+    /// Create a new AppBuilder with default settings.
+    pub fn new(game: T) -> Self {
+        Self {
+            game,
+            title: "Graviplex".to_string(),
+            width: 1200,
+            height: 800,
+            vsync: false,
+            camera_config: CameraConfig::default(),
+            exit_time: None,
+        }
+    }
+
+    /// Set the window title.
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    /// Set the window size.
+    pub fn size(mut self, width: u32, height: u32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    /// Enable or disable vertical sync.
+    pub fn vsync(mut self, enabled: bool) -> Self {
+        self.vsync = enabled;
+        self
+    }
+
+    /// Configure the camera.
+    pub fn camera(mut self, config: CameraConfig) -> Self {
+        self.camera_config = config;
+        self
+    }
+
+    /// Set an automatic exit time (useful for testing/benchmarking).
+    pub fn exit_after(mut self, seconds: f32) -> Self {
+        self.exit_time = Some(seconds);
+        self
+    }
+
+    /// Build and run the application.
+    pub fn run(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
+        let app = App {
+            game: self.game,
+            window: None,
+            gpu: GpuContext::new(),
+            camera: Camera2D::new(
+                self.camera_config.position,
+                self.camera_config.scale,
+                [self.width as f32, self.height as f32],
+            )
+            .with_zoom_speed(self.camera_config.zoom_speed),
+            camera_controller: CameraController::new()
+                .with_move_speed(self.camera_config.move_speed)
+                .with_zoom_range(self.camera_config.min_zoom, self.camera_config.max_zoom),
+            time: Time::new(),
+            input: InputState::new(),
+            #[cfg(feature = "gui")]
+            gui: None,
+            #[cfg(feature = "gui")]
+            gui_renderer: None,
+            circle_pipeline: None,
+            line_pipeline: None,
+            exit_time: self.exit_time,
+            config: AppConfig {
+                title: self.title,
+                width: self.width,
+                height: self.height,
+                vsync: self.vsync,
+            },
+        };
+
+        app.run_internal()
+    }
+}
+
+// =============================================================================
+// APP CONFIG (internal)
+// =============================================================================
+
+struct AppConfig {
+    title: String,
+    width: u32,
+    height: u32,
+    vsync: bool,
+}
+
+// =============================================================================
+// APP
+// =============================================================================
 
 /// The main application struct that manages the game loop.
 ///
-/// Generic over `T: GameLoop` - your game implements this trait.
+/// Use [`App::build()`] or [`App::new()`] to create an application.
+///
+/// # Example
+///
+/// ```ignore
+/// use graviplex::prelude::*;
+///
+/// // Simple creation
+/// App::new(MyGame::new()).run().unwrap();
+///
+/// // With configuration
+/// App::build(MyGame::new())
+///     .title("My Game")
+///     .size(1280, 720)
+///     .run()
+///     .unwrap();
+/// ```
 pub struct App<T: GameLoop> {
     game: T,
     window: Option<Arc<Window>>,
@@ -26,35 +237,65 @@ pub struct App<T: GameLoop> {
     camera_controller: CameraController,
     time: Time,
     input: InputState,
+    #[cfg(feature = "gui")]
     gui: Option<Gui>,
+    #[cfg(feature = "gui")]
     gui_renderer: Option<UiPipeline>,
     circle_pipeline: Option<CirclePipeline>,
     line_pipeline: Option<LinePipeline>,
     exit_time: Option<f32>,
+    config: AppConfig,
 }
 
 impl<T: GameLoop> App<T> {
-    /// Create a new App with the given game.
+    /// Create a new App with the given game and default settings.
+    ///
+    /// For more configuration options, use [`App::build()`].
     pub fn new(game: T) -> Self {
         Self {
             game,
             window: None,
             gpu: GpuContext::new(),
-            camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 1200.0]),
+            camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 800.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
                 .with_zoom_range(0.0001, 10.0),
             time: Time::new(),
             input: InputState::new(),
+            #[cfg(feature = "gui")]
             gui: None,
+            #[cfg(feature = "gui")]
             gui_renderer: None,
             circle_pipeline: None,
             line_pipeline: None,
             exit_time: None,
+            config: AppConfig {
+                title: "Graviplex".to_string(),
+                width: 1200,
+                height: 800,
+                vsync: false,
+            },
         }
     }
 
-    /// Set an optional exit time in seconds.
+    /// Create an AppBuilder for configuring the application.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// App::build(MyGame::new())
+    ///     .title("My Game")
+    ///     .size(1280, 720)
+    ///     .vsync(true)
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    pub fn build(game: T) -> AppBuilder<T> {
+        AppBuilder::new(game)
+    }
+
+    /// Set an optional exit time in seconds (deprecated, use AppBuilder).
+    #[deprecated(since = "0.3.0", note = "Use App::build().exit_after() instead")]
     pub fn with_exit_time(mut self, seconds: f32) -> Self {
         self.exit_time = Some(seconds);
         self
@@ -62,6 +303,10 @@ impl<T: GameLoop> App<T> {
 
     /// Run the application and return performance statistics.
     pub fn run(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
+        self.run_internal()
+    }
+
+    fn run_internal(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
         let event_loop = EventLoop::new().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
         let mut app = self;
@@ -99,8 +344,8 @@ impl<T: GameLoop> App<T> {
         // Let game handle input
         self.game.handle_input(&self.input, &self.camera);
 
-        // Update game
-        self.game.update(self.time.delta() as f32, &self.gpu);
+        // Update game with Time reference instead of just dt
+        self.game.update(&self.time, &self.gpu);
 
         let Ok(frame) = self.gpu.get_current_frame() else {
             return;
@@ -126,11 +371,13 @@ impl<T: GameLoop> App<T> {
         }
 
         // Render GUI
+        #[cfg(feature = "gui")]
         self.render_gui(&view);
 
         frame.present();
     }
 
+    #[cfg(feature = "gui")]
     fn render_gui(&mut self, view: &wgpu::TextureView) {
         let (Some(window), Some(ui_renderer), Some(gui)) =
             (&self.window, &mut self.gui_renderer, &mut self.gui)
@@ -168,13 +415,17 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             return;
         }
 
+        let window_attrs = Window::default_attributes()
+            .with_title(&self.config.title)
+            .with_inner_size(winit::dpi::LogicalSize::new(self.config.width, self.config.height));
+
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes().with_title("Graviplex"))
+                .create_window(window_attrs)
                 .expect("Unable to create window"),
         );
 
-        self.gpu.init_surface(window.clone());
+        self.gpu.init_surface(window.clone(), self.config.vsync);
 
         let size = window.inner_size();
         self.camera.screen_size = [size.width as f32, size.height as f32];
@@ -186,10 +437,15 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             .expect("Unable to get TextureFormat")
             .format;
 
-        let mut gui = Gui::new(event_loop);
-        let initial_output = gui.run_empty(&window);
-        let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
-        ui_pipeline.handle_textures(initial_output.textures_delta);
+        #[cfg(feature = "gui")]
+        {
+            let mut gui = Gui::new(event_loop);
+            let initial_output = gui.run_empty(&window);
+            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
+            ui_pipeline.handle_textures(initial_output.textures_delta);
+            self.gui = Some(gui);
+            self.gui_renderer = Some(ui_pipeline);
+        }
 
         // Initialize standard pipelines
         let circle_pipeline = CirclePipeline::new(&self.gpu.device, format, &self.camera);
@@ -208,8 +464,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         self.game.init(&self.gpu);
 
         self.window = Some(window);
-        self.gui = Some(gui);
-        self.gui_renderer = Some(ui_pipeline);
     }
 
     fn window_event(
@@ -219,6 +473,7 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         event: WindowEvent,
     ) {
         // Let GUI handle event first
+        #[cfg(feature = "gui")]
         if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
             if gui.handle_event(window, &event).consumed {
                 return;
