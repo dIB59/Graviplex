@@ -1,5 +1,5 @@
 use crate::renderer::camera::CameraGpuData;
-use crate::renderer::Camera2D;
+use crate::renderer::{Camera2D, RenderState};
 use bytemuck::NoUninit;
 use wgpu::*;
 
@@ -149,34 +149,37 @@ impl LinePipeline {
     }
 
     /// Flush the current batch to the GPU and draw.
-    pub fn flush(&mut self, device: &Device, queue: &Queue, view: &TextureView, camera: &Camera2D) {
+    pub fn flush(&mut self, state: &RenderState) {
         if self.staging_instances.is_empty() {
             return;
         }
 
-        self.camera_gpu_data.update(queue, camera);
+        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
 
-        queue.write_buffer(
+        state.gpu.queue.write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&Self::LINE_VERTICES),
         );
-        queue.write_buffer(
+        state.gpu.queue.write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&self.staging_instances),
         );
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Line Batch Encoder"),
-        });
+        let mut encoder = state
+            .gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Line Batch Encoder"),
+            });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Line Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     depth_slice: None,
-                    view,
+                    view: state.view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -195,7 +198,7 @@ impl LinePipeline {
             rpass.draw(0..2, 0..self.staging_instances.len() as u32);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.queue.submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 
@@ -203,10 +206,7 @@ impl LinePipeline {
     /// This bypasses the internal batching.
     pub fn render_with_external_buffer(
         &self,
-        device: &Device,
-        queue: &Queue,
-        view: &TextureView,
-        camera: &Camera2D,
+        state: &RenderState,
         instance_count: u32,
         external_instance_buffer: &Buffer,
     ) {
@@ -214,24 +214,27 @@ impl LinePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(queue, camera);
+        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
 
-        queue.write_buffer(
+        state.gpu.queue.write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&Self::LINE_VERTICES),
         );
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Line Render (External) Encoder"),
-        });
+        let mut encoder = state
+            .gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Line Render (External) Encoder"),
+            });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Line Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     depth_slice: None,
-                    view,
+                    view: state.view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -250,7 +253,7 @@ impl LinePipeline {
             rpass.draw(0..2, 0..instance_count);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.queue.submit(std::iter::once(encoder.finish()));
     }
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {

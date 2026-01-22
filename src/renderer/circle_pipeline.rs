@@ -1,5 +1,5 @@
 use crate::renderer::camera::CameraGpuData;
-use crate::renderer::{Camera2D, CircleInstance, Vertex};
+use crate::renderer::{Camera2D, CircleInstance, RenderState, Vertex};
 use wgpu::*;
 
 /// A built-in pipeline for rendering anti-aliased circles.
@@ -106,12 +106,12 @@ impl CirclePipeline {
     }
 
     /// Flush the current batch to the GPU and draw.
-    pub fn flush(&mut self, device: &Device, queue: &Queue, view: &TextureView, camera: &Camera2D) {
+    pub fn flush(&mut self, state: &RenderState) {
         if self.staging_instances.is_empty() {
             return;
         }
 
-        self.camera_gpu_data.update(queue, camera);
+        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
 
         // Upload defaults if not done (though we could just do it once in new)
         let vertices = [
@@ -122,23 +122,29 @@ impl CirclePipeline {
             Vertex { pos: [1.0, -1.0] },
             Vertex { pos: [1.0, 1.0] },
         ];
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        queue.write_buffer(
+        state
+            .gpu
+            .queue
+            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        state.gpu.queue.write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&self.staging_instances),
         );
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Circle Batch Encoder"),
-        });
+        let mut encoder = state
+            .gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Circle Batch Encoder"),
+            });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Circle Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     depth_slice: None,
-                    view,
+                    view: state.view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -157,7 +163,7 @@ impl CirclePipeline {
             rpass.draw(0..6, 0..self.staging_instances.len() as u32);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.queue.submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 
@@ -165,10 +171,7 @@ impl CirclePipeline {
     /// This bypasses the internal batching.
     pub fn render_with_external_buffer(
         &self,
-        device: &Device,
-        queue: &Queue,
-        view: &TextureView,
-        camera: &Camera2D,
+        state: &RenderState,
         instance_count: u32,
         external_instance_buffer: &Buffer,
     ) {
@@ -176,7 +179,7 @@ impl CirclePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(queue, camera);
+        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
 
         let vertices = [
             Vertex { pos: [-1.0, -1.0] },
@@ -186,18 +189,24 @@ impl CirclePipeline {
             Vertex { pos: [1.0, -1.0] },
             Vertex { pos: [1.0, 1.0] },
         ];
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        state
+            .gpu
+            .queue
+            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Circle Render (External) Encoder"),
-        });
+        let mut encoder = state
+            .gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Circle Render (External) Encoder"),
+            });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Circle Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     depth_slice: None,
-                    view,
+                    view: state.view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
@@ -216,7 +225,7 @@ impl CirclePipeline {
             rpass.draw(0..6, 0..instance_count);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.queue.submit(std::iter::once(encoder.finish()));
     }
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {

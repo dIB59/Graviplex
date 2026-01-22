@@ -1,5 +1,5 @@
 use crate::renderer::{
-    Camera2D, CircleInstance, CirclePipeline, GpuContext, LineInstance, LinePipeline,
+    Camera2D, CircleInstance, CirclePipeline, GpuContext, LineInstance, LinePipeline, RenderState,
 };
 use wgpu::*;
 
@@ -13,6 +13,15 @@ pub struct DrawContext<'a> {
 }
 
 impl<'a> DrawContext<'a> {
+    /// Create a simplified RenderState for custom pipeline calls.
+    pub fn state(&self) -> RenderState<'a> {
+        RenderState {
+            gpu: self.gpu,
+            view: self.view,
+            camera: self.camera,
+        }
+    }
+
     /// Draw a single circle. This will be batched.
     pub fn draw_circle(&mut self, position: [f32; 2], radius: f32, color: [f32; 4]) {
         self.circle_pipeline.draw_circle(position, radius, color);
@@ -26,14 +35,8 @@ impl<'a> DrawContext<'a> {
     /// High performance path for drawing 1M+ particles directly from a GPU buffer.
     /// This bypasses CPU-side batching.
     pub fn draw_circles_raw(&self, buffer: &Buffer, count: u32) {
-        self.circle_pipeline.render_with_external_buffer(
-            &self.gpu.device,
-            &self.gpu.queue,
-            self.view,
-            self.camera,
-            count,
-            buffer,
-        );
+        self.circle_pipeline
+            .render_with_external_buffer(&self.state(), count, buffer);
     }
 
     /// Draw a single line. This will be batched.
@@ -48,23 +51,16 @@ impl<'a> DrawContext<'a> {
 
     /// High performance path for drawing lines directly from a GPU buffer.
     pub fn draw_lines_raw(&self, buffer: &Buffer, count: u32) {
-        self.line_pipeline.render_with_external_buffer(
-            &self.gpu.device,
-            &self.gpu.queue,
-            self.view,
-            self.camera,
-            count,
-            buffer,
-        );
+        self.line_pipeline
+            .render_with_external_buffer(&self.state(), count, buffer);
     }
 
     /// Flush all batched draw calls to the GPU.
     /// The engine calls this automatically at the end of the render pass.
     pub fn flush(&mut self) {
-        self.circle_pipeline
-            .flush(&self.gpu.device, &self.gpu.queue, self.view, self.camera);
-        self.line_pipeline
-            .flush(&self.gpu.device, &self.gpu.queue, self.view, self.camera);
+        let state = self.state();
+        self.circle_pipeline.flush(&state);
+        self.line_pipeline.flush(&state);
     }
 }
 
