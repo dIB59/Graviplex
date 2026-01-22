@@ -85,8 +85,8 @@ pub use renderer::Graphics;
 /// like rendering 1M+ particles with custom GPU buffers.
 pub mod advanced {
     pub use crate::renderer::{
-        CameraGpuData, CircleInstance, CirclePipeline, LineInstance, LinePipeline, ShaderPipeline,
-        Vertex,
+        CameraGpuData, CircleInstance, CirclePipeline, LineInstance, LinePipeline, RenderState,
+        ShaderPipeline, Vertex,
     };
 
     #[cfg(feature = "physics")]
