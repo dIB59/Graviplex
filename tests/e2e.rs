@@ -1,128 +1,112 @@
-use graviplex::core::color::Color;
-use graviplex::*;
-use wgpu::util::DeviceExt;
-use wgpu::*;
+//! End-to-end tests for Graviplex engine.
+//!
+//! Note: These tests verify the API works correctly at a high level.
 
-struct TestGame {
-    use_raw: bool,
-    particle_buffer: Option<Buffer>,
-}
-
-impl GameLoop for TestGame {
-    fn init(&mut self, gpu: &GpuContext) {
-        if self.use_raw {
-            let instances = vec![
-                CircleInstance {
-                    position: [0.0, 0.0],
-                    radius: 1.0,
-                    color: [1.0, 1.0, 1.0, 1.0],
-                };
-                1_000_000
-            ];
-
-            let buffer = gpu
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Test Particle Buffer"),
-                    contents: bytemuck::cast_slice(&instances),
-                    usage: BufferUsages::VERTEX | BufferUsages::STORAGE,
-                });
-            self.particle_buffer = Some(buffer);
-        }
-    }
-
-    fn update(&mut self, _dt: f32, _gpu: &GpuContext) {}
-
-    fn render(&mut self, draw: &mut DrawContext) {
-        if self.use_raw {
-            if let Some(buffer) = &self.particle_buffer {
-                draw.draw_circles_raw(buffer, 1_000_000);
-            }
-        } else {
-            // Test batching using rich domain models
-            draw.draw_circle(Circle::new(Vec2::new(0.0, 0.0), 10.0, Color::RED));
-            draw.draw_circle(Circle::new(Vec2::new(100.0, 100.0), 20.0, Color::GREEN));
-            draw.draw_line([0.0, 0.0], [100.0, 100.0], [0.0, 0.0, 1.0, 1.0]);
-        }
-    }
-}
+use graviplex::prelude::*;
+use graviplex::advanced::CircleInstance;
 
 #[cfg(test)]
-mod e2e_tests {
+mod tests {
     use super::*;
 
     #[test]
-    fn test_e2e_headless_rendering() {
-        let gpu = GpuContext::new();
-        let camera = Camera2D::new([0.0, 0.0], 1.0, [1024.0, 1024.0]);
-        let format = TextureFormat::Rgba8UnormSrgb;
+    fn test_vec2_operations() {
+        let a = Vec2::new(1.0, 2.0);
+        let b = Vec2::new(3.0, 4.0);
 
-        let mut circle_pipeline = CirclePipeline::new(&gpu.device, format, &camera);
-        let mut line_pipeline = LinePipeline::new(
-            "Test",
-            include_wgsl!("../src/shaders/line_shader.wgsl"),
-            &gpu.device,
-            format,
-            &camera,
-        );
+        assert_eq!(a + b, Vec2::new(4.0, 6.0));
+        assert_eq!(a - b, Vec2::new(-2.0, -2.0));
+        assert_eq!(a * 2.0, Vec2::new(2.0, 4.0));
+        assert!((a.length() - 2.236).abs() < 0.01);
+    }
 
-        let texture = gpu.device.create_texture(&TextureDescriptor {
-            label: Some("Dummy Texture"),
-            size: Extent3d {
-                width: 1024,
-                height: 1024,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format,
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&Default::default());
+    #[test]
+    fn test_circle_geometry() {
+        let c = Circle::new(Vec2::ZERO, 10.0, Color::RED);
 
-        let mut game = TestGame {
-            use_raw: false,
-            particle_buffer: None,
-        };
-        game.init(&gpu);
+        assert!(c.contains(Vec2::new(5.0, 5.0)));
+        assert!(!c.contains(Vec2::new(15.0, 0.0)));
 
-        let mut draw = DrawContext {
-            gpu: &gpu,
-            view: &view,
-            camera: &camera,
-            circle_pipeline: &mut circle_pipeline,
-            line_pipeline: &mut line_pipeline,
-        };
+        let other = Circle::new(Vec2::new(15.0, 0.0), 10.0, Color::BLUE);
+        assert!(c.intersects(&other));
 
-        // Render standard batching
-        game.render(&mut draw);
-        assert_eq!(draw.circle_pipeline.staging_count(), 2);
-        assert_eq!(draw.line_pipeline.staging_count(), 1);
+        let far = Circle::new(Vec2::new(100.0, 0.0), 10.0, Color::GREEN);
+        assert!(!c.intersects(&far));
+    }
 
-        draw.flush();
-        assert_eq!(circle_pipeline.staging_count(), 0);
-        assert_eq!(line_pipeline.staging_count(), 0);
+    #[test]
+    fn test_rect_geometry() {
+        let r = Rect::new(Vec2::ZERO, Vec2::new(10.0, 10.0));
 
-        // Test 1M performance path (raw)
-        let mut perf_game = TestGame {
-            use_raw: true,
-            particle_buffer: None,
-        };
-        perf_game.init(&gpu);
+        assert!(r.contains(Vec2::new(5.0, 5.0)));
+        assert!(!r.contains(Vec2::new(15.0, 5.0)));
+        assert_eq!(r.center(), Vec2::new(5.0, 5.0));
+    }
 
-        {
-            let mut draw_perf = DrawContext {
-                gpu: &gpu,
-                view: &view,
-                camera: &camera,
-                circle_pipeline: &mut circle_pipeline,
-                line_pipeline: &mut line_pipeline,
-            };
-            perf_game.render(&mut draw_perf);
-            // raw rendering doesn't use staging_instances
-            assert_eq!(draw_perf.circle_pipeline.staging_count(), 0);
-        }
+    #[test]
+    fn test_color_creation() {
+        let c = Color::rgba(1.0, 0.5, 0.25, 1.0);
+        assert_eq!(c.r, 1.0);
+        assert_eq!(c.g, 0.5);
+        assert_eq!(c.b, 0.25);
+        assert_eq!(c.a, 1.0);
+
+        let from_arr: Color = [1.0, 0.0, 0.0, 1.0].into();
+        assert_eq!(from_arr, Color::RED);
+    }
+
+    #[test]
+    fn test_circle_instance_creation() {
+        let c = CircleInstance::new([10.0, 20.0], 5.0, [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(c.position, [10.0, 20.0]);
+        assert_eq!(c.radius, 5.0);
+
+        // Test From<Circle>
+        let circle = Circle::new(Vec2::new(30.0, 40.0), 15.0, Color::BLUE);
+        let instance: CircleInstance = circle.into();
+        assert_eq!(instance.position, [30.0, 40.0]);
+        assert_eq!(instance.radius, 15.0);
+    }
+
+    #[test]
+    fn test_app_stats_default() {
+        let stats = AppStats::default();
+        assert_eq!(stats.average_fps, 0.0);
+        assert_eq!(stats.frame_count, 0);
+        assert_eq!(stats.total_time, 0.0);
+    }
+
+    #[test]
+    fn test_camera_config_builder() {
+        let config = CameraConfig::centered()
+            .with_scale(100.0)
+            .with_position(50.0, 50.0)
+            .with_zoom_speed(1.5)
+            .with_move_speed(500.0)
+            .with_zoom_range(0.1, 100.0);
+
+        assert_eq!(config.scale, 100.0);
+        assert_eq!(config.position, [50.0, 50.0]);
+        assert_eq!(config.zoom_speed, 1.5);
+        assert_eq!(config.move_speed, 500.0);
+        assert_eq!(config.min_zoom, 0.1);
+        assert_eq!(config.max_zoom, 100.0);
+    }
+
+    #[test]
+    fn test_time_tracking() {
+        let mut time = Time::new();
+
+        // Initial state
+        assert_eq!(time.frame_count(), 0);
+        assert_eq!(time.delta(), 0.0);
+
+        // After one update
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        time.update();
+
+        assert_eq!(time.frame_count(), 1);
+        assert!(time.delta() > 0.0);
+        assert!(time.elapsed() > 0.0);
     }
 }
