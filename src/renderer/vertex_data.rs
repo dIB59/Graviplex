@@ -1,3 +1,4 @@
+use crate::core::geometry::Circle;
 use bytemuck::NoUninit;
 
 #[repr(C)]
@@ -39,6 +40,26 @@ impl CircleInstance {
     }
 }
 
+impl From<Circle> for CircleInstance {
+    fn from(c: Circle) -> Self {
+        Self {
+            position: c.center.into(),
+            radius: c.radius,
+            color: c.color.into(),
+        }
+    }
+}
+
+impl From<&Circle> for CircleInstance {
+    fn from(c: &Circle) -> Self {
+        Self {
+            position: c.center.into(),
+            radius: c.radius,
+            color: c.color.into(),
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, NoUninit, Debug)]
 pub struct PhysicsInstance {
@@ -60,6 +81,24 @@ impl PhysicsInstance {
             array_stride: 32, // Stride for GpuParticle/PhysicsInstance
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBS,
+        }
+    }
+}
+
+impl From<Circle> for PhysicsInstance {
+    fn from(c: Circle) -> Self {
+        Self {
+            position: c.center.into(),
+            radius: c.radius,
+            color: [
+                (c.color.r * 255.0) as u8,
+                (c.color.g * 255.0) as u8,
+                (c.color.b * 255.0) as u8,
+                (c.color.a * 255.0) as u8,
+            ],
+            velocity: [0.0, 0.0],
+            mass: 1.0,
+            id: 0,
         }
     }
 }

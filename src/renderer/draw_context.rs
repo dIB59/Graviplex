@@ -1,6 +1,7 @@
 use crate::renderer::{
     Camera2D, CircleInstance, CirclePipeline, GpuContext, LineInstance, LinePipeline, RenderState,
 };
+use crate::Circle;
 use wgpu::*;
 
 /// A Raylib-like drawing context that handles batching and performance optimization.
@@ -22,8 +23,22 @@ impl<'a> DrawContext<'a> {
         }
     }
 
-    /// Draw a single circle. This will be batched.
-    pub fn draw_circle(&mut self, position: [f32; 2], radius: f32, color: [f32; 4]) {
+    /// Draw a circle using the rich Circle domain model.
+    pub fn draw_circle(&mut self, circle: Circle) {
+        self.circle_pipeline.draw_circle_instance(circle.into());
+    }
+
+    pub fn draw_circle_with_components(
+        &mut self,
+        position: [f32; 2],
+        radius: f32,
+        color: [f32; 4],
+    ) {
+        self.circle_pipeline.draw_circle(position, radius, color);
+    }
+
+    /// Draw a circle with individual components.
+    pub fn draw_circle_raw(&mut self, position: [f32; 2], radius: f32, color: [f32; 4]) {
         self.circle_pipeline.draw_circle(position, radius, color);
     }
 

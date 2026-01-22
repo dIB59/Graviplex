@@ -1,3 +1,4 @@
+use graviplex::core::color::Color;
 use graviplex::*;
 use wgpu::util::DeviceExt;
 use wgpu::*;
@@ -38,9 +39,9 @@ impl GameLoop for TestGame {
                 draw.draw_circles_raw(buffer, 1_000_000);
             }
         } else {
-            // Test batching
-            draw.draw_circle([0.0, 0.0], 10.0, [1.0, 0.0, 0.0, 1.0]);
-            draw.draw_circle([100.0, 100.0], 20.0, [0.0, 1.0, 0.0, 1.0]);
+            // Test batching using rich domain models
+            draw.draw_circle(Circle::new(Vec2::new(0.0, 0.0), 10.0, Color::RED));
+            draw.draw_circle(Circle::new(Vec2::new(100.0, 100.0), 20.0, Color::GREEN));
             draw.draw_line([0.0, 0.0], [100.0, 100.0], [0.0, 0.0, 1.0, 1.0]);
         }
     }

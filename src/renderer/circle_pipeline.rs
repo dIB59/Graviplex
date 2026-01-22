@@ -86,6 +86,11 @@ impl CirclePipeline {
         }
     }
 
+    /// Add a circle instance to the current batch.
+    pub fn draw_circle_instance(&mut self, instance: CircleInstance) {
+        self.staging_instances.push(instance);
+    }
+
     /// Add a circle to the current batch.
     pub fn draw_circle(&mut self, position: [f32; 2], radius: f32, color: [f32; 4]) {
         self.staging_instances.push(CircleInstance {

@@ -8,7 +8,8 @@ impl GameLoop for ApiTestGame {
 
     fn render(&mut self, draw: &mut DrawContext) {
         // Draw some circles
-        draw.draw_circle([-200.0, 0.0], 50.0, [1.0, 0.0, 0.0, 1.0]);
+        let c1 = Circle::new(Vec2::new(-200.0, 0.0), 50.0, Color::RED);
+        draw.draw_circle(c1);
         draw.draw_circle([0.0, 0.0], 75.0, [0.0, 1.0, 0.0, 1.0]);
         draw.draw_circle([200.0, 0.0], 50.0, [0.0, 0.0, 1.0, 1.0]);
 
