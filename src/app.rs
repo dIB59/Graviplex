@@ -10,7 +10,9 @@ use crate::core::time::Time;
 use crate::gui::gui_renderer::UiPipeline;
 use crate::gui::Gui;
 use crate::input::InputState;
-use crate::renderer::{Camera2D, CameraController, GpuContext};
+use crate::renderer::{
+    Camera2D, CameraController, CirclePipeline, DrawContext, GpuContext, LinePipeline,
+};
 use crate::GameLoop;
 
 /// The main application struct that manages the game loop.
@@ -26,6 +28,9 @@ pub struct App<T: GameLoop> {
     input: InputState,
     gui: Option<Gui>,
     gui_renderer: Option<UiPipeline>,
+    circle_pipeline: Option<CirclePipeline>,
+    line_pipeline: Option<LinePipeline>,
+    exit_time: Option<f32>,
 }
 
 impl<T: GameLoop> App<T> {
@@ -43,23 +48,46 @@ impl<T: GameLoop> App<T> {
             input: InputState::new(),
             gui: None,
             gui_renderer: None,
+            circle_pipeline: None,
+            line_pipeline: None,
+            exit_time: None,
         }
     }
 
-    /// Run the application.
-    pub fn run(self) -> Result<(), winit::error::EventLoopError> {
+    /// Set an optional exit time in seconds.
+    pub fn with_exit_time(mut self, seconds: f32) -> Self {
+        self.exit_time = Some(seconds);
+        self
+    }
+
+    /// Run the application and return performance statistics.
+    pub fn run(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
         let event_loop = EventLoop::new().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
         let mut app = self;
-        event_loop.run_app(&mut app)
+        event_loop.run_app(&mut app)?;
+
+        Ok(crate::AppStats {
+            average_fps: app.time.average_fps(),
+            frame_count: app.time.frame_count(),
+            total_time: app.time.elapsed(),
+        })
     }
 
-    fn render_frame(&mut self) {
+    fn render_frame(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_none() {
             return;
         }
 
         self.time.update();
+
+        // Check for timed exit
+        if let Some(exit_time) = self.exit_time {
+            if self.time.elapsed() >= exit_time {
+                event_loop.exit();
+                return;
+            }
+        }
 
         // Update camera
         self.camera_controller.update_movement(
@@ -79,8 +107,23 @@ impl<T: GameLoop> App<T> {
         };
         let view = frame.texture.create_view(&Default::default());
 
-        // Let game render its content
-        self.game.render(&self.gpu, &view, &self.camera);
+        // Let game render its content using DrawContext
+        if let (Some(circle_pipeline), Some(line_pipeline)) =
+            (&mut self.circle_pipeline, &mut self.line_pipeline)
+        {
+            let mut draw = DrawContext {
+                gpu: &self.gpu,
+                view: &view,
+                camera: &self.camera,
+                circle_pipeline,
+                line_pipeline,
+            };
+
+            self.game.render(&mut draw);
+
+            // Automatically flush at the end of the frame
+            draw.flush();
+        }
 
         // Render GUI
         self.render_gui(&view);
@@ -148,6 +191,19 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
         ui_pipeline.handle_textures(initial_output.textures_delta);
 
+        // Initialize standard pipelines
+        let circle_pipeline = CirclePipeline::new(&self.gpu.device, format, &self.camera);
+        let line_pipeline = LinePipeline::new(
+            "Default",
+            wgpu::include_wgsl!("shaders/line_shader.wgsl"),
+            &self.gpu.device,
+            format,
+            &self.camera,
+        );
+
+        self.circle_pipeline = Some(circle_pipeline);
+        self.line_pipeline = Some(line_pipeline);
+
         // Initialize game
         self.game.init(&self.gpu);
 
@@ -177,7 +233,7 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
                 self.camera.screen_size = [size.width as f32, size.height as f32];
             }
 
-            WindowEvent::RedrawRequested => self.render_frame(),
+            WindowEvent::RedrawRequested => self.render_frame(event_loop),
 
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input.handle_keyboard_event(event);

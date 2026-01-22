@@ -16,13 +16,14 @@ mod app;
 mod game_loop;
 
 pub use app::App;
-pub use core::time::Time;
+pub use core::stats::AppStats;
+pub use core::time::{get_fps, get_frame_time, Time};
 pub use game_loop::GameLoop;
 pub use gui::{gui_renderer::UiPipeline, Gui};
 pub use input::InputState;
 pub use renderer::{
-    Camera2D, CameraController, CameraGpuData, CircleInstance, CirclePipeline, GpuContext,
-    LineInstance, LinePipeline, PhysicsInstance, RenderPipeline, Vertex,
+    Camera2D, CameraController, CameraGpuData, CircleInstance, CirclePipeline, DrawContext,
+    GpuContext, LineInstance, LinePipeline, PhysicsInstance, RenderPipeline, Vertex,
 };
 
 // Re-export dependencies for convenience

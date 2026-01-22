@@ -33,7 +33,7 @@ impl GpuContext {
 
     pub fn init_surface(&mut self, window: Arc<Window>) {
         let instance = Instance::new(&InstanceDescriptor::default());
-        
+
         let surface = instance
             .create_surface(window.clone())
             .expect("Unable to create surface");
@@ -46,7 +46,7 @@ impl GpuContext {
         .expect("Unable to create adapter");
 
         let (device, queue) = Self::request_device(&adapter);
-        
+
         let size = window.inner_size();
         let format = surface.get_capabilities(&adapter).formats[0];
 
@@ -54,7 +54,7 @@ impl GpuContext {
             usage: TextureUsages::RENDER_ATTACHMENT,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::Fifo,
+            present_mode: PresentMode::AutoNoVsync,
             format,
             desired_maximum_frame_latency: Default::default(),
             alpha_mode: Default::default(),
@@ -92,14 +92,12 @@ impl GpuContext {
         let features = Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION;
 
         adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: Some("Device Descriptor"),
-                    required_limits: Limits::default(),
-                    required_features: features,
-                    ..Default::default()
-                },
-            )
+            .request_device(&DeviceDescriptor {
+                label: Some("Device Descriptor"),
+                required_limits: Limits::default(),
+                required_features: features,
+                ..Default::default()
+            })
             .block_on()
             .expect("Unable to create device")
     }

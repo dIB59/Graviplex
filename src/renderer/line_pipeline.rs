@@ -45,10 +45,11 @@ impl LineInstance {
 }
 
 pub struct LinePipeline {
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: Buffer,
-    instance_buffer: Buffer,
-    camera_gpu_data: CameraGpuData,
+    pub(crate) pipeline: wgpu::RenderPipeline,
+    pub(crate) vertex_buffer: Buffer,
+    pub(crate) instance_buffer: Buffer,
+    pub(crate) camera_gpu_data: CameraGpuData,
+    pub(crate) staging_instances: Vec<LineInstance>,
 }
 
 impl LinePipeline {
@@ -127,27 +128,48 @@ impl LinePipeline {
             vertex_buffer,
             instance_buffer,
             camera_gpu_data,
+            staging_instances: Vec::with_capacity(10000),
         }
     }
 
-    /// Render lines after the main scene (no clear, just overlay)
-    pub fn render(
-        &self,
-        encoder: &mut CommandEncoder,
-        queue: &Queue,
-        view: &TextureView,
-        instances: &[LineInstance],
-    ) {
-        if instances.is_empty() {
+    /// Add a line to the current batch.
+    pub fn draw_line(&mut self, start: [f32; 2], end: [f32; 2], color: [f32; 4]) {
+        self.staging_instances
+            .push(LineInstance { start, end, color });
+    }
+
+    /// Add multiple lines to the current batch.
+    pub fn draw_lines(&mut self, instances: &[LineInstance]) {
+        self.staging_instances.extend_from_slice(instances);
+    }
+
+    /// Clear the current batch without drawing.
+    pub fn clear_batch(&mut self) {
+        self.staging_instances.clear();
+    }
+
+    /// Flush the current batch to the GPU and draw.
+    pub fn flush(&mut self, device: &Device, queue: &Queue, view: &TextureView, camera: &Camera2D) {
+        if self.staging_instances.is_empty() {
             return;
         }
+
+        self.camera_gpu_data.update(queue, camera);
 
         queue.write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&Self::LINE_VERTICES),
         );
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instances));
+        queue.write_buffer(
+            &self.instance_buffer,
+            0,
+            bytemuck::cast_slice(&self.staging_instances),
+        );
+
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Line Batch Encoder"),
+        });
 
         {
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -157,7 +179,7 @@ impl LinePipeline {
                     view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Load, // Don't clear, overlay on existing content
+                        load: LoadOp::Load,
                         store: StoreOp::Store,
                     },
                 })],
@@ -170,11 +192,87 @@ impl LinePipeline {
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
-            rpass.draw(0..2, 0..instances.len() as u32);
+            rpass.draw(0..2, 0..self.staging_instances.len() as u32);
         }
+
+        queue.submit(std::iter::once(encoder.finish()));
+        self.staging_instances.clear();
+    }
+
+    /// Render lines using an external instance buffer (e.g. from GPU compute).
+    /// This bypasses the internal batching.
+    pub fn render_with_external_buffer(
+        &self,
+        device: &Device,
+        queue: &Queue,
+        view: &TextureView,
+        camera: &Camera2D,
+        instance_count: u32,
+        external_instance_buffer: &Buffer,
+    ) {
+        if instance_count == 0 {
+            return;
+        }
+
+        self.camera_gpu_data.update(queue, camera);
+
+        queue.write_buffer(
+            &self.vertex_buffer,
+            0,
+            bytemuck::cast_slice(&Self::LINE_VERTICES),
+        );
+
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Line Render (External) Encoder"),
+        });
+
+        {
+            let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Line Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    depth_slice: None,
+                    view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: Default::default(),
+                occlusion_query_set: Default::default(),
+            });
+
+            rpass.set_pipeline(&self.pipeline);
+            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            rpass.set_vertex_buffer(1, external_instance_buffer.slice(..));
+            rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
+            rpass.draw(0..2, 0..instance_count);
+        }
+
+        queue.submit(std::iter::once(encoder.finish()));
     }
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {
         &self.camera_gpu_data
+    }
+
+    pub fn staging_count(&self) -> usize {
+        self.staging_instances.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_line_instance_data() {
+        let start = [0.0, 0.0];
+        let end = [100.0, 100.0];
+        let color = [1.0, 1.0, 1.0, 1.0];
+        let instance = LineInstance { start, end, color };
+        assert_eq!(instance.start, start);
+        assert_eq!(instance.end, end);
     }
 }

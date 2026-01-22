@@ -7,10 +7,11 @@ use wgpu::*;
 /// This pipeline uses instanced rendering to draw many circles efficiently.
 /// It supports both standard `CircleInstance` data and custom buffers.
 pub struct CirclePipeline {
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: Buffer,
-    instance_buffer: Buffer,
-    camera_gpu_data: CameraGpuData,
+    pub(crate) pipeline: wgpu::RenderPipeline,
+    pub(crate) vertex_buffer: Buffer,
+    pub(crate) instance_buffer: Buffer,
+    pub(crate) camera_gpu_data: CameraGpuData,
+    pub(crate) staging_instances: Vec<CircleInstance>,
 }
 
 impl CirclePipeline {
@@ -72,7 +73,7 @@ impl CirclePipeline {
         let instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Circle Instance Buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            size: 1 << 27, // 128MB for instances
+            size: 1 << 27, // 128MB for instances (~4M instances of CircleInstance/PhysicsInstance)
             mapped_at_creation: false,
         });
 
@@ -81,29 +82,55 @@ impl CirclePipeline {
             vertex_buffer,
             instance_buffer,
             camera_gpu_data,
+            staging_instances: Vec::with_capacity(10000),
         }
     }
 
-    /// Render circles using a slice of CircleInstance data.
-    pub fn render(
-        &self,
-        device: &Device,
-        queue: &Queue,
-        view: &TextureView,
-        camera: &Camera2D,
-        vertices: &[Vertex],
-        instances: &[CircleInstance],
-    ) {
-        if instances.is_empty() {
+    /// Add a circle to the current batch.
+    pub fn draw_circle(&mut self, position: [f32; 2], radius: f32, color: [f32; 4]) {
+        self.staging_instances.push(CircleInstance {
+            position,
+            radius,
+            color,
+        });
+    }
+
+    /// Add multiple circles to the current batch.
+    pub fn draw_circles(&mut self, instances: &[CircleInstance]) {
+        self.staging_instances.extend_from_slice(instances);
+    }
+
+    /// Clear the current batch without drawing.
+    pub fn clear_batch(&mut self) {
+        self.staging_instances.clear();
+    }
+
+    /// Flush the current batch to the GPU and draw.
+    pub fn flush(&mut self, device: &Device, queue: &Queue, view: &TextureView, camera: &Camera2D) {
+        if self.staging_instances.is_empty() {
             return;
         }
 
         self.camera_gpu_data.update(queue, camera);
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
-        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instances));
+
+        // Upload defaults if not done (though we could just do it once in new)
+        let vertices = [
+            Vertex { pos: [-1.0, -1.0] },
+            Vertex { pos: [1.0, -1.0] },
+            Vertex { pos: [-1.0, 1.0] },
+            Vertex { pos: [-1.0, 1.0] },
+            Vertex { pos: [1.0, -1.0] },
+            Vertex { pos: [1.0, 1.0] },
+        ];
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        queue.write_buffer(
+            &self.instance_buffer,
+            0,
+            bytemuck::cast_slice(&self.staging_instances),
+        );
 
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Circle Render Encoder"),
+            label: Some("Circle Batch Encoder"),
         });
 
         {
@@ -127,20 +154,21 @@ impl CirclePipeline {
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
-            rpass.draw(0..vertices.len() as u32, 0..instances.len() as u32);
+            rpass.draw(0..6, 0..self.staging_instances.len() as u32);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
+        self.staging_instances.clear();
     }
 
     /// Render circles using an external instance buffer (e.g. from GPU compute).
+    /// This bypasses the internal batching.
     pub fn render_with_external_buffer(
         &self,
         device: &Device,
         queue: &Queue,
         view: &TextureView,
         camera: &Camera2D,
-        vertices: &[Vertex],
         instance_count: u32,
         external_instance_buffer: &Buffer,
     ) {
@@ -149,7 +177,16 @@ impl CirclePipeline {
         }
 
         self.camera_gpu_data.update(queue, camera);
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices));
+
+        let vertices = [
+            Vertex { pos: [-1.0, -1.0] },
+            Vertex { pos: [1.0, -1.0] },
+            Vertex { pos: [-1.0, 1.0] },
+            Vertex { pos: [-1.0, 1.0] },
+            Vertex { pos: [1.0, -1.0] },
+            Vertex { pos: [1.0, 1.0] },
+        ];
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Circle Render (External) Encoder"),
@@ -176,7 +213,7 @@ impl CirclePipeline {
             rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             rpass.set_vertex_buffer(1, external_instance_buffer.slice(..));
             rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
-            rpass.draw(0..vertices.len() as u32, 0..instance_count);
+            rpass.draw(0..6, 0..instance_count);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
@@ -184,5 +221,25 @@ impl CirclePipeline {
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {
         &self.camera_gpu_data
+    }
+
+    pub fn staging_count(&self) -> usize {
+        self.staging_instances.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_circle_instance_data() {
+        let instance = CircleInstance {
+            position: [0.0, 0.0],
+            radius: 1.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+        };
+        assert_eq!(instance.position, [0.0, 0.0]);
+        assert_eq!(instance.radius, 1.0);
     }
 }

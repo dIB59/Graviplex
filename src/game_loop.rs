@@ -1,6 +1,6 @@
 //! GameLoop trait for implementing games with the engine
 
-use crate::{Camera2D, GpuContext, InputState};
+use crate::{Camera2D, DrawContext, GpuContext, InputState};
 
 /// Trait that games must implement to use the engine.
 ///
@@ -16,7 +16,7 @@ pub trait GameLoop: 'static {
 
     /// Called every frame to render game content.
     /// The engine handles clearing the screen and presenting.
-    fn render(&mut self, gpu: &GpuContext, view: &wgpu::TextureView, camera: &Camera2D);
+    fn render(&mut self, draw: &mut DrawContext);
 
     /// Called to handle per-frame input processing.
     /// Return true if input was consumed.
