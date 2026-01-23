@@ -99,6 +99,17 @@ impl GpuContext {
         self.config = Some(config);
     }
 
+    /// Returns the surface texture format.
+    ///
+    /// This is useful for creating pipelines that need to match the surface format.
+    /// Panics if the surface hasn't been initialized yet.
+    pub fn surface_format(&self) -> TextureFormat {
+        self.config
+            .as_ref()
+            .expect("Surface not initialized - call init_surface first")
+            .format
+    }
+
     /// Resize the surface when the window size changes.
     pub fn resize(&mut self, width: u32, height: u32) {
         if let (Some(surface), Some(config)) = (&self.surface, &mut self.config) {
@@ -132,6 +143,71 @@ impl GpuContext {
             })
             .block_on()
             .expect("Unable to create device")
+    }
+}
+
+// =============================================================================
+// Texture Atlas Integration (feature-gated)
+// =============================================================================
+
+#[cfg(feature = "textures")]
+impl GpuContext {
+    /// Build a texture atlas from an AtlasBuilder.
+    ///
+    /// This is the preferred way to create atlases as it doesn't require
+    /// direct access to wgpu device/queue.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let atlas = gfx.build_atlas(
+    ///     AtlasBuilder::new()
+    ///         .add_image("player", "assets/player.png")?
+    ///         .add_circle("bullet", 16, [255, 255, 0, 255], None),
+    ///     2048
+    /// )?;
+    /// ```
+    pub fn build_atlas(
+        &self,
+        builder: super::texture_atlas::AtlasBuilder,
+        max_size: u32,
+    ) -> Result<super::texture_atlas::TextureAtlas, super::texture_atlas::AtlasError> {
+        builder.build(&self.device, &self.queue, max_size)
+    }
+
+    /// Create a sprite pipeline for rendering textured sprites.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let atlas = gfx.build_atlas(builder, 2048)?;
+    /// let pipeline = gfx.create_sprite_pipeline(&atlas);
+    /// ```
+    pub fn create_sprite_pipeline(
+        &self,
+        atlas: &super::texture_atlas::TextureAtlas,
+    ) -> super::sprite_pipeline::SpritePipeline {
+        let camera = super::Camera2D::default();
+        super::sprite_pipeline::SpritePipeline::new(
+            &self.device,
+            self.surface_format(),
+            &camera,
+            atlas,
+        )
+    }
+
+    /// Create a sprite pipeline with a custom camera.
+    pub fn create_sprite_pipeline_with_camera(
+        &self,
+        atlas: &super::texture_atlas::TextureAtlas,
+        camera: &super::Camera2D,
+    ) -> super::sprite_pipeline::SpritePipeline {
+        super::sprite_pipeline::SpritePipeline::new(
+            &self.device,
+            self.surface_format(),
+            camera,
+            atlas,
+        )
     }
 }
 

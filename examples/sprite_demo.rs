@@ -45,18 +45,16 @@ impl SpriteDemo {
 
 impl GameLoop for SpriteDemo {
     fn init(&mut self, _world: &mut World, gfx: &Graphics) {
-        // Build the texture atlas
-        let atlas = Self::create_test_images()
-            .build(&gfx.device, &gfx.queue, 512)
+        // Build the texture atlas using the high-level API
+        let atlas = gfx
+            .build_atlas(Self::create_test_images(), 512)
             .expect("Failed to build texture atlas");
 
         println!("Atlas created: {}x{}", atlas.width, atlas.height);
         println!("Regions: {:?}", atlas.region_names().collect::<Vec<_>>());
 
         // Create the sprite pipeline
-        let camera = Camera2D::default();
-        let format = gfx.config.as_ref().expect("Surface config required").format;
-        let sprite_pipeline = SpritePipeline::new(&gfx.device, format, &camera, &atlas);
+        let sprite_pipeline = gfx.create_sprite_pipeline(&atlas);
 
         self.atlas = Some(atlas);
         self.sprite_pipeline = Some(sprite_pipeline);

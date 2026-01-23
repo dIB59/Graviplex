@@ -74,13 +74,9 @@ impl GameLoop for EcsSpritesGame {
             }
         };
 
-        let atlas = atlas_builder
-            .build(&gfx.device, &gfx.queue, 2048)
-            .expect("Failed to build atlas");
-
-        let camera = Camera2D::default();
-        let format = gfx.config.as_ref().expect("Surface config required").format;
-        let sprite_pipeline = SpritePipeline::new(&gfx.device, format, &camera, &atlas);
+        // Use the high-level Graphics API to build atlas and pipeline
+        let atlas = gfx.build_atlas(atlas_builder, 2048).expect("Failed to build atlas");
+        let sprite_pipeline = gfx.create_sprite_pipeline(&atlas);
 
         // Spawn player entity (center)
         world.spawn((
