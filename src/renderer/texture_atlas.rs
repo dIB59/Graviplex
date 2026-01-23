@@ -202,14 +202,18 @@ impl AtlasBuilder {
         color_right: [u8; 4],
     ) -> Self {
         let mut img = image::RgbaImage::new(width, height);
-        for y in 0..height {
-            for x in 0..width {
-                let t = x as f32 / width as f32;
-                let r = (color_left[0] as f32 * (1.0 - t) + color_right[0] as f32 * t) as u8;
-                let g = (color_left[1] as f32 * (1.0 - t) + color_right[1] as f32 * t) as u8;
-                let b = (color_left[2] as f32 * (1.0 - t) + color_right[2] as f32 * t) as u8;
-                let a = (color_left[3] as f32 * (1.0 - t) + color_right[3] as f32 * t) as u8;
-                img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+
+        if width > 0 && height > 0 {
+
+            for y in 0..height {
+                for x in 0..width {
+                    let t = x as f32 / width as f32;
+                    let r = (color_left[0] as f32 * (1.0 - t) + color_right[0] as f32 * t) as u8;
+                    let g = (color_left[1] as f32 * (1.0 - t) + color_right[1] as f32 * t) as u8;
+                    let b = (color_left[2] as f32 * (1.0 - t) + color_right[2] as f32 * t) as u8;
+                    let a = (color_left[3] as f32 * (1.0 - t) + color_right[3] as f32 * t) as u8;
+                    img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+                }
             }
         }
         self.images.insert(name.to_string(), img);
