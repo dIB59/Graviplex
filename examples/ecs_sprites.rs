@@ -38,79 +38,24 @@ impl EcsSpritesGame {
     }
 
     fn create_atlas() -> Result<AtlasBuilder, graviplex::advanced::AtlasError> {
-        // Try to load images from the assets folder
+        // Load images from the assets folder
         // Place your PNG/JPG images in: assets/sprites/
-        //   - player.png (64x64 recommended)
-        //   - enemy.png (48x48 recommended)
-        //   - pickup.png (32x32 recommended)
-        //   - ring.png (64x64 recommended)
-        //   - bullet.png (16x16 recommended)
-        
-        let builder = AtlasBuilder::new()
+        AtlasBuilder::new()
             .add_image("player", "assets/sprites/player.png")?
             .add_image("enemy", "assets/sprites/enemy.png")?
             .add_image("pickup", "assets/sprites/pickup.png")?
             .add_image("ring", "assets/sprites/ring.png")?
-            .add_image("bullet", "assets/sprites/bullet.png")?;
-        
-        Ok(builder)
+            .add_image("bullet", "assets/sprites/bullet.png")
     }
 
     /// Fallback to procedural textures if image files aren't found
     fn create_fallback_atlas() -> AtlasBuilder {
-        fn make_gradient_square(size: u32, color1: [u8; 4], color2: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            for y in 0..size {
-                for x in 0..size {
-                    let t = x as f32 / size as f32;
-                    let r = (color1[0] as f32 * (1.0 - t) + color2[0] as f32 * t) as u8;
-                    let g = (color1[1] as f32 * (1.0 - t) + color2[1] as f32 * t) as u8;
-                    let b = (color1[2] as f32 * (1.0 - t) + color2[2] as f32 * t) as u8;
-                    img.put_pixel(x, y, image::Rgba([r, g, b, 255]));
-                }
-            }
-            img
-        }
-
-        fn make_checkerboard(size: u32, color1: [u8; 4], color2: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            let cell = size / 4;
-            for y in 0..size {
-                for x in 0..size {
-                    let checker = ((x / cell) + (y / cell)) % 2 == 0;
-                    let color = if checker { color1 } else { color2 };
-                    img.put_pixel(x, y, image::Rgba(color));
-                }
-            }
-            img
-        }
-
-        fn make_ring(size: u32, color: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            let center = size as f32 / 2.0;
-            let outer = center - 2.0;
-            let inner = center * 0.5;
-            for y in 0..size {
-                for x in 0..size {
-                    let dx = x as f32 - center;
-                    let dy = y as f32 - center;
-                    let dist = (dx * dx + dy * dy).sqrt();
-                    if dist <= outer && dist >= inner {
-                        img.put_pixel(x, y, image::Rgba(color));
-                    } else {
-                        img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
-                    }
-                }
-            }
-            img
-        }
-
         AtlasBuilder::new()
-            .add_rgba_image("player", make_gradient_square(64, [50, 150, 255, 255], [150, 50, 255, 255]))
-            .add_rgba_image("enemy", make_gradient_square(48, [255, 100, 100, 255], [255, 50, 50, 255]))
-            .add_rgba_image("pickup", make_checkerboard(32, [255, 255, 100, 255], [255, 200, 50, 255]))
-            .add_rgba_image("ring", make_ring(64, [100, 255, 200, 255]))
-            .add_rgba_image("bullet", make_gradient_square(16, [255, 255, 255, 255], [200, 200, 255, 255]))
+            .add_gradient("player", 64, 64, [50, 150, 255, 255], [150, 50, 255, 255])
+            .add_gradient("enemy", 48, 48, [255, 100, 100, 255], [255, 50, 50, 255])
+            .add_checkerboard("pickup", 32, 32, 8, [255, 255, 100, 255], [255, 200, 50, 255])
+            .add_ring("ring", 64, 12, [100, 255, 200, 255])
+            .add_gradient("bullet", 16, 16, [255, 255, 255, 255], [200, 200, 255, 255])
     }
 }
 

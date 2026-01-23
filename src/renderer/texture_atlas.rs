@@ -159,7 +159,159 @@ impl AtlasBuilder {
     }
 
     /// Add an image from an already-loaded RgbaImage.
+    /// 
+    /// Note: Consider using `add_solid_color`, `add_gradient`, or `add_checkerboard`
+    /// for procedural textures without depending on the `image` crate directly.
     pub fn add_rgba_image(mut self, name: &str, img: image::RgbaImage) -> Self {
+        self.images.insert(name.to_string(), img);
+        self
+    }
+
+    /// Add a solid color rectangle.
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     .add_solid_color("white", 32, 32, [255, 255, 255, 255])
+    /// ```
+    pub fn add_solid_color(mut self, name: &str, width: u32, height: u32, color: [u8; 4]) -> Self {
+        let mut img = image::RgbaImage::new(width, height);
+        for pixel in img.pixels_mut() {
+            *pixel = image::Rgba(color);
+        }
+        self.images.insert(name.to_string(), img);
+        self
+    }
+
+    /// Add a horizontal gradient rectangle.
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     .add_gradient("sky", 64, 64, [135, 206, 235, 255], [25, 25, 112, 255])
+    /// ```
+    pub fn add_gradient(
+        mut self,
+        name: &str,
+        width: u32,
+        height: u32,
+        color_left: [u8; 4],
+        color_right: [u8; 4],
+    ) -> Self {
+        let mut img = image::RgbaImage::new(width, height);
+        for y in 0..height {
+            for x in 0..width {
+                let t = x as f32 / width as f32;
+                let r = (color_left[0] as f32 * (1.0 - t) + color_right[0] as f32 * t) as u8;
+                let g = (color_left[1] as f32 * (1.0 - t) + color_right[1] as f32 * t) as u8;
+                let b = (color_left[2] as f32 * (1.0 - t) + color_right[2] as f32 * t) as u8;
+                let a = (color_left[3] as f32 * (1.0 - t) + color_right[3] as f32 * t) as u8;
+                img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+            }
+        }
+        self.images.insert(name.to_string(), img);
+        self
+    }
+
+    /// Add a checkerboard pattern.
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     .add_checkerboard("checker", 64, 64, 8, [255, 255, 255, 255], [0, 0, 0, 255])
+    /// ```
+    pub fn add_checkerboard(
+        mut self,
+        name: &str,
+        width: u32,
+        height: u32,
+        cell_size: u32,
+        color1: [u8; 4],
+        color2: [u8; 4],
+    ) -> Self {
+        let mut img = image::RgbaImage::new(width, height);
+        for y in 0..height {
+            for x in 0..width {
+                let checker = ((x / cell_size) + (y / cell_size)) % 2 == 0;
+                let color = if checker { color1 } else { color2 };
+                img.put_pixel(x, y, image::Rgba(color));
+            }
+        }
+        self.images.insert(name.to_string(), img);
+        self
+    }
+
+    /// Add a filled circle with optional border.
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     .add_circle("ball", 48, [255, 0, 0, 255], None)
+    ///     .add_circle("ring", 48, [0, 255, 0, 255], Some(([0, 200, 0, 255], 4)))
+    /// ```
+    pub fn add_circle(
+        mut self,
+        name: &str,
+        diameter: u32,
+        fill_color: [u8; 4],
+        border: Option<([u8; 4], u32)>,
+    ) -> Self {
+        let mut img = image::RgbaImage::new(diameter, diameter);
+        let center = diameter as f32 / 2.0;
+        let radius = center - 1.0;
+        
+        for y in 0..diameter {
+            for x in 0..diameter {
+                let dx = x as f32 - center;
+                let dy = y as f32 - center;
+                let dist = (dx * dx + dy * dy).sqrt();
+                
+                if dist <= radius {
+                    let color = if let Some((border_color, border_width)) = border {
+                        if dist > radius - border_width as f32 {
+                            border_color
+                        } else {
+                            fill_color
+                        }
+                    } else {
+                        fill_color
+                    };
+                    img.put_pixel(x, y, image::Rgba(color));
+                } else {
+                    img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+                }
+            }
+        }
+        self.images.insert(name.to_string(), img);
+        self
+    }
+
+    /// Add a ring (hollow circle).
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     .add_ring("halo", 64, 8, [255, 255, 0, 255])
+    /// ```
+    pub fn add_ring(mut self, name: &str, diameter: u32, thickness: u32, color: [u8; 4]) -> Self {
+        let mut img = image::RgbaImage::new(diameter, diameter);
+        let center = diameter as f32 / 2.0;
+        let outer = center - 1.0;
+        let inner = outer - thickness as f32;
+        
+        for y in 0..diameter {
+            for x in 0..diameter {
+                let dx = x as f32 - center;
+                let dy = y as f32 - center;
+                let dist = (dx * dx + dy * dy).sqrt();
+                
+                if dist <= outer && dist >= inner {
+                    img.put_pixel(x, y, image::Rgba(color));
+                } else {
+                    img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
+                }
+            }
+        }
         self.images.insert(name.to_string(), img);
         self
     }

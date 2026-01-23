@@ -26,72 +26,20 @@ impl SpriteDemo {
         }
     }
 
-    /// Create procedural test images for the atlas
+    /// Create procedural test images for the atlas using built-in helpers
     fn create_test_images() -> AtlasBuilder {
-        // Create a simple colored square with border
-        fn make_square(size: u32, color: [u8; 4], border_color: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            for y in 0..size {
-                for x in 0..size {
-                    let is_border = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-                    let pixel = if is_border { border_color } else { color };
-                    img.put_pixel(x, y, image::Rgba(pixel));
-                }
-            }
-            img
-        }
-
-        // Create a simple circle
-        fn make_circle(size: u32, color: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            let center = size as f32 / 2.0;
-            let radius = center - 1.0;
-            for y in 0..size {
-                for x in 0..size {
-                    let dx = x as f32 - center;
-                    let dy = y as f32 - center;
-                    let dist = (dx * dx + dy * dy).sqrt();
-                    if dist <= radius {
-                        img.put_pixel(x, y, image::Rgba(color));
-                    } else {
-                        img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
-                    }
-                }
-            }
-            img
-        }
-
-        // Create a star shape
-        fn make_star(size: u32, color: [u8; 4]) -> image::RgbaImage {
-            let mut img = image::RgbaImage::new(size, size);
-            let center = size as f32 / 2.0;
-            for y in 0..size {
-                for x in 0..size {
-                    let dx = x as f32 - center;
-                    let dy = y as f32 - center;
-                    let angle = dy.atan2(dx);
-                    let dist = (dx * dx + dy * dy).sqrt();
-                    // 5-pointed star
-                    let star_radius = center * (0.5 + 0.5 * (5.0 * angle).cos().abs());
-                    if dist <= star_radius {
-                        img.put_pixel(x, y, image::Rgba(color));
-                    } else {
-                        img.put_pixel(x, y, image::Rgba([0, 0, 0, 0]));
-                    }
-                }
-            }
-            img
-        }
-
         AtlasBuilder::new()
-            .add_rgba_image("red_square", make_square(64, [255, 100, 100, 255], [200, 50, 50, 255]))
-            .add_rgba_image("green_square", make_square(64, [100, 255, 100, 255], [50, 200, 50, 255]))
-            .add_rgba_image("blue_square", make_square(64, [100, 100, 255, 255], [50, 50, 200, 255]))
-            .add_rgba_image("yellow_circle", make_circle(48, [255, 255, 100, 255]))
-            .add_rgba_image("cyan_circle", make_circle(48, [100, 255, 255, 255]))
-            .add_rgba_image("magenta_circle", make_circle(48, [255, 100, 255, 255]))
-            .add_rgba_image("white_star", make_star(64, [255, 255, 255, 255]))
-            .add_rgba_image("orange_star", make_star(48, [255, 180, 50, 255]))
+            // Squares with gradients
+            .add_gradient("red_square", 64, 64, [255, 100, 100, 255], [200, 50, 50, 255])
+            .add_gradient("green_square", 64, 64, [100, 255, 100, 255], [50, 200, 50, 255])
+            .add_gradient("blue_square", 64, 64, [100, 100, 255, 255], [50, 50, 200, 255])
+            // Filled circles
+            .add_circle("yellow_circle", 48, [255, 255, 100, 255], None)
+            .add_circle("cyan_circle", 48, [100, 255, 255, 255], None)
+            .add_circle("magenta_circle", 48, [255, 100, 255, 255], None)
+            // Stars as solid squares (simplified - use add_image for real star shapes)
+            .add_solid_color("white_star", 64, 64, [255, 255, 255, 255])
+            .add_solid_color("orange_star", 48, 48, [255, 180, 50, 255])
     }
 }
 
