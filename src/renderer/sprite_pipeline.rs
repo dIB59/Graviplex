@@ -2,6 +2,12 @@
 //!
 //! This pipeline renders textured quads using instanced rendering for efficiency.
 //! Sprites are batched and sorted by z-order before rendering.
+//!
+//! # Buffer Capacity
+//!
+//! The instance buffer has a fixed size of 128MB, which allows for approximately
+//! 2.5 million sprites per batch. Larger batches are automatically split into
+//! multiple draw calls.
 
 use crate::ecs::{Sprite, SpriteShape, Transform, Visible, World};
 use crate::renderer::camera::CameraGpuData;
@@ -11,6 +17,13 @@ use wgpu::*;
 
 #[cfg(feature = "textures")]
 use super::texture_atlas::TextureAtlas;
+
+/// Size of the instance buffer in bytes (128MB).
+const INSTANCE_BUFFER_SIZE: u64 = 1 << 27;
+
+/// Maximum number of sprites per draw call.
+/// Calculated as buffer size / size of SpriteInstanceGpu (52 bytes).
+const MAX_SPRITES_PER_BATCH: usize = (INSTANCE_BUFFER_SIZE as usize) / std::mem::size_of::<SpriteInstanceGpu>();
 
 /// Pipeline for rendering textured sprites with atlas support.
 ///
@@ -82,7 +95,7 @@ impl SpritePipeline {
         let instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Sprite Instance Buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            size: 1 << 27, // 128MB
+            size: INSTANCE_BUFFER_SIZE,
             mapped_at_creation: false,
         });
 
@@ -133,6 +146,8 @@ impl SpritePipeline {
     /// Flush the current batch to the GPU and draw.
     ///
     /// Sprites are sorted by z-order (lower values drawn first).
+    /// Large batches exceeding the buffer capacity (~2.5M sprites) are automatically
+    /// split into multiple draw calls.
     pub fn flush(&mut self, state: &RenderState, atlas: &TextureAtlas) {
         if self.staging_instances.is_empty() {
             return;
@@ -159,42 +174,47 @@ impl SpritePipeline {
         ];
 
         state.gpu.raw_queue().write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        state.gpu.raw_queue().write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(&gpu_instances),
-        );
 
-        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Sprite Batch Encoder"),
-            });
+        // Split into chunks if we exceed buffer capacity
+        for chunk in gpu_instances.chunks(MAX_SPRITES_PER_BATCH) {
+            state.gpu.raw_queue().write_buffer(
+                &self.instance_buffer,
+                0,
+                bytemuck::cast_slice(chunk),
+            );
 
-        {
-            let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Sprite Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    depth_slice: None,
-                    view: state.view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Load,
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: Default::default(),
-                occlusion_query_set: Default::default(),
-            });
+            let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
+                    label: Some("Sprite Batch Encoder"),
+                });
 
-            rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
-            rpass.set_bind_group(1, &atlas.bind_group, &[]);
-            rpass.draw(0..6, 0..gpu_instances.len() as u32);
+            {
+                let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Sprite Render Pass"),
+                    color_attachments: &[Some(RenderPassColorAttachment {
+                        depth_slice: None,
+                        view: state.view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load,
+                            store: StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: Default::default(),
+                    occlusion_query_set: Default::default(),
+                });
+
+                rpass.set_pipeline(&self.pipeline);
+                rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+                rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
+                rpass.set_bind_group(1, &atlas.bind_group, &[]);
+                rpass.draw(0..6, 0..chunk.len() as u32);
+            }
+
+            state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         }
 
-        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 
@@ -242,6 +262,14 @@ impl SpritePipeline {
     /// Access the camera GPU data.
     pub fn camera_gpu_data(&self) -> &CameraGpuData {
         &self.camera_gpu_data
+    }
+
+    /// Returns the maximum number of sprites that can be rendered in a single draw call.
+    ///
+    /// Batches exceeding this limit are automatically split, so this is primarily
+    /// informational. The current limit is approximately 2.5 million sprites.
+    pub const fn max_sprites_per_batch() -> usize {
+        MAX_SPRITES_PER_BATCH
     }
 }
 
@@ -461,5 +489,25 @@ mod tests {
 
         assert_eq!(original.position, copied.position);
         assert_eq!(original.z_order, cloned.z_order);
+    }
+
+    // =========================================================================
+    // UNIT TESTS - Buffer Capacity
+    // =========================================================================
+
+    #[test]
+    fn test_max_sprites_per_batch_calculation() {
+        // SpriteInstanceGpu is 52 bytes, buffer is 128MB
+        // 128MB / 52 bytes = 2,576,980 sprites
+        let expected = (128 * 1024 * 1024) / 52;
+        assert_eq!(MAX_SPRITES_PER_BATCH, expected);
+        assert!(MAX_SPRITES_PER_BATCH > 2_500_000, "Should support at least 2.5M sprites");
+    }
+
+    #[test]
+    fn test_max_sprites_per_batch_public_accessor() {
+        // Verify the public accessor returns the same value
+        #[cfg(feature = "textures")]
+        assert_eq!(SpritePipeline::max_sprites_per_batch(), MAX_SPRITES_PER_BATCH);
     }
 }
