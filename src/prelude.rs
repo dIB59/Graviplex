@@ -46,6 +46,9 @@ pub use crate::ecs::{Entity, Resources, World};
 // ECS - Built-in components
 pub use crate::ecs::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};
 
+// ECS - Traits for queries and components (re-exported from hecs)
+pub use crate::ecs::{Component, Query, Ref, RefMut};
+
 // ECS - Built-in systems (namespaced)
 pub use crate::ecs::{despawn_system, lifetime_system, movement_system};
 
