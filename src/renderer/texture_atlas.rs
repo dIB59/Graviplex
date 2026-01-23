@@ -44,18 +44,21 @@ impl AtlasRegion {
 
 /// A GPU texture atlas with named region lookups.
 ///
-/// Created by [`AtlasBuilder::build`].
+/// Created by [`AtlasBuilder::build`] or [`Graphics::build_atlas`].
 pub struct TextureAtlas {
     /// The GPU texture containing all packed sprites.
-    pub texture: wgpu::Texture,
+    #[allow(dead_code)]
+    pub(crate) texture: wgpu::Texture,
     /// View into the texture for binding.
-    pub view: wgpu::TextureView,
+    #[allow(dead_code)]
+    pub(crate) view: wgpu::TextureView,
     /// Sampler for texture filtering.
-    pub sampler: wgpu::Sampler,
+    #[allow(dead_code)]
+    pub(crate) sampler: wgpu::Sampler,
     /// Bind group for the texture + sampler.
-    pub bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: wgpu::BindGroup,
     /// Bind group layout (for pipeline creation).
-    pub bind_group_layout: wgpu::BindGroupLayout,
+    pub(crate) bind_group_layout: wgpu::BindGroupLayout,
     /// Named regions within the atlas.
     regions: HashMap<String, AtlasRegion>,
     /// Atlas dimensions.
