@@ -255,13 +255,13 @@ pub enum SpriteShape {
     Line { end_offset: Vec2 },
     /// Textured sprite from an atlas region.
     ///
-    /// The `region_id` is an index or hash that maps to an [`AtlasRegion`].
+    /// The `region_name` is an index or hash that maps to an [`AtlasRegion`].
     /// Use with [`TextureAtlas`] for efficient batched rendering.
     ///
     /// # Example
     ///
     /// ```ignore
-    /// // Create a textured sprite (region_id from atlas.get("player"))
+    /// // Create a textured sprite (region_name "player" from atlas.get("player"))
     /// let sprite = Sprite {
     ///     shape: SpriteShape::Texture {
     ///         region_name: "player",
