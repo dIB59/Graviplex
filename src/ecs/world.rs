@@ -362,6 +362,16 @@ mod tests {
         y: f32,
     }
 
+    // Marker component (no data)
+    struct Player;
+
+    // Component with data
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    struct Health {
+        current: f32,
+        max: f32,
+    }
+
     #[test]
     fn test_spawn_and_contains() {
         let mut world = World::new();
@@ -475,5 +485,106 @@ mod tests {
 
         world.clear();
         assert!(world.is_empty());
+    }
+
+    #[test]
+    fn test_spawn_with_custom_components() {
+        let mut world = World::new();
+
+        // Spawn entity with multiple custom components
+        let entity = world.spawn((
+            Position { x: 100.0, y: 200.0 },
+            Velocity { x: 50.0, y: 0.0 },
+            Health { current: 100.0, max: 100.0 },
+            Player,
+        ));
+
+        assert!(world.contains(entity));
+        assert!(world.has::<Position>(entity));
+        assert!(world.has::<Velocity>(entity));
+        assert!(world.has::<Health>(entity));
+        assert!(world.has::<Player>(entity));
+
+        // Verify component data
+        let health = world.get::<Health>(entity).unwrap();
+        assert_eq!(health.current, 100.0);
+        assert_eq!(health.max, 100.0);
+    }
+
+    #[test]
+    fn test_spawn_marker_component() {
+        let mut world = World::new();
+
+        // Marker components have no data but can be queried
+        let player_entity = world.spawn((Position { x: 0.0, y: 0.0 }, Player));
+        let enemy_entity = world.spawn((Position { x: 10.0, y: 10.0 },));
+
+        assert!(world.has::<Player>(player_entity));
+        assert!(!world.has::<Player>(enemy_entity));
+
+        // Query only entities with Player marker
+        let player_count = world.query::<(&Position, &Player)>().count();
+        assert_eq!(player_count, 1);
+    }
+
+    #[test]
+    fn test_spawn_builder_with_custom_components() {
+        let mut world = World::new();
+
+        let entity = world
+            .spawn_builder()
+            .add(Position { x: 50.0, y: 75.0 })
+            .add(Health { current: 80.0, max: 100.0 })
+            .add(Player)
+            .build();
+
+        assert!(world.has::<Position>(entity));
+        assert!(world.has::<Health>(entity));
+        assert!(world.has::<Player>(entity));
+
+        let health = world.get::<Health>(entity).unwrap();
+        assert_eq!(health.current, 80.0);
+    }
+
+    #[test]
+    fn test_mutate_custom_component() {
+        let mut world = World::new();
+
+        let entity = world.spawn((Health { current: 100.0, max: 100.0 },));
+
+        // Take damage
+        {
+            let mut health = world.get_mut::<Health>(entity).unwrap();
+            health.current -= 25.0;
+        }
+
+        let health = world.get::<Health>(entity).unwrap();
+        assert_eq!(health.current, 75.0);
+    }
+
+    #[test]
+    fn test_query_custom_components() {
+        let mut world = World::new();
+
+        // Spawn multiple entities with different component combinations
+        world.spawn((Position { x: 0.0, y: 0.0 }, Health { current: 100.0, max: 100.0 }, Player));
+        world.spawn((Position { x: 10.0, y: 10.0 }, Health { current: 50.0, max: 50.0 }));
+        world.spawn((Position { x: 20.0, y: 20.0 },));
+
+        // Query all entities with Health
+        let health_count = world.query::<&Health>().count();
+        assert_eq!(health_count, 2);
+
+        // Query only player with health
+        let player_health_count = world.query::<(&Health, &Player)>().count();
+        assert_eq!(player_health_count, 1);
+
+        // Sum all health values
+        let total_health: f32 = world
+            .query::<&Health>()
+            .iter()
+            .map(|(_, h)| h.current)
+            .sum();
+        assert_eq!(total_health, 150.0);
     }
 }
