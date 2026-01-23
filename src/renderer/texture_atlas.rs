@@ -369,6 +369,10 @@ impl AtlasBuilder {
             actual_height = actual_height.max(loc.y() + loc.height());
         }
 
+        // Ensure packed content fits within the maximum atlas size before creating the texture.
+        if actual_width > max_size || actual_height > max_size {
+            return Err(AtlasError::PackingFailed { max_size });
+        }
         // Round up to power of 2 for GPU efficiency
         let atlas_width = actual_width.next_power_of_two().min(max_size);
         let atlas_height = actual_height.next_power_of_two().min(max_size);
