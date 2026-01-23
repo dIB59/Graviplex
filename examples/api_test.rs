@@ -6,10 +6,10 @@ use graviplex::advanced::CircleInstance;
 struct ApiTestGame;
 
 impl GameLoop for ApiTestGame {
-    fn init(&mut self, _gfx: &Graphics) {}
-    fn update(&mut self, _time: &Time, _gfx: &Graphics) {}
+    fn init(&mut self, _world: &mut World, _gfx: &Graphics) {}
+    fn update(&mut self, _world: &mut World, _res: &Resources) {}
 
-    fn render(&mut self, draw: &mut DrawContext) {
+    fn render(&mut self, _world: &World, draw: &mut DrawContext) {
         // Draw circles using rich domain types
         let c1 = Circle::new(Vec2::new(-200.0, 0.0), 50.0, Color::RED);
         draw.circle(c1);

@@ -5,10 +5,11 @@ use graviplex::prelude::*;
 struct TestGame;
 
 impl GameLoop for TestGame {
-    fn init(&mut self, _gfx: &Graphics) {}
+    fn init(&mut self, _world: &mut World, _gfx: &Graphics) {}
 
-    fn update(&mut self, time: &Time, _gfx: &Graphics) {
-        // Use the Time reference passed to update (preferred)
+    fn update(&mut self, _world: &mut World, res: &Resources) {
+        // Use the Time reference from Resources (preferred)
+        let time = res.time;
         if time.fps() > 0.0 {
             println!(
                 "Current FPS: {:.1}, Frame Time: {:.4}s",
@@ -18,7 +19,7 @@ impl GameLoop for TestGame {
         }
     }
 
-    fn render(&mut self, _draw: &mut DrawContext) {}
+    fn render(&mut self, _world: &World, _draw: &mut DrawContext) {}
 }
 
 fn main() {
