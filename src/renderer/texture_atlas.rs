@@ -377,8 +377,13 @@ impl AtlasBuilder {
         let atlas_width = actual_width.next_power_of_two().min(max_size);
         let atlas_height = actual_height.next_power_of_two().min(max_size);
 
-        // Create the atlas image
-        let mut atlas_data = vec![0u8; (atlas_width * atlas_height * 4) as usize];
+        // Create the atlas image with checked size computation to avoid overflow
+        let atlas_bytes = (atlas_width as u64)
+            .checked_mul(atlas_height as u64)
+            .and_then(|pixels| pixels.checked_mul(4)) // RGBA: 4 bytes per pixel
+            .and_then(|bytes| usize::try_from(bytes).ok())
+            .ok_or_else(|| AtlasError::PackingFailed { max_size })?;
+        let mut atlas_data = vec![0u8; atlas_bytes];
         let mut regions = HashMap::new();
 
         for (name, (_, loc)) in packed.packed_locations() {
