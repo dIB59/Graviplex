@@ -3,6 +3,7 @@
 //! This pipeline renders textured quads using instanced rendering for efficiency.
 //! Sprites are batched and sorted by z-order before rendering.
 
+use crate::ecs::{Sprite, SpriteShape, Transform, Visible, World};
 use crate::renderer::camera::CameraGpuData;
 use crate::renderer::vertex_data::{SpriteInstance, SpriteInstanceGpu, Vertex};
 use crate::renderer::{Camera2D, RenderState};
@@ -195,6 +196,47 @@ impl SpritePipeline {
 
         state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
+    }
+
+    /// Render all texture sprites from an ECS World.
+    ///
+    /// This is the recommended way to render texture sprites from ECS entities.
+    /// It automatically queries for entities with `Transform`, `Sprite`, and `Visible`
+    /// components, filters for texture sprites, and renders them sorted by z-order.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
+    ///     let atlas = self.atlas.as_ref().unwrap();
+    ///     let pipeline = self.sprite_pipeline.as_mut().unwrap();
+    ///     
+    ///     // Render all texture sprites from the world
+    ///     pipeline.render_world(world, &draw.state(), atlas);
+    ///     
+    ///     // You can also render primitive shapes
+    ///     draw.circle((Vec2::ZERO, 50.0, Color::RED));
+    /// }
+    /// ```
+    pub fn render_world(&mut self, world: &World, state: &RenderState, atlas: &TextureAtlas) {
+        // Query all visible entities with sprites
+        for (_, (transform, sprite, _)) in world.query::<(&Transform, &Sprite, &Visible)>().iter() {
+            if let SpriteShape::Texture { region_name, size } = sprite.shape {
+                if let Some(region) = atlas.get(region_name) {
+                    self.staging_instances.push(SpriteInstance {
+                        position: [transform.position.x, transform.position.y],
+                        size: [size.x * transform.scale.x, size.y * transform.scale.y],
+                        uv_rect: region.uv_rect(),
+                        tint: sprite.color.into(),
+                        rotation: transform.rotation,
+                        z_order: sprite.z_order,
+                    });
+                }
+            }
+        }
+
+        // Flush renders and clears the batch
+        self.flush(state, atlas);
     }
 
     /// Access the camera GPU data.

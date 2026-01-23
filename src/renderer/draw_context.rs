@@ -11,6 +11,9 @@ use wgpu::*;
 use super::gpu_context;
 use super::line_pipeline::LineInstance;
 
+#[cfg(feature = "textures")]
+use super::{SpritePipeline, TextureAtlas};
+
 // =============================================================================
 // CIRCLE DRAWING PARAMS - Flexible input types
 // =============================================================================
@@ -143,6 +146,10 @@ pub struct DrawContext<'a> {
     pub(crate) camera: &'a Camera2D,
     pub(crate) circle_pipeline: &'a mut CirclePipeline,
     pub(crate) line_pipeline: &'a mut LinePipeline,
+    #[cfg(feature = "textures")]
+    pub(crate) sprite_pipeline: Option<&'a mut SpritePipeline>,
+    #[cfg(feature = "textures")]
+    pub(crate) texture_atlas: Option<&'a TextureAtlas>,
 }
 
 impl<'a> DrawContext<'a> {
@@ -261,11 +268,18 @@ impl<'a> DrawContext<'a> {
     ///
     /// Entities are sorted by z_order (lower values rendered first, higher on top).
     ///
+    /// # Texture Sprite Support
+    ///
+    /// When a texture atlas is registered via [`App::build().atlas()`], texture sprites
+    /// are rendered automatically. Without a registered atlas, texture sprites are skipped
+    /// with a warning.
+    ///
     /// # Example
     ///
     /// ```ignore
     /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
-    ///     // Render all visible entities automatically
+    ///     // Render ALL visible entities automatically
+    ///     // (circles, rects, lines, AND texture sprites if atlas is registered)
     ///     draw.render_world(world);
     ///
     ///     // You can still draw additional shapes manually
@@ -283,11 +297,15 @@ impl<'a> DrawContext<'a> {
         // Sort by z_order (lower values first = rendered first = behind)
         renderables.sort_by_key(|(z, _, _)| *z);
 
+        // Track if we've warned about texture sprites (to avoid spam)
+        #[cfg(not(feature = "textures"))]
+        let mut texture_sprite_warning_shown = false;
+
         // Batch by shape type for efficient rendering
         let mut circle_batch: Vec<CircleInstance> = Vec::with_capacity(renderables.len());
         let mut line_batch: Vec<LineInstance> = Vec::with_capacity(renderables.len() / 4);
 
-        for (_, transform, sprite) in renderables {
+        for (_, transform, sprite) in &renderables {
             match sprite.shape {
                 SpriteShape::Circle { radius } => {
                     // Apply transform scale to radius
@@ -322,20 +340,56 @@ impl<'a> DrawContext<'a> {
                         end: [end.x, end.y],
                         color: sprite.color.into(),
                     });
-                }
+                }   
                 SpriteShape::Texture { .. } => {
-                    // Texture sprites are skipped in render_world()
-                    // Use render_world_with_atlas() for texture sprite support
+                    // Texture sprites handled separately below
+                    #[cfg(not(feature = "textures"))]
+                    if !texture_sprite_warning_shown {
+                        log::warn!(
+                            "render_world() skips texture sprites - \
+                             enable the 'textures' feature and register an atlas via App::build().atlas()"
+                        );
+                        texture_sprite_warning_shown = true;
+                    }
                 }
             }
         }
 
-        // Flush batches
+        // Flush primitive batches
         if !circle_batch.is_empty() {
             self.circles(&circle_batch);
         }
         if !line_batch.is_empty() {
             self.lines(&line_batch);
+        }
+
+        // Render texture sprites if atlas is registered
+        #[cfg(feature = "textures")]
+        {
+            // Build state before taking mutable borrow of sprite_pipeline
+            let state = RenderState {
+                gpu: self.gpu,
+                view: self.view,
+                camera: self.camera,
+            };
+            
+            if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                for (_, transform, sprite) in &renderables {
+                    if let SpriteShape::Texture { region_name, size } = sprite.shape {
+                        if let Some(region) = atlas.get(region_name) {
+                            sprite_pipeline.draw(
+                                [transform.position.x, transform.position.y],
+                                [size.x * transform.scale.x, size.y * transform.scale.y],
+                                region.uv_rect(),
+                                sprite.color.into(),
+                                transform.rotation,
+                                sprite.z_order,
+                            );
+                        }
+                    }
+                }
+                sprite_pipeline.flush(&state, atlas);
+            }
         }
     }
 

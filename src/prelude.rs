@@ -40,6 +40,10 @@ pub use crate::core::stats::AppStats;
 // Graphics (renamed from GpuContext)
 pub use crate::renderer::Graphics;
 
+// Texture atlas builder (for use with App::build().atlas())
+#[cfg(feature = "textures")]
+pub use crate::renderer::AtlasBuilder;
+
 // ECS - Core types
 pub use crate::ecs::{Entity, Resources, World};
 

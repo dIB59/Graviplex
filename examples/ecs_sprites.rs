@@ -6,10 +6,11 @@
 //! - Movement and rotation systems with textured sprites
 //! - Mixed rendering (texture sprites + primitive shapes)
 //!
-//! Run with: cargo run --example ecs_sprites --features textures
+//! The engine automatically handles all rendering - just call `draw.render_world(world)`!
+//!
+//! Run with: cargo run --example ecs_sprites
 
 use graviplex::prelude::*;
-use graviplex::advanced::{AtlasBuilder, SpritePipeline, TextureAtlas};
 
 // Custom component for spin behavior
 #[derive(Clone, Copy)]
@@ -24,60 +25,16 @@ struct Orbit {
     angle: f32,
 }
 
-struct EcsSpritesGame {
-    atlas: Option<TextureAtlas>,
-    sprite_pipeline: Option<SpritePipeline>,
-}
+struct EcsSpritesGame;
 
 impl EcsSpritesGame {
     fn new() -> Self {
-        Self {
-            atlas: None,
-            sprite_pipeline: None,
-        }
-    }
-
-    fn create_atlas() -> Result<AtlasBuilder, graviplex::advanced::AtlasError> {
-        // Load images from the assets folder
-        // Place your PNG/JPG images in: assets/sprites/
-        AtlasBuilder::new()
-            .add_image("player", "assets/sprites/player.png")?
-            .add_image("enemy", "assets/sprites/enemy.png")?
-            .add_image("pickup", "assets/sprites/pickup.png")?
-            .add_image("ring", "assets/sprites/ring.png")?
-            .add_image("bullet", "assets/sprites/bullet.png")
-    }
-
-    /// Fallback to procedural textures if image files aren't found
-    fn create_fallback_atlas() -> AtlasBuilder {
-        AtlasBuilder::new()
-            .add_gradient("player", 64, 64, [50, 150, 255, 255], [150, 50, 255, 255])
-            .add_gradient("enemy", 48, 48, [255, 100, 100, 255], [255, 50, 50, 255])
-            .add_checkerboard("pickup", 32, 32, 8, [255, 255, 100, 255], [255, 200, 50, 255])
-            .add_ring("ring", 64, 12, [100, 255, 200, 255])
-            .add_gradient("bullet", 16, 16, [255, 255, 255, 255], [200, 200, 255, 255])
+        Self
     }
 }
 
 impl GameLoop for EcsSpritesGame {
-    fn init(&mut self, world: &mut World, gfx: &Graphics) {
-        // Try to build atlas from image files, fall back to procedural textures
-        let atlas_builder = match Self::create_atlas() {
-            Ok(builder) => {
-                println!("Loaded sprite images from assets/sprites/");
-                builder
-            }
-            Err(e) => {
-                println!("Could not load images ({e}), using procedural textures");
-                println!("To use real images, create: assets/sprites/{{player,enemy,pickup,ring,bullet}}.png");
-                Self::create_fallback_atlas()
-            }
-        };
-
-        // Use the high-level Graphics API to build atlas and pipeline
-        let atlas = gfx.build_atlas(atlas_builder, 2048).expect("Failed to build atlas");
-        let sprite_pipeline = gfx.create_sprite_pipeline(&atlas);
-
+    fn init(&mut self, world: &mut World, _gfx: &Graphics) {
         // Spawn player entity (center)
         world.spawn((
             Transform::from_position(Vec2::ZERO).with_uniform_scale(1.5),
@@ -128,9 +85,6 @@ impl GameLoop for EcsSpritesGame {
             ));
         }
 
-        self.atlas = Some(atlas);
-        self.sprite_pipeline = Some(sprite_pipeline);
-
         println!("Spawned {} entities", world.len());
     }
 
@@ -153,42 +107,8 @@ impl GameLoop for EcsSpritesGame {
     }
 
     fn render(&mut self, world: &World, draw: &mut DrawContext) {
-        let atlas = self.atlas.as_ref().unwrap();
-        let pipeline = self.sprite_pipeline.as_mut().unwrap();
-
-        // Collect and render texture sprites from ECS
-        let mut sprites_to_render: Vec<(Transform, Sprite)> = Vec::new();
-
-        for (_, (transform, sprite, _)) in world.query::<(&Transform, &Sprite, &Visible)>().iter() {
-            if let SpriteShape::Texture { .. } = sprite.shape {
-                sprites_to_render.push((*transform, *sprite));
-            }
-        }
-
-        // Sort by z_order
-        sprites_to_render.sort_by_key(|(_, s)| s.z_order);
-
-        // Render each texture sprite
-        for (transform, sprite) in sprites_to_render {
-            if let SpriteShape::Texture { region_name, size } = sprite.shape {
-                if let Some(region) = atlas.get(region_name) {
-                    let scaled_size = [
-                        size.x * transform.scale.x,
-                        size.y * transform.scale.y,
-                    ];
-                    pipeline.draw(
-                        [transform.position.x, transform.position.y],
-                        scaled_size,
-                        region.uv_rect(),
-                        sprite.color.into(),
-                        transform.rotation,
-                        sprite.z_order,
-                    );
-                }
-            }
-        }
-
-        pipeline.flush(&draw.state(), atlas);
+        // Render ALL entities automatically (circles, lines, AND texture sprites)
+        draw.render_world(world);
 
         // Draw some lines connecting enemies to center
         for (_, (transform, _, _)) in world.query::<(&Transform, &Orbit, &Visible)>().iter() {
@@ -204,11 +124,35 @@ impl GameLoop for EcsSpritesGame {
     }
 }
 
+/// Create the atlas with procedural textures (or load from files if available)
+fn create_atlas() -> AtlasBuilder {
+    // Try to load images from files first
+    if let Ok(builder) = AtlasBuilder::new()
+        .add_image("player", "assets/sprites/player.png")
+        .and_then(|b| b.add_image("enemy", "assets/sprites/enemy.png"))
+        .and_then(|b| b.add_image("pickup", "assets/sprites/pickup.png"))
+        .and_then(|b| b.add_image("ring", "assets/sprites/ring.png"))
+    {
+        println!("Loaded sprite images from assets/sprites/");
+        return builder;
+    }
+
+    // Fall back to procedural textures
+    println!("Using procedural textures (place PNGs in assets/sprites/ for real images)");
+    AtlasBuilder::new()
+        .add_gradient("player", 64, 64, [50, 150, 255, 255], [150, 50, 255, 255])
+        .add_gradient("enemy", 48, 48, [255, 100, 100, 255], [255, 50, 50, 255])
+        .add_checkerboard("pickup", 32, 32, 8, [255, 255, 100, 255], [255, 200, 50, 255])
+        .add_ring("ring", 64, 12, [100, 255, 200, 255])
+}
+
 fn main() {
+    // Register the atlas with the app - the engine handles everything else!
     App::build(EcsSpritesGame::new())
         .title("Graviplex ECS Sprites Demo")
         .size(1200, 800)
         .camera(CameraConfig::centered().with_scale(1.0))
+        .atlas(create_atlas())
         .run()
         .unwrap();
 }
