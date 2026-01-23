@@ -264,9 +264,15 @@ impl<'a> DrawContext<'a> {
     /// Render all visible entities from the ECS world.
     ///
     /// This method queries the world for all entities with [`Transform`], [`Sprite`],
-    /// and [`Visible`] components, then batches and renders them efficiently.
+    /// and [`Visible`] components, then renders them in z-order.
     ///
-    /// Entities are sorted by z_order (lower values rendered first, higher on top).
+    /// # Z-Ordering
+    ///
+    /// Entities are sorted by `z_order` (lower values rendered first = behind, higher = on top).
+    /// Z-ordering is respected across all sprite types - a circle with `z_order=5` will correctly
+    /// render behind a texture sprite with `z_order=10`, regardless of their types.
+    ///
+    /// Sprites with the same z-order are batched together for efficiency.
     ///
     /// # Texture Sprite Support
     ///
@@ -301,11 +307,44 @@ impl<'a> DrawContext<'a> {
         #[cfg(not(feature = "textures"))]
         let mut texture_sprite_warning_shown = false;
 
-        // Batch by shape type for efficient rendering
+        // Build state for texture rendering (needed for flushing)
+        #[cfg(feature = "textures")]
+        let state = RenderState {
+            gpu: self.gpu,
+            view: self.view,
+            camera: self.camera,
+        };
+
+        // Batches for each primitive type
         let mut circle_batch: Vec<CircleInstance> = Vec::with_capacity(renderables.len());
         let mut line_batch: Vec<LineInstance> = Vec::with_capacity(renderables.len() / 4);
+        
+        // Track current z-order to know when to flush
+        let mut current_z: Option<i32> = None;
 
-        for (_, transform, sprite) in &renderables {
+        for (z_order, transform, sprite) in &renderables {
+            // When z-order changes, flush all batches to maintain correct ordering
+            if current_z.is_some() && current_z != Some(*z_order) {
+                // Flush circles
+                if !circle_batch.is_empty() {
+                    self.circles(&circle_batch);
+                    circle_batch.clear();
+                }
+                // Flush lines
+                if !line_batch.is_empty() {
+                    self.lines(&line_batch);
+                    line_batch.clear();
+                }
+                // Flush texture sprites
+                #[cfg(feature = "textures")]
+                if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                    if sprite_pipeline.staging_count() > 0 {
+                        sprite_pipeline.flush(&state, atlas);
+                    }
+                }
+            }
+            current_z = Some(*z_order);
+
             match sprite.shape {
                 SpriteShape::Circle { radius } => {
                     // Apply transform scale to radius
@@ -341,8 +380,20 @@ impl<'a> DrawContext<'a> {
                         color: sprite.color.into(),
                     });
                 }   
-                SpriteShape::Texture { .. } => {
-                    // Texture sprites handled separately below
+                SpriteShape::Texture { region_name, size } => {
+                    #[cfg(feature = "textures")]
+                    if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                        if let Some(region) = atlas.get(region_name) {
+                            sprite_pipeline.draw(
+                                [transform.position.x, transform.position.y],
+                                [size.x * transform.scale.x, size.y * transform.scale.y],
+                                region.uv_rect(),
+                                sprite.color.into(),
+                                transform.rotation,
+                                *z_order,
+                            );
+                        }
+                    }
                     #[cfg(not(feature = "textures"))]
                     if !texture_sprite_warning_shown {
                         log::warn!(
@@ -355,39 +406,16 @@ impl<'a> DrawContext<'a> {
             }
         }
 
-        // Flush primitive batches
+        // Flush any remaining batches
         if !circle_batch.is_empty() {
             self.circles(&circle_batch);
         }
         if !line_batch.is_empty() {
             self.lines(&line_batch);
         }
-
-        // Render texture sprites if atlas is registered
         #[cfg(feature = "textures")]
-        {
-            // Build state before taking mutable borrow of sprite_pipeline
-            let state = RenderState {
-                gpu: self.gpu,
-                view: self.view,
-                camera: self.camera,
-            };
-            
-            if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
-                for (_, transform, sprite) in &renderables {
-                    if let SpriteShape::Texture { region_name, size } = sprite.shape {
-                        if let Some(region) = atlas.get(region_name) {
-                            sprite_pipeline.draw(
-                                [transform.position.x, transform.position.y],
-                                [size.x * transform.scale.x, size.y * transform.scale.y],
-                                region.uv_rect(),
-                                sprite.color.into(),
-                                transform.rotation,
-                                sprite.z_order,
-                            );
-                        }
-                    }
-                }
+        if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+            if sprite_pipeline.staging_count() > 0 {
                 sprite_pipeline.flush(&state, atlas);
             }
         }

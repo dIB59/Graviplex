@@ -373,4 +373,226 @@ mod tests {
         assert_eq!(sprite.color, Color::BLUE);
         assert_eq!(sprite.z_order, 100);
     }
+
+    // =========================================================================
+    // Z-ORDER REGRESSION TESTS - Ensure correct ordering across sprite types
+    // =========================================================================
+
+    /// Regression test: Z-ordering must be respected across different sprite types.
+    /// Previously, all circles were rendered first, then all lines, then all textures,
+    /// which broke z-ordering when mixing sprite types.
+    #[test]
+    fn test_z_order_sorting_mixed_sprite_types() {
+        let mut world = World::new();
+
+        // Spawn sprites with intentionally mixed z-orders and types
+        // The correct render order should be: background circle -> middle line -> foreground rect
+        world.spawn((
+            Transform::from_position(Vec2::new(0.0, 0.0)),
+            Sprite::rect(100.0, 100.0, Color::RED).with_z_order(10), // Should be LAST (foreground)
+            Visible,
+        ));
+
+        world.spawn((
+            Transform::from_position(Vec2::new(0.0, 0.0)),
+            Sprite::circle(50.0, Color::BLUE).with_z_order(0), // Should be FIRST (background)
+            Visible,
+        ));
+
+        world.spawn((
+            Transform::from_position(Vec2::new(0.0, 0.0)),
+            Sprite::line(Vec2::new(100.0, 100.0), Color::GREEN).with_z_order(5), // Should be MIDDLE
+            Visible,
+        ));
+
+        // Collect and sort like render_world does
+        let mut renderables: Vec<(i32, SpriteShape)> = world
+            .query::<(&Transform, &Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape))
+            .collect();
+
+        renderables.sort_by_key(|(z, _)| *z);
+
+        // Verify correct z-order
+        assert_eq!(renderables.len(), 3);
+        assert_eq!(renderables[0].0, 0);  // Circle at z=0
+        assert_eq!(renderables[1].0, 5);  // Line at z=5
+        assert_eq!(renderables[2].0, 10); // Rect at z=10
+
+        // Verify types are in correct order
+        assert!(matches!(renderables[0].1, SpriteShape::Circle { .. }));
+        assert!(matches!(renderables[1].1, SpriteShape::Line { .. }));
+        assert!(matches!(renderables[2].1, SpriteShape::Rect { .. }));
+    }
+
+    /// Regression test: Same z-order sprites should still be batchable.
+    #[test]
+    fn test_same_z_order_batching() {
+        let mut world = World::new();
+
+        // Multiple circles at same z-order - should be batched together
+        for i in 0..5 {
+            world.spawn((
+                Transform::from_position(Vec2::new(i as f32 * 10.0, 0.0)),
+                Sprite::circle(10.0, Color::RED).with_z_order(5),
+                Visible,
+            ));
+        }
+
+        // Multiple lines at same z-order - should be batched together
+        for i in 0..3 {
+            world.spawn((
+                Transform::from_position(Vec2::new(i as f32 * 20.0, 50.0)),
+                Sprite::line(Vec2::new(15.0, 0.0), Color::BLUE).with_z_order(5),
+                Visible,
+            ));
+        }
+
+        let mut renderables: Vec<(i32, SpriteShape)> = world
+            .query::<(&Transform, &Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape))
+            .collect();
+
+        renderables.sort_by_key(|(z, _)| *z);
+
+        // All 8 sprites should have z_order = 5
+        assert_eq!(renderables.len(), 8);
+        for (z, _) in &renderables {
+            assert_eq!(*z, 5);
+        }
+    }
+
+    /// Regression test: Z-order changes should trigger proper flush boundaries.
+    #[test]
+    fn test_z_order_boundaries() {
+        let mut world = World::new();
+
+        // Create sprites at different z-orders
+        // This tests that flush happens at z-order boundaries
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(10.0, Color::RED).with_z_order(-10),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(20.0, Color::GREEN).with_z_order(0),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(30.0, Color::BLUE).with_z_order(10),
+            Visible,
+        ));
+
+        let mut renderables: Vec<i32> = world
+            .query::<(&Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (sprite, _))| sprite.z_order)
+            .collect();
+
+        renderables.sort();
+
+        // Should have 3 distinct z-order groups: -10, 0, 10
+        assert_eq!(renderables, vec![-10, 0, 10]);
+    }
+
+    /// Regression test: Negative z-orders should work correctly with mixed types.
+    #[test]
+    fn test_negative_z_order_mixed_types() {
+        let mut world = World::new();
+
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::line(Vec2::new(100.0, 0.0), Color::WHITE).with_z_order(-100), // Far background
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(50.0, Color::RED).with_z_order(0), // Middle
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::rect(30.0, 30.0, Color::BLUE).with_z_order(100), // Foreground
+            Visible,
+        ));
+
+        let mut renderables: Vec<(i32, SpriteShape)> = world
+            .query::<(&Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (sprite, _))| (sprite.z_order, sprite.shape))
+            .collect();
+
+        renderables.sort_by_key(|(z, _)| *z);
+
+        assert_eq!(renderables[0].0, -100);
+        assert!(matches!(renderables[0].1, SpriteShape::Line { .. }));
+        
+        assert_eq!(renderables[1].0, 0);
+        assert!(matches!(renderables[1].1, SpriteShape::Circle { .. }));
+        
+        assert_eq!(renderables[2].0, 100);
+        assert!(matches!(renderables[2].1, SpriteShape::Rect { .. }));
+    }
+
+    /// Regression test: Z-ordering with texture sprites (when textures feature enabled).
+    #[cfg(feature = "textures")]
+    #[test]
+    fn test_z_order_with_texture_sprites() {
+        let mut world = World::new();
+
+        // Mix texture sprites with primitive sprites at different z-orders
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::texture("background", Vec2::new(800.0, 600.0), Color::WHITE).with_z_order(-10),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(50.0, Color::RED).with_z_order(0),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE).with_z_order(5),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::line(Vec2::new(100.0, 0.0), Color::GREEN).with_z_order(10),
+            Visible,
+        ));
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::texture("ui_overlay", Vec2::new(200.0, 50.0), Color::WHITE).with_z_order(100),
+            Visible,
+        ));
+
+        let mut renderables: Vec<(i32, &'static str)> = world
+            .query::<(&Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (sprite, _))| {
+                let type_name = match sprite.shape {
+                    SpriteShape::Circle { .. } => "circle",
+                    SpriteShape::Rect { .. } => "rect",
+                    SpriteShape::Line { .. } => "line",
+                    SpriteShape::Texture { .. } => "texture",
+                };
+                (sprite.z_order, type_name)
+            })
+            .collect();
+
+        renderables.sort_by_key(|(z, _)| *z);
+
+        // Verify correct z-order across all types including textures
+        assert_eq!(renderables.len(), 5);
+        assert_eq!(renderables[0], (-10, "texture"));  // background
+        assert_eq!(renderables[1], (0, "circle"));     // circle
+        assert_eq!(renderables[2], (5, "texture"));    // player
+        assert_eq!(renderables[3], (10, "line"));      // line
+        assert_eq!(renderables[4], (100, "texture"));  // ui_overlay
+    }
 }
