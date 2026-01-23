@@ -9,7 +9,7 @@ keywords = ["gamedev", "graphics", "2d", "wgpu", "game-engine"]
 categories = ["game-development", "graphics", "rendering"]
 
 [features]
-default = ["gui"]
+default = ["gui", "textures"]
 gui = ["dep:egui", "dep:egui-winit"]
 physics = []
 textures = ["dep:image", "dep:rectangle-pack"]
