@@ -9,7 +9,7 @@ struct PerfTestGame {
 }
 
 impl GameLoop for PerfTestGame {
-    fn init(&mut self, gfx: &Graphics) {
+    fn init(&mut self, _world: &mut World, gfx: &Graphics) {
         let count = 1_000_000;
         let mut instances = Vec::with_capacity(count);
 
@@ -34,9 +34,9 @@ impl GameLoop for PerfTestGame {
         self.particle_buffer = Some(buffer);
     }
 
-    fn update(&mut self, _time: &Time, _gfx: &Graphics) {}
+    fn update(&mut self, _world: &mut World, _res: &Resources) {}
 
-    fn render(&mut self, draw: &mut DrawContext) {
+    fn render(&mut self, _world: &World, draw: &mut DrawContext) {
         if let Some(buffer) = &self.particle_buffer {
             draw.circles_from_buffer(buffer, 1_000_000);
         }

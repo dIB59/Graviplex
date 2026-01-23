@@ -1,5 +1,6 @@
 use crate::core::color::Color;
 use crate::core::math::Vec2;
+use crate::ecs::{Sprite, SpriteShape, Transform, Visible, World};
 use crate::renderer::{
     Camera2D, CircleInstance, CirclePipeline, LinePipeline, RenderState,
 };
@@ -246,6 +247,137 @@ impl<'a> DrawContext<'a> {
     pub fn lines_from_buffer(&self, buffer: &Buffer, count: u32) {
         self.line_pipeline
             .render_with_external_buffer(&self.state(), count, buffer);
+    }
+
+    // =========================================================================
+    // ECS RENDERING
+    // =========================================================================
+
+    /// Render all visible entities from the ECS world.
+    ///
+    /// This method queries the world for all entities with [`Transform`], [`Sprite`],
+    /// and [`Visible`] components, then batches and renders them efficiently.
+    ///
+    /// Entities are sorted by z_order (lower values rendered first, higher on top).
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
+    ///     // Render all visible entities automatically
+    ///     draw.render_world(world);
+    ///
+    ///     // You can still draw additional shapes manually
+    ///     draw.circle(Circle::new(Vec2::ZERO, 10.0, Color::WHITE));
+    /// }
+    /// ```
+    pub fn render_world(&mut self, world: &World) {
+        // Collect all visible entities with their components
+        let mut renderables: Vec<(i32, Transform, Sprite)> = world
+            .query::<(&Transform, &Sprite, &Visible)>()
+            .iter()
+            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, *sprite))
+            .collect();
+
+        // Sort by z_order (lower values first = rendered first = behind)
+        renderables.sort_by_key(|(z, _, _)| *z);
+
+        // Batch by shape type for efficient rendering
+        let mut circle_batch: Vec<CircleInstance> = Vec::with_capacity(renderables.len());
+        let mut line_batch: Vec<LineInstance> = Vec::with_capacity(renderables.len() / 4);
+
+        for (_, transform, sprite) in renderables {
+            match sprite.shape {
+                SpriteShape::Circle { radius } => {
+                    // Apply transform scale to radius
+                    let scaled_radius = radius * transform.scale.x;
+                    circle_batch.push(CircleInstance {
+                        position: [transform.position.x, transform.position.y],
+                        radius: scaled_radius,
+                        color: sprite.color.into(),
+                    });
+                }
+                SpriteShape::Rect { size } => {
+                    // Draw rectangle as 4 lines (outline)
+                    // TODO: Add filled rectangle support via rect_pipeline
+                    let half_w = size.x * transform.scale.x * 0.5;
+                    let half_h = size.y * transform.scale.y * 0.5;
+                    let pos = transform.position;
+                    let color: [f32; 4] = sprite.color.into();
+
+                    // For now, approximate as circle with average dimension
+                    let avg_radius = (half_w + half_h) * 0.5;
+                    circle_batch.push(CircleInstance {
+                        position: [pos.x, pos.y],
+                        radius: avg_radius,
+                        color,
+                    });
+                }
+                SpriteShape::Line { end_offset } => {
+                    let start = transform.position;
+                    let end = start + end_offset * transform.scale.x;
+                    line_batch.push(LineInstance {
+                        start: [start.x, start.y],
+                        end: [end.x, end.y],
+                        color: sprite.color.into(),
+                    });
+                }
+            }
+        }
+
+        // Flush batches
+        if !circle_batch.is_empty() {
+            self.circles(&circle_batch);
+        }
+        if !line_batch.is_empty() {
+            self.lines(&line_batch);
+        }
+    }
+
+    /// Render specific entities from the world (for custom rendering logic).
+    ///
+    /// This allows you to render only a subset of entities, useful for
+    /// layered rendering or special effects.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Render only player entities
+    /// for (_, (transform, sprite, _)) in world.query::<(&Transform, &Sprite, &Player)>() {
+    ///     // Custom rendering logic
+    /// }
+    /// ```
+    pub fn render_entity(&mut self, transform: &Transform, sprite: &Sprite) {
+        match sprite.shape {
+            SpriteShape::Circle { radius } => {
+                let scaled_radius = radius * transform.scale.x;
+                self.circle_pipeline.draw_circle(
+                    [transform.position.x, transform.position.y],
+                    scaled_radius,
+                    sprite.color.into(),
+                );
+            }
+            SpriteShape::Rect { size } => {
+                // Approximate as circle for now
+                let half_w = size.x * transform.scale.x * 0.5;
+                let half_h = size.y * transform.scale.y * 0.5;
+                let avg_radius = (half_w + half_h) * 0.5;
+                self.circle_pipeline.draw_circle(
+                    [transform.position.x, transform.position.y],
+                    avg_radius,
+                    sprite.color.into(),
+                );
+            }
+            SpriteShape::Line { end_offset } => {
+                let start = transform.position;
+                let end = start + end_offset * transform.scale.x;
+                self.line_pipeline.draw_line(
+                    [start.x, start.y],
+                    [end.x, end.y],
+                    sprite.color.into(),
+                );
+            }
+        }
     }
 
     // =========================================================================

@@ -26,9 +26,10 @@ ultraviolet = "0.9.2"
 pollster = "0.4.0"
 log = "0.4.22"
 rand = "0.8.5"
-
 # Optional dependencies for engine systems
 image = { version = "0.25", optional = true }
 rodio = { version = "0.19", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
+# ECS - wrapped behind our API for future replacement
+hecs = "0.10"

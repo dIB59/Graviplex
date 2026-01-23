@@ -7,6 +7,7 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
 use crate::core::time::Time;
+use crate::ecs::{Resources, World};
 use crate::input::InputState;
 use crate::renderer::{
     Camera2D, CameraController, CirclePipeline, DrawContext, LinePipeline,
@@ -163,6 +164,7 @@ impl<T: GameLoop> AppBuilder<T> {
     pub fn run(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
         let app = App {
             game: self.game,
+            world: World::new(),
             window: None,
             gpu: GpuContext::new(),
             camera: Camera2D::new(
@@ -231,6 +233,7 @@ struct AppConfig {
 /// ```
 pub struct App<T: GameLoop> {
     game: T,
+    world: World,
     window: Option<Arc<Window>>,
     gpu: GpuContext,
     camera: Camera2D,
@@ -254,6 +257,7 @@ impl<T: GameLoop> App<T> {
     pub fn new(game: T) -> Self {
         Self {
             game,
+            world: World::new(),
             window: None,
             gpu: GpuContext::new(),
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 800.0]),
@@ -342,10 +346,13 @@ impl<T: GameLoop> App<T> {
         );
 
         // Let game handle input
-        self.game.handle_input(&self.input, &self.camera);
+        self.game.handle_input(&mut self.world, &self.input, &self.camera);
 
-        // Update game with Time reference instead of just dt
-        self.game.update(&self.time, &self.gpu);
+        // Create resources for this frame
+        let resources = Resources::new(&self.time, &self.input, &self.camera);
+
+        // Update game with world and resources
+        self.game.update(&mut self.world, &resources);
 
         let Ok(frame) = self.gpu.get_current_frame() else {
             return;
@@ -364,7 +371,7 @@ impl<T: GameLoop> App<T> {
                 line_pipeline,
             };
 
-            self.game.render(&mut draw);
+            self.game.render(&self.world, &mut draw);
 
             // Automatically flush at the end of the frame
             draw.flush();
@@ -460,8 +467,8 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         self.circle_pipeline = Some(circle_pipeline);
         self.line_pipeline = Some(line_pipeline);
 
-        // Initialize game
-        self.game.init(&self.gpu);
+        // Initialize game with world and GPU context
+        self.game.init(&mut self.world, &self.gpu);
 
         self.window = Some(window);
     }

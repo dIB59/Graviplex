@@ -8,9 +8,9 @@
 //! struct MyGame;
 //!
 //! impl GameLoop for MyGame {
-//!     fn init(&mut self, _gfx: &Graphics) {}
-//!     fn update(&mut self, time: &Time, _gfx: &Graphics) {}
-//!     fn render(&mut self, draw: &mut DrawContext) {
+//!     fn init(&mut self, _world: &mut World, _gfx: &Graphics) {}
+//!     fn update(&mut self, _world: &mut World, _res: &Resources) {}
+//!     fn render(&mut self, _world: &World, draw: &mut DrawContext) {
 //!         draw.circle(Circle::new(Vec2::ZERO, 50.0, Color::RED));
 //!     }
 //! }
@@ -34,6 +34,7 @@
 
 // Public modules
 pub mod core;
+pub mod ecs;
 pub mod input;
 pub mod prelude;
 pub mod renderer;
@@ -74,6 +75,16 @@ pub use renderer::{Camera2D, CameraController};
 
 // Graphics device (for advanced users creating custom buffers/pipelines)
 pub use renderer::Graphics;
+
+// ECS
+pub use ecs::{
+    Despawn, Entity, Lifetime, Resources, Sprite, SpriteShape, Transform, Velocity, Visible, World,
+};
+
+/// Built-in ECS systems.
+pub mod systems {
+    pub use crate::ecs::{despawn_system, lifetime_system, movement_system, run_systems};
+}
 
 // =============================================================================
 // ADVANCED API - For users who need lower-level access

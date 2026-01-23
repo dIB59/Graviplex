@@ -9,6 +9,7 @@
 //! - [`Time`] - Frame timing information
 //! - [`InputState`] - Keyboard/mouse input
 //! - [`Camera2D`] - 2D camera with pan/zoom
+//! - ECS types - [`World`], [`Entity`], components, and systems
 
 // Core application
 pub use crate::app::{App, AppBuilder, CameraConfig};
@@ -38,3 +39,17 @@ pub use crate::core::stats::AppStats;
 
 // Graphics (renamed from GpuContext)
 pub use crate::renderer::Graphics;
+
+// ECS - Core types
+pub use crate::ecs::{Entity, Resources, World};
+
+// ECS - Built-in components
+pub use crate::ecs::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};
+
+// ECS - Built-in systems (namespaced)
+pub use crate::ecs::{despawn_system, lifetime_system, movement_system};
+
+/// Convenient access to all built-in systems.
+pub mod systems {
+    pub use crate::ecs::{despawn_system, lifetime_system, movement_system, run_systems};
+}
