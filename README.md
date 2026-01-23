@@ -65,7 +65,6 @@ For rendering large numbers of particles (100K+), use GPU buffers:
 
 ```rust
 use graviplex::advanced::CircleInstance;
-use wgpu::util::DeviceExt;
 
 fn init(&mut self, gfx: &Graphics) {
     let instances: Vec<CircleInstance> = /* generate particles */;
