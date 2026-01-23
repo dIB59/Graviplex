@@ -154,23 +154,20 @@ impl LinePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
+        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
 
-        state.gpu.queue.write_buffer(
+        state.gpu.raw_queue().write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&Self::LINE_VERTICES),
         );
-        state.gpu.queue.write_buffer(
+        state.gpu.raw_queue().write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&self.staging_instances),
         );
 
-        let mut encoder = state
-            .gpu
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Line Batch Encoder"),
             });
 
@@ -198,7 +195,7 @@ impl LinePipeline {
             rpass.draw(0..2, 0..self.staging_instances.len() as u32);
         }
 
-        state.gpu.queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 
@@ -214,18 +211,15 @@ impl LinePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
+        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
 
-        state.gpu.queue.write_buffer(
+        state.gpu.raw_queue().write_buffer(
             &self.vertex_buffer,
             0,
             bytemuck::cast_slice(&Self::LINE_VERTICES),
         );
 
-        let mut encoder = state
-            .gpu
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Line Render (External) Encoder"),
             });
 
@@ -253,7 +247,7 @@ impl LinePipeline {
             rpass.draw(0..2, 0..instance_count);
         }
 
-        state.gpu.queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
     }
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {

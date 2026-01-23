@@ -145,7 +145,7 @@ impl SpritePipeline {
         let gpu_instances: Vec<SpriteInstanceGpu> =
             self.staging_instances.iter().map(|i| i.to_gpu()).collect();
 
-        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
+        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
 
         // Quad vertices: centered, size 1x1 (scaled by instance size)
         let vertices = [
@@ -157,20 +157,14 @@ impl SpritePipeline {
             Vertex { pos: [0.5, 0.5] },
         ];
 
-        state
-            .gpu
-            .queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        state.gpu.queue.write_buffer(
+        state.gpu.raw_queue().write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        state.gpu.raw_queue().write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&gpu_instances),
         );
 
-        let mut encoder = state
-            .gpu
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Sprite Batch Encoder"),
             });
 
@@ -199,7 +193,7 @@ impl SpritePipeline {
             rpass.draw(0..6, 0..gpu_instances.len() as u32);
         }
 
-        state.gpu.queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 

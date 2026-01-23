@@ -204,10 +204,11 @@ impl<'a> DrawContext<'a> {
     /// # Example
     ///
     /// ```ignore
-    /// let buffer = gfx.device.create_buffer_init(&BufferInitDescriptor {
+    /// use wgpu::util::DeviceExt;
+    /// let buffer = gfx.create_buffer_init(&wgpu::util::BufferInitDescriptor {
     ///     label: Some("Particles"),
     ///     contents: bytemuck::cast_slice(&instances),
-    ///     usage: BufferUsages::VERTEX | BufferUsages::STORAGE,
+    ///     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
     /// });
     /// draw.circles_from_buffer(&buffer, 1_000_000);
     /// ```

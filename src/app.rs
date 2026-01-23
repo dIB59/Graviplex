@@ -400,7 +400,7 @@ impl<T: GameLoop> App<T> {
         ui_renderer.handle_textures(full.textures_delta);
         let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
 
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let mut encoder = self.gpu.raw_device().create_command_encoder(&Default::default());
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
 
@@ -412,7 +412,7 @@ impl<T: GameLoop> App<T> {
             physical_size,
             scale_factor as f32,
         );
-        self.gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
     }
 }
 
@@ -437,29 +437,24 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         let size = window.inner_size();
         self.camera.screen_size = [size.width as f32, size.height as f32];
 
-        let format = self
-            .gpu
-            .config
-            .as_ref()
-            .expect("Unable to get TextureFormat")
-            .format;
+        let format = self.gpu.surface_format();
 
         #[cfg(feature = "gui")]
         {
             let mut gui = Gui::new(event_loop);
             let initial_output = gui.run_empty(&window);
-            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
+            let mut ui_pipeline = UiPipeline::new(self.gpu.raw_device(), self.gpu.raw_queue(), format);
             ui_pipeline.handle_textures(initial_output.textures_delta);
             self.gui = Some(gui);
             self.gui_renderer = Some(ui_pipeline);
         }
 
         // Initialize standard pipelines
-        let circle_pipeline = CirclePipeline::new(&self.gpu.device, format, &self.camera);
+        let circle_pipeline = CirclePipeline::new(self.gpu.raw_device(), format, &self.camera);
         let line_pipeline = LinePipeline::new(
             "Default",
             wgpu::include_wgsl!("shaders/line_shader.wgsl"),
-            &self.gpu.device,
+            self.gpu.raw_device(),
             format,
             &self.camera,
         );

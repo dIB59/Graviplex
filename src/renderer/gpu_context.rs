@@ -7,25 +7,27 @@ use winit::window::Window;
 
 /// Graphics device wrapper managing wgpu resources.
 ///
-/// This is the core GPU abstraction that provides access to the device and queue
-/// for creating buffers, pipelines, and other GPU resources.
+/// Provides high-level methods for creating GPU resources without exposing
+/// wgpu internals directly. For advanced use cases that require direct GPU access,
+/// see the `raw_device()` and `raw_queue()` methods.
 ///
 /// # Example
 ///
 /// ```ignore
 /// fn init(&mut self, gfx: &Graphics) {
-///     let buffer = gfx.device.create_buffer_init(&BufferInitDescriptor {
-///         label: Some("My Buffer"),
-///         contents: bytemuck::cast_slice(&data),
-///         usage: BufferUsages::VERTEX,
-///     });
+///     // High-level API (preferred)
+///     let atlas = gfx.build_atlas(builder, 2048)?;
+///     let pipeline = gfx.create_sprite_pipeline(&atlas);
+///     
+///     // Low-level access (advanced)
+///     let buffer = gfx.create_buffer(&BufferDescriptor { ... });
 /// }
 /// ```
 pub struct GpuContext {
-    pub device: Device,
-    pub queue: Queue,
-    pub surface: Option<Surface<'static>>,
-    pub config: Option<SurfaceConfiguration>,
+    device: Device,
+    queue: Queue,
+    surface: Option<Surface<'static>>,
+    config: Option<SurfaceConfiguration>,
 }
 
 impl GpuContext {
@@ -143,6 +145,50 @@ impl GpuContext {
             })
             .block_on()
             .expect("Unable to create device")
+    }
+
+    // =========================================================================
+    // Buffer Creation (encapsulated wgpu methods)
+    // =========================================================================
+
+    /// Create a GPU buffer with the given descriptor.
+    pub fn create_buffer(&self, desc: &BufferDescriptor) -> Buffer {
+        self.device.create_buffer(desc)
+    }
+
+    /// Create a GPU buffer initialized with data.
+    pub fn create_buffer_init(&self, desc: &wgpu::util::BufferInitDescriptor) -> Buffer {
+        use wgpu::util::DeviceExt;
+        self.device.create_buffer_init(desc)
+    }
+
+    /// Write data to a buffer.
+    pub fn write_buffer(&self, buffer: &Buffer, offset: u64, data: &[u8]) {
+        self.queue.write_buffer(buffer, offset, data);
+    }
+
+    // =========================================================================
+    // Raw Access (for truly advanced use cases)
+    // =========================================================================
+
+    /// Returns a reference to the underlying wgpu Device.
+    ///
+    /// # Warning
+    ///
+    /// Using raw wgpu types ties your code to wgpu internals.
+    /// Prefer using the encapsulated methods when possible.
+    pub fn raw_device(&self) -> &Device {
+        &self.device
+    }
+
+    /// Returns a reference to the underlying wgpu Queue.
+    ///
+    /// # Warning
+    ///
+    /// Using raw wgpu types ties your code to wgpu internals.
+    /// Prefer using the encapsulated methods when possible.
+    pub fn raw_queue(&self) -> &Queue {
+        &self.queue
     }
 }
 
