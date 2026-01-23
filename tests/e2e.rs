@@ -5,6 +5,9 @@
 use graviplex::prelude::*;
 use graviplex::advanced::CircleInstance;
 
+#[cfg(feature = "textures")]
+use graviplex::advanced::{AtlasBuilder, AtlasRegion, SpriteInstance};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +111,266 @@ mod tests {
         assert_eq!(time.frame_count(), 1);
         assert!(time.delta() > 0.0);
         assert!(time.elapsed() > 0.0);
+    }
+
+    // =========================================================================
+    // SPRITE & TEXTURE TESTS (feature-gated)
+    // =========================================================================
+
+    #[cfg(feature = "textures")]
+    mod texture_tests {
+        use super::*;
+
+        #[test]
+        fn test_sprite_instance_creation_e2e() {
+            let sprite = SpriteInstance::new(
+                [100.0, 200.0],
+                [64.0, 64.0],
+                [0.0, 0.0, 0.5, 0.5],
+                [1.0, 1.0, 1.0, 1.0],
+                0.0,
+                0,
+            );
+
+            assert_eq!(sprite.position, [100.0, 200.0]);
+            assert_eq!(sprite.size, [64.0, 64.0]);
+        }
+
+        #[test]
+        fn test_atlas_region_api() {
+            let region = AtlasRegion {
+                uv: [0.0, 0.0, 0.5, 0.5],
+                width: 32,
+                height: 32,
+            };
+
+            assert_eq!(region.uv_rect(), [0.0, 0.0, 0.5, 0.5]);
+            assert_eq!(region.size_f32(), [32.0, 32.0]);
+        }
+
+        #[test]
+        fn test_atlas_builder_programmatic_images() {
+            // Create test images programmatically
+            let red = image::RgbaImage::from_pixel(16, 16, image::Rgba([255, 0, 0, 255]));
+            let green = image::RgbaImage::from_pixel(32, 32, image::Rgba([0, 255, 0, 255]));
+            let blue = image::RgbaImage::from_pixel(24, 24, image::Rgba([0, 0, 255, 255]));
+
+            let _builder = AtlasBuilder::new()
+                .add_rgba_image("red", red)
+                .add_rgba_image("green", green)
+                .add_rgba_image("blue", blue);
+
+            // Builder accepted all 3 images successfully (no panic)
+        }
+
+        #[test]
+        fn test_sprite_with_texture_shape() {
+            let sprite = Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE);
+
+            match sprite.shape {
+                SpriteShape::Texture { region_name, size } => {
+                    assert_eq!(region_name, "player");
+                    assert_eq!(size.x, 64.0);
+                    assert_eq!(size.y, 64.0);
+                }
+                _ => panic!("Expected Texture shape"),
+            }
+        }
+
+        #[test]
+        fn test_sprite_instance_z_ordering() {
+            let mut sprites = vec![
+                SpriteInstance::new([0.0, 0.0], [1.0, 1.0], [0.0; 4], [1.0; 4], 0.0, 10),
+                SpriteInstance::new([0.0, 0.0], [1.0, 1.0], [0.0; 4], [1.0; 4], 0.0, -5),
+                SpriteInstance::new([0.0, 0.0], [1.0, 1.0], [0.0; 4], [1.0; 4], 0.0, 0),
+                SpriteInstance::new([0.0, 0.0], [1.0, 1.0], [0.0; 4], [1.0; 4], 0.0, 5),
+            ];
+
+            // Sort by z_order (same as SpritePipeline does)
+            sprites.sort_by(|a, b| a.z_order.cmp(&b.z_order));
+
+            assert_eq!(sprites[0].z_order, -5);
+            assert_eq!(sprites[1].z_order, 0);
+            assert_eq!(sprites[2].z_order, 5);
+            assert_eq!(sprites[3].z_order, 10);
+        }
+
+        #[test]
+        fn test_sprite_instance_to_gpu_preserves_data() {
+            let sprite = SpriteInstance::new(
+                [123.0, 456.0],
+                [78.0, 90.0],
+                [0.1, 0.2, 0.3, 0.4],
+                [0.5, 0.6, 0.7, 0.8],
+                1.5,
+                999,
+            );
+
+            let gpu = sprite.to_gpu();
+
+            assert_eq!(gpu.position, sprite.position);
+            assert_eq!(gpu.size, sprite.size);
+            assert_eq!(gpu.uv_rect, sprite.uv_rect);
+            assert_eq!(gpu.tint, sprite.tint);
+            assert_eq!(gpu.rotation, sprite.rotation);
+        }
+
+        #[test]
+        fn test_multiple_texture_sprites_in_world() {
+            let mut world = World::new();
+
+            // Spawn multiple texture sprites
+            let player = world.spawn((
+                Transform::from_position(Vec2::new(100.0, 100.0)),
+                Sprite::texture("player", Vec2::new(32.0, 32.0), Color::WHITE),
+                Visible,
+            ));
+
+            let enemy1 = world.spawn((
+                Transform::from_position(Vec2::new(200.0, 100.0)),
+                Sprite::texture("enemy", Vec2::new(32.0, 32.0), Color::RED),
+                Visible,
+            ));
+
+            let enemy2 = world.spawn((
+                Transform::from_position(Vec2::new(300.0, 100.0)),
+                Sprite::texture("enemy", Vec2::new(32.0, 32.0), Color::RED),
+                Visible,
+            ));
+
+            assert!(world.contains(player));
+            assert!(world.contains(enemy1));
+            assert!(world.contains(enemy2));
+
+            // Count texture sprites by iterating
+            let mut texture_count = 0;
+            for (_, (_, sprite, _)) in world.query::<(&Transform, &Sprite, &Visible)>().iter() {
+                if matches!(sprite.shape, SpriteShape::Texture { .. }) {
+                    texture_count += 1;
+                }
+            }
+
+            assert_eq!(texture_count, 3);
+        }
+    }
+
+    // =========================================================================
+    // REGRESSION TESTS - Ensure existing functionality works
+    // =========================================================================
+
+    #[test]
+    fn test_circle_sprite_still_works() {
+        let sprite = Sprite::circle(50.0, Color::RED);
+
+        assert!(matches!(sprite.shape, SpriteShape::Circle { radius: 50.0 }));
+        assert_eq!(sprite.color, Color::RED);
+        assert_eq!(sprite.z_order, 0);
+    }
+
+    #[test]
+    fn test_rect_sprite_still_works() {
+        let sprite = Sprite::rect(100.0, 50.0, Color::BLUE);
+
+        if let SpriteShape::Rect { size } = sprite.shape {
+            assert_eq!(size.x, 100.0);
+            assert_eq!(size.y, 50.0);
+        } else {
+            panic!("Expected Rect shape");
+        }
+    }
+
+    #[test]
+    fn test_line_sprite_still_works() {
+        let sprite = Sprite::line(Vec2::new(100.0, 0.0), Color::GREEN);
+
+        if let SpriteShape::Line { end_offset } = sprite.shape {
+            assert_eq!(end_offset.x, 100.0);
+            assert_eq!(end_offset.y, 0.0);
+        } else {
+            panic!("Expected Line shape");
+        }
+    }
+
+    #[test]
+    fn test_sprite_z_order_builder() {
+        let sprite = Sprite::circle(10.0, Color::WHITE).with_z_order(42);
+        assert_eq!(sprite.z_order, 42);
+
+        let sprite2 = Sprite::rect(20.0, 20.0, Color::WHITE).with_z_order(-10);
+        assert_eq!(sprite2.z_order, -10);
+    }
+
+    #[test]
+    fn test_sprite_color_builder() {
+        let sprite = Sprite::circle(10.0, Color::RED).with_color(Color::BLUE);
+        assert_eq!(sprite.color, Color::BLUE);
+    }
+
+    #[test]
+    fn test_mixed_sprite_types_in_world() {
+        let mut world = World::new();
+
+        // Mix of different sprite types
+        world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(50.0, Color::RED),
+            Visible,
+        ));
+
+        world.spawn((
+            Transform::from_position(Vec2::new(100.0, 0.0)),
+            Sprite::rect(30.0, 30.0, Color::BLUE),
+            Visible,
+        ));
+
+        world.spawn((
+            Transform::from_position(Vec2::new(200.0, 0.0)),
+            Sprite::line(Vec2::new(50.0, 50.0), Color::GREEN),
+            Visible,
+        ));
+
+        assert_eq!(world.len(), 3);
+
+        // Query should return all 3
+        let count = world.query::<(&Transform, &Sprite, &Visible)>().count();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_entity_despawn_with_sprite() {
+        let mut world = World::new();
+
+        let entity = world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(10.0, Color::WHITE),
+            Visible,
+        ));
+
+        assert!(world.contains(entity));
+        world.despawn(entity).unwrap();
+        assert!(!world.contains(entity));
+    }
+
+    #[test]
+    fn test_sprite_component_modification() {
+        let mut world = World::new();
+
+        let entity = world.spawn((
+            Transform::from_position(Vec2::ZERO),
+            Sprite::circle(10.0, Color::RED),
+            Visible,
+        ));
+
+        // Modify the sprite
+        {
+            let mut sprite = world.get_mut::<Sprite>(entity).unwrap();
+            sprite.color = Color::BLUE;
+            sprite.z_order = 100;
+        }
+
+        // Verify changes
+        let sprite = world.get::<Sprite>(entity).unwrap();
+        assert_eq!(sprite.color, Color::BLUE);
+        assert_eq!(sprite.z_order, 100);
     }
 }

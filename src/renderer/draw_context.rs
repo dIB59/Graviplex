@@ -322,6 +322,10 @@ impl<'a> DrawContext<'a> {
                         color: sprite.color.into(),
                     });
                 }
+                SpriteShape::Texture { .. } => {
+                    // Texture sprites are skipped in render_world()
+                    // Use render_world_with_atlas() for texture sprite support
+                }
             }
         }
 
@@ -376,6 +380,11 @@ impl<'a> DrawContext<'a> {
                     [end.x, end.y],
                     sprite.color.into(),
                 );
+            }
+            SpriteShape::Texture { .. } => {
+                // Texture sprites require SpritePipeline with atlas
+                // Use draw_sprite() or render_world_with_atlas() instead
+                log::warn!("Texture sprites not supported in render_entity(), use SpritePipeline");
             }
         }
     }
