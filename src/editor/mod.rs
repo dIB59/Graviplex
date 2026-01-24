@@ -67,6 +67,6 @@ mod tools;
 pub use asset_palette::{AssetEntry, AssetPalette};
 pub use map_editor::{MapEditor, EditorConfig, EditorState};
 pub use map_object::{MapObject, MapObjectId, PlacedObject, ObjectVisual, PropertyValue, CollisionShape};
-pub use plugin::MapEditorPlugin;
+pub use plugin::{MapEditorPlugin, PendingSpriteSheet};
 pub use serialization::{MapData, MapError, save_map, load_map, save_map_to_string, load_map_from_string};
 pub use tools::{EditorTool, ToolState, GridConfig};

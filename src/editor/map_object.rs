@@ -71,6 +71,65 @@ impl MapObject {
         }
     }
 
+    /// Create a new map object with an animated sprite sheet visual.
+    pub fn sprite_sheet(
+        name: impl Into<String>,
+        texture_name: impl Into<String>,
+        frame_count: u32,
+        size: Vec2,
+    ) -> Self {
+        let name = name.into();
+        Self {
+            display_name: name.clone(),
+            name,
+            category: "Default".to_string(),
+            visual: ObjectVisual::SpriteSheet {
+                texture_name: texture_name.into(),
+                frame_count,
+                current_frame: 0,
+                fps: 10.0,
+                tint: Color::WHITE,
+            },
+            size,
+            pivot: Vec2::new(0.5, 0.5),
+            rotatable: true,
+            scalable: true,
+            properties: Vec::new(),
+            collision: None,
+            default_layer: 0,
+        }
+    }
+
+    /// Create a new map object with a tileset visual.
+    pub fn tileset(
+        name: impl Into<String>,
+        texture_name: impl Into<String>,
+        columns: u32,
+        rows: u32,
+        tile_size: Vec2,
+    ) -> Self {
+        let name = name.into();
+        Self {
+            display_name: name.clone(),
+            name,
+            category: "Default".to_string(),
+            visual: ObjectVisual::Tileset {
+                texture_name: texture_name.into(),
+                columns,
+                rows,
+                selected_tile: 0,
+                tint: Color::WHITE,
+            },
+            size: tile_size,
+            pivot: Vec2::new(0.5, 0.5),
+            rotatable: false,
+            scalable: true,
+            properties: Vec::new(),
+            collision: None,
+            default_layer: 0,
+        }
+    }
+
     /// Create a new map object with a circle visual.
     pub fn circle(name: impl Into<String>, radius: f32, color: Color) -> Self {
         let name = name.into();
@@ -165,6 +224,30 @@ pub enum ObjectVisual {
     /// Textured sprite.
     Texture {
         texture_name: String,
+        tint: Color,
+    },
+    /// Animated sprite sheet.
+    SpriteSheet {
+        /// Base texture name (frames are named {texture_name}_0, {texture_name}_1, etc.)
+        texture_name: String,
+        /// Number of frames in the animation
+        frame_count: u32,
+        /// Current frame index
+        current_frame: u32,
+        /// Frames per second
+        fps: f32,
+        tint: Color,
+    },
+    /// Tileset - a grid of tiles for map building.
+    Tileset {
+        /// Base texture name (tiles are named {texture_name}_0, {texture_name}_1, etc.)
+        texture_name: String,
+        /// Number of columns in the tileset
+        columns: u32,
+        /// Number of rows in the tileset
+        rows: u32,
+        /// Currently selected tile index
+        selected_tile: u32,
         tint: Color,
     },
     /// Solid circle.

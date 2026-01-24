@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use image::GenericImageView;
+
 use crate::core::color::Color;
 use crate::core::math::Vec2;
 use crate::core::stats::FpsCounter;
@@ -37,6 +39,27 @@ pub struct MapEditorPlugin {
     assets_scanned: bool,
     /// Cached camera for coordinate conversion.
     last_screen_size: [f32; 2],
+    /// Pending sprite sheets that need user input for frame count.
+    pub pending_sprite_sheets: Vec<PendingSpriteSheet>,
+}
+
+/// Information about a potential sprite sheet that needs configuration.
+#[derive(Debug, Clone)]
+pub struct PendingSpriteSheet {
+    /// Display name for the asset.
+    pub display_name: String,
+    /// File path to the image.
+    pub file_path: String,
+    /// Category for the asset.
+    pub category: String,
+    /// Image width in pixels.
+    pub width: u32,
+    /// Image height in pixels.
+    pub height: u32,
+    /// Suggested frame count based on aspect ratio.
+    pub suggested_frame_count: u32,
+    /// User-specified frame count (0 = single texture, not a sprite sheet).
+    pub frame_count: Option<u32>,
 }
 
 impl Default for MapEditorPlugin {
@@ -53,6 +76,7 @@ impl MapEditorPlugin {
             asset_dir: None,
             assets_scanned: false,
             last_screen_size: [1280.0, 720.0],
+            pending_sprite_sheets: Vec::new(),
         }
     }
 
@@ -63,6 +87,7 @@ impl MapEditorPlugin {
             asset_dir: None,
             assets_scanned: false,
             last_screen_size: [1280.0, 720.0],
+            pending_sprite_sheets: Vec::new(),
         }
     }
 
@@ -161,24 +186,116 @@ impl MapEditorPlugin {
                         // Get relative path for texture name
                         let texture_path = entry_path.to_string_lossy().to_string();
                         
-                        // Create a texture-based object
-                        // Default size - could be improved by reading image dimensions
-                        let size = Vec2::new(64.0, 64.0);
-                        
                         // Format display name nicely
                         let display_name = file_name
                             .replace('_', " ")
                             .replace('-', " ");
-                        
-                        let object = MapObject::texture(&display_name, &texture_path, size)
-                            .with_category(category);
-                        
-                        println!("[MapEditor] Registered: {} ({})", display_name, category);
-                        self.editor.register_object(object);
+
+                        // Try to read image dimensions to detect sprite sheets
+                        if let Ok(img) = image::open(&entry_path) {
+                            let (width, height) = img.dimensions();
+                            let size = Vec2::new(width as f32, height as f32);
+                            
+                            // Detect potential sprite sheet: wider than tall with reasonable aspect ratio
+                            // If width > height * 1.5, it's likely a horizontal sprite sheet
+                            let aspect_ratio = width as f32 / height as f32;
+                            if aspect_ratio > 1.5 && width > 128 {
+                                // Calculate suggested frame count based on trying to make square frames
+                                let suggested_frames: u32 = (width / height).max(2);
+                                
+                                // Add to pending sprite sheets for user confirmation
+                                self.pending_sprite_sheets.push(PendingSpriteSheet {
+                                    display_name: display_name.clone(),
+                                    file_path: texture_path,
+                                    category: category.to_string(),
+                                    width,
+                                    height,
+                                    suggested_frame_count: suggested_frames,
+                                    frame_count: None,
+                                });
+                                
+                                println!("[MapEditor] Potential sprite sheet: {} ({}x{}, ~{} frames)", 
+                                    display_name, width, height, suggested_frames);
+                            } else {
+                                // Regular single texture
+                                let object = MapObject::texture(&display_name, &texture_path, size)
+                                    .with_category(category);
+                                
+                                println!("[MapEditor] Registered: {} ({})", display_name, category);
+                                self.editor.register_object(object);
+                            }
+                        } else {
+                            // Couldn't read dimensions, register with default size
+                            let size = Vec2::new(64.0, 64.0);
+                            let object = MapObject::texture(&display_name, &texture_path, size)
+                                .with_category(category);
+                            
+                            println!("[MapEditor] Registered: {} ({})", display_name, category);
+                            self.editor.register_object(object);
+                        }
                     }
                 }
             }
         }
+    }
+    
+    /// Process a pending sprite sheet with the user's frame count decision.
+    pub fn resolve_sprite_sheet(&mut self, index: usize, frame_count: Option<u32>) {
+        if index >= self.pending_sprite_sheets.len() {
+            return;
+        }
+        
+        let pending = self.pending_sprite_sheets.remove(index);
+        
+        match frame_count {
+            Some(0) | None => {
+                // User chose "Not a sprite sheet" - register as single texture
+                let size = Vec2::new(pending.width as f32, pending.height as f32);
+                let object = MapObject::texture(&pending.display_name, &pending.file_path, size)
+                    .with_category(&pending.category);
+                
+                println!("[MapEditor] Registered as texture: {} ({})", pending.display_name, pending.category);
+                self.editor.register_object(object);
+            }
+            Some(frames) if frames > 0 => {
+                // User specified frame count - register as sprite sheet
+                let frame_width = pending.width / frames;
+                let size = Vec2::new(frame_width as f32, pending.height as f32);
+                let object = MapObject::sprite_sheet(&pending.display_name, &pending.file_path, frames, size)
+                    .with_category(&pending.category);
+                
+                println!("[MapEditor] Registered as sprite sheet: {} ({} frames, {})", 
+                    pending.display_name, frames, pending.category);
+                self.editor.register_object(object);
+            }
+            _ => {}
+        }
+    }
+    
+    /// Process a pending sprite sheet as a tileset with the user's column/row configuration.
+    pub fn resolve_tileset(&mut self, index: usize, columns: u32, rows: u32) {
+        if index >= self.pending_sprite_sheets.len() {
+            return;
+        }
+        
+        let pending = self.pending_sprite_sheets.remove(index);
+        
+        let tile_width = pending.width / columns;
+        let tile_height = pending.height / rows;
+        let tile_size = Vec2::new(tile_width as f32, tile_height as f32);
+        let total_tiles = columns * rows;
+        
+        let object = MapObject::tileset(&pending.display_name, &pending.file_path, columns, rows, tile_size)
+            .with_category(&pending.category);
+        
+        println!("[MapEditor] Registered as tileset: {} ({}x{} = {} tiles, {})", 
+            pending.display_name, columns, rows, total_tiles, pending.category);
+        self.editor.register_object(object);
+    }
+    
+    /// Check if there are pending sprite sheets that need configuration.
+    pub fn has_pending_sprite_sheets(&self) -> bool {
+        !self.pending_sprite_sheets.is_empty()
     }
 
     /// Handle input for the editor. Call this from your game's handle_input.
@@ -375,6 +492,104 @@ impl MapEditorPlugin {
                             *color,
                         ));
                     }
+                    ObjectVisual::SpriteSheet { tint, texture_name, frame_count, .. } => {
+                        let scaled_size = Vec2::new(
+                            object_def.size.x * obj.scale.x,
+                            object_def.size.y * obj.scale.y,
+                        );
+                        
+                        // Apply selection/hover tint
+                        let render_tint = if is_selected {
+                            Color::rgba(
+                                (tint.r * 1.3).min(1.0),
+                                (tint.g * 1.3).min(1.0),
+                                (tint.b * 1.3).min(1.0),
+                                tint.a,
+                            )
+                        } else if is_hovered {
+                            Color::rgba(tint.r, tint.g, tint.b, tint.a * 0.8)
+                        } else {
+                            *tint
+                        };
+                        
+                        // Try to render the first frame of the sprite sheet
+                        #[cfg(feature = "textures")]
+                        {
+                            let frame_texture_name = format!("{}_0", texture_name);
+                            if draw.has_texture(&frame_texture_name) {
+                                draw.texture_ex(
+                                    &frame_texture_name,
+                                    obj.position,
+                                    scaled_size,
+                                    render_tint,
+                                    obj.rotation,
+                                    0,
+                                );
+                            } else {
+                                // Sprite sheet not in atlas - draw placeholder with frame count
+                                self.draw_spritesheet_placeholder(draw, obj.position, scaled_size, *frame_count, is_selected, is_hovered);
+                            }
+                        }
+                        
+                        #[cfg(not(feature = "textures"))]
+                        {
+                            // No texture support - draw placeholder
+                            self.draw_spritesheet_placeholder(draw, obj.position, scaled_size, *frame_count, is_selected, is_hovered);
+                        }
+                        
+                        if is_selected {
+                            self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
+                        }
+                    }
+                    ObjectVisual::Tileset { tint, texture_name, columns, rows, selected_tile, .. } => {
+                        let scaled_size = Vec2::new(
+                            object_def.size.x * obj.scale.x,
+                            object_def.size.y * obj.scale.y,
+                        );
+                        
+                        // Apply selection/hover tint
+                        let render_tint = if is_selected {
+                            Color::rgba(
+                                (tint.r * 1.3).min(1.0),
+                                (tint.g * 1.3).min(1.0),
+                                (tint.b * 1.3).min(1.0),
+                                tint.a,
+                            )
+                        } else if is_hovered {
+                            Color::rgba(tint.r, tint.g, tint.b, tint.a * 0.8)
+                        } else {
+                            *tint
+                        };
+                        
+                        // Try to render the selected tile
+                        #[cfg(feature = "textures")]
+                        {
+                            let tile_texture_name = format!("{}_{}", texture_name, selected_tile);
+                            if draw.has_texture(&tile_texture_name) {
+                                draw.texture_ex(
+                                    &tile_texture_name,
+                                    obj.position,
+                                    scaled_size,
+                                    render_tint,
+                                    obj.rotation,
+                                    0,
+                                );
+                            } else {
+                                // Tileset not in atlas - draw placeholder
+                                self.draw_tileset_placeholder(draw, obj.position, scaled_size, *columns, *rows, is_selected, is_hovered);
+                            }
+                        }
+                        
+                        #[cfg(not(feature = "textures"))]
+                        {
+                            // No texture support - draw placeholder
+                            self.draw_tileset_placeholder(draw, obj.position, scaled_size, *columns, *rows, is_selected, is_hovered);
+                        }
+                        
+                        if is_selected {
+                            self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
+                        }
+                    }
                 }
             }
         }
@@ -463,6 +678,70 @@ impl MapEditorPlugin {
             ObjectVisual::Line { color, .. } => {
                 let c = Color::rgba(color.r, color.g, color.b, preview_alpha);
                 draw.line((preview_pos, preview_pos + object_def.size, c));
+            }
+            ObjectVisual::SpriteSheet { tint, texture_name, frame_count, .. } => {
+                let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
+                
+                // Try to render the first frame of the sprite sheet
+                #[cfg(feature = "textures")]
+                {
+                    let frame_texture_name = format!("{}_0", texture_name);
+                    if draw.has_texture(&frame_texture_name) {
+                        draw.texture_ex(
+                            &frame_texture_name,
+                            preview_pos,
+                            object_def.size,
+                            preview_tint,
+                            0.0,
+                            0,
+                        );
+                        // Outline for preview visibility
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    } else {
+                        // Sprite sheet not in atlas - draw placeholder
+                        self.draw_spritesheet_placeholder(draw, preview_pos, object_def.size, *frame_count, false, false);
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    }
+                }
+                
+                #[cfg(not(feature = "textures"))]
+                {
+                    // No texture support - draw placeholder
+                    self.draw_spritesheet_placeholder(draw, preview_pos, object_def.size, *frame_count, false, false);
+                    self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                }
+            }
+            ObjectVisual::Tileset { tint, texture_name, columns, rows, selected_tile, .. } => {
+                let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
+                
+                // Try to render the selected tile
+                #[cfg(feature = "textures")]
+                {
+                    let tile_texture_name = format!("{}_{}", texture_name, selected_tile);
+                    if draw.has_texture(&tile_texture_name) {
+                        draw.texture_ex(
+                            &tile_texture_name,
+                            preview_pos,
+                            object_def.size,
+                            preview_tint,
+                            0.0,
+                            0,
+                        );
+                        // Outline for preview visibility
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    } else {
+                        // Tileset not in atlas - draw placeholder
+                        self.draw_tileset_placeholder(draw, preview_pos, object_def.size, *columns, *rows, false, false);
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    }
+                }
+                
+                #[cfg(not(feature = "textures"))]
+                {
+                    // No texture support - draw placeholder
+                    self.draw_tileset_placeholder(draw, preview_pos, object_def.size, *columns, *rows, false, false);
+                    self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                }
             }
         }
     }
@@ -554,6 +833,104 @@ impl MapEditorPlugin {
             Vec2::new(center.x + half.x, center.y - half.y),
             cross_color,
         ));
+    }
+
+    fn draw_spritesheet_placeholder(&self, draw: &mut DrawContext, center: Vec2, size: Vec2, frame_count: u32, is_selected: bool, is_hovered: bool) {
+        // Draw a visible placeholder for sprite sheets not in atlas
+        let base_color = if is_selected {
+            Color::rgba(0.6, 0.4, 1.0, 0.9)  // Purple tint for sprite sheets
+        } else if is_hovered {
+            Color::rgba(0.5, 0.3, 0.8, 0.8)
+        } else {
+            Color::rgba(0.4, 0.2, 0.6, 0.7)
+        };
+        
+        // Filled background
+        self.draw_filled_rect(draw, center, size, base_color);
+        
+        // Border
+        let border_color = Color::rgba(0.8, 0.6, 1.0, 0.9);
+        self.draw_rect_outline(draw, center, size, border_color);
+        
+        // Draw film strip pattern to indicate animation
+        let half = size * 0.5;
+        let frame_width = size.x / frame_count as f32;
+        let line_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
+        
+        // Draw vertical dividers for frames (simplified)
+        for i in 1..frame_count.min(8) {  // Limit visual dividers
+            let x = center.x - half.x + frame_width * i as f32;
+            draw.line((
+                Vec2::new(x, center.y - half.y),
+                Vec2::new(x, center.y + half.y),
+                line_color,
+            ));
+        }
+        
+        // Draw small "play" triangle in center
+        let triangle_size = size.y * 0.3;
+        let arrow_color = Color::rgba(1.0, 1.0, 1.0, 0.6);
+        draw.line((
+            Vec2::new(center.x - triangle_size * 0.5, center.y - triangle_size * 0.5),
+            Vec2::new(center.x + triangle_size * 0.5, center.y),
+            arrow_color,
+        ));
+        draw.line((
+            Vec2::new(center.x + triangle_size * 0.5, center.y),
+            Vec2::new(center.x - triangle_size * 0.5, center.y + triangle_size * 0.5),
+            arrow_color,
+        ));
+        draw.line((
+            Vec2::new(center.x - triangle_size * 0.5, center.y + triangle_size * 0.5),
+            Vec2::new(center.x - triangle_size * 0.5, center.y - triangle_size * 0.5),
+            arrow_color,
+        ));
+    }
+
+    fn draw_tileset_placeholder(&self, draw: &mut DrawContext, center: Vec2, size: Vec2, columns: u32, rows: u32, is_selected: bool, is_hovered: bool) {
+        // Draw a visible placeholder for tilesets not in atlas
+        let base_color = if is_selected {
+            Color::rgba(0.4, 0.7, 0.4, 0.9)  // Green tint for tilesets
+        } else if is_hovered {
+            Color::rgba(0.3, 0.6, 0.3, 0.8)
+        } else {
+            Color::rgba(0.2, 0.5, 0.2, 0.7)
+        };
+        
+        // Filled background
+        self.draw_filled_rect(draw, center, size, base_color);
+        
+        // Border
+        let border_color = Color::rgba(0.6, 0.9, 0.6, 0.9);
+        self.draw_rect_outline(draw, center, size, border_color);
+        
+        // Draw a mini grid pattern to indicate tileset
+        let half = size * 0.5;
+        let grid_color = Color::rgba(1.0, 1.0, 1.0, 0.3);
+        let grid_cols = columns.min(4);
+        let grid_rows = rows.min(4);
+        let cell_w = size.x / grid_cols as f32;
+        let cell_h = size.y / grid_rows as f32;
+        
+        // Vertical lines
+        for i in 1..grid_cols {
+            let x = center.x - half.x + cell_w * i as f32;
+            draw.line((
+                Vec2::new(x, center.y - half.y),
+                Vec2::new(x, center.y + half.y),
+                grid_color,
+            ));
+        }
+        
+        // Horizontal lines
+        for i in 1..grid_rows {
+            let y = center.y - half.y + cell_h * i as f32;
+            draw.line((
+                Vec2::new(center.x - half.x, y),
+                Vec2::new(center.x + half.x, y),
+                grid_color,
+            ));
+        }
     }
 }
 

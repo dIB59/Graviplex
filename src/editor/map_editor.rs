@@ -721,6 +721,34 @@ impl MapEditor {
                             z_order: obj.layer,
                         }
                     }
+                    ObjectVisual::SpriteSheet { texture_name, tint, .. } => {
+                        // For sprite sheets, use the first frame for static sync
+                        Sprite {
+                            shape: SpriteShape::Texture {
+                                region_name: format!("{}_0", texture_name),
+                                size: Vec2::new(
+                                    object_def.size.x * obj.scale.x,
+                                    object_def.size.y * obj.scale.y,
+                                ),
+                            },
+                            color: *tint,
+                            z_order: obj.layer,
+                        }
+                    }
+                    ObjectVisual::Tileset { texture_name, selected_tile, tint, .. } => {
+                        // For tilesets, use the selected tile
+                        Sprite {
+                            shape: SpriteShape::Texture {
+                                region_name: format!("{}_{}", texture_name, selected_tile),
+                                size: Vec2::new(
+                                    object_def.size.x * obj.scale.x,
+                                    object_def.size.y * obj.scale.y,
+                                ),
+                            },
+                            color: *tint,
+                            z_order: obj.layer,
+                        }
+                    }
                     ObjectVisual::Line { color, thickness: _ } => {
                         // Lines need special handling
                         Sprite::rect(object_def.size.x, object_def.size.y, *color)

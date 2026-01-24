@@ -407,6 +407,75 @@ impl AssetPalette {
                     )),
                 );
             }
+            ObjectVisual::SpriteSheet { tint, frame_count, .. } => {
+                // Draw a placeholder with film strip icon for animations
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 180.0) as u8,
+                        (tint.g * 150.0) as u8,
+                        (tint.b * 220.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw frame count indicator
+                painter.text(
+                    center - egui::vec2(0.0, size * 0.15),
+                    egui::Align2::CENTER_CENTER,
+                    "🎬",
+                    egui::FontId::proportional(size * 0.3),
+                    egui::Color32::WHITE,
+                );
+                painter.text(
+                    center + egui::vec2(0.0, size * 0.15),
+                    egui::Align2::CENTER_CENTER,
+                    format!("{}f", frame_count),
+                    egui::FontId::proportional(size * 0.2),
+                    egui::Color32::WHITE,
+                );
+            }
+            ObjectVisual::Tileset { tint, columns, rows, .. } => {
+                // Draw a grid icon for tilesets
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 150.0) as u8,
+                        (tint.g * 200.0) as u8,
+                        (tint.b * 150.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw mini grid
+                let grid_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 100));
+                let cell_w = preview_rect.width() / (*columns).min(4) as f32;
+                let cell_h = preview_rect.height() / (*rows).min(4) as f32;
+                for i in 0..=(*columns).min(4) {
+                    let x = preview_rect.left() + cell_w * i as f32;
+                    painter.line_segment([egui::pos2(x, preview_rect.top()), egui::pos2(x, preview_rect.bottom())], grid_stroke);
+                }
+                for i in 0..=(*rows).min(4) {
+                    let y = preview_rect.top() + cell_h * i as f32;
+                    painter.line_segment([egui::pos2(preview_rect.left(), y), egui::pos2(preview_rect.right(), y)], grid_stroke);
+                }
+                // Tile count label
+                painter.text(
+                    center,
+                    egui::Align2::CENTER_CENTER,
+                    format!("{}t", columns * rows),
+                    egui::FontId::proportional(size * 0.2),
+                    egui::Color32::WHITE,
+                );
+            }
         }
     }
     
@@ -521,6 +590,75 @@ impl AssetPalette {
                         (color.b * 255.0) as u8,
                         (color.a * 255.0) as u8,
                     )),
+                );
+            }
+            ObjectVisual::SpriteSheet { tint, frame_count, .. } => {
+                // Draw a placeholder with film strip icon for animations
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 180.0) as u8,
+                        (tint.g * 150.0) as u8,
+                        (tint.b * 220.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw frame count indicator
+                painter.text(
+                    center - egui::vec2(0.0, size * 0.15),
+                    egui::Align2::CENTER_CENTER,
+                    "🎬",
+                    egui::FontId::proportional(size * 0.3),
+                    egui::Color32::WHITE,
+                );
+                painter.text(
+                    center + egui::vec2(0.0, size * 0.15),
+                    egui::Align2::CENTER_CENTER,
+                    format!("{}f", frame_count),
+                    egui::FontId::proportional(size * 0.2),
+                    egui::Color32::WHITE,
+                );
+            }
+            ObjectVisual::Tileset { tint, columns, rows, .. } => {
+                // Draw a grid icon for tilesets
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 150.0) as u8,
+                        (tint.g * 200.0) as u8,
+                        (tint.b * 150.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw mini grid
+                let grid_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 100));
+                let cell_w = preview_rect.width() / (*columns).min(4) as f32;
+                let cell_h = preview_rect.height() / (*rows).min(4) as f32;
+                for i in 0..=(*columns).min(4) {
+                    let x = preview_rect.left() + cell_w * i as f32;
+                    painter.line_segment([egui::pos2(x, preview_rect.top()), egui::pos2(x, preview_rect.bottom())], grid_stroke);
+                }
+                for i in 0..=(*rows).min(4) {
+                    let y = preview_rect.top() + cell_h * i as f32;
+                    painter.line_segment([egui::pos2(preview_rect.left(), y), egui::pos2(preview_rect.right(), y)], grid_stroke);
+                }
+                // Tile count label
+                painter.text(
+                    center,
+                    egui::Align2::CENTER_CENTER,
+                    format!("{}t", columns * rows),
+                    egui::FontId::proportional(size * 0.2),
+                    egui::Color32::WHITE,
                 );
             }
         }
