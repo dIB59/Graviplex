@@ -303,6 +303,14 @@ impl MapEditorPlugin {
                 println!("[MapEditor] Auto-loaded tileset: {} ({}x{}, {})", display_name, columns, rows, category);
                 self.editor.register_object(object);
             }
+            AssetConfig::NineSlice { left, right, top, bottom } => {
+                let size = Vec2::new(width as f32, height as f32);
+                let object = MapObject::nine_slice(display_name, texture_path, size, left, right, top, bottom)
+                    .with_category("UI");
+                println!("[MapEditor] Auto-loaded 9-slice UI: {} (margins: L={}, R={}, T={}, B={})", 
+                    display_name, left, right, top, bottom);
+                self.editor.register_object(object);
+            }
             AssetConfig::Skip => {
                 println!("[MapEditor] Skipped: {} (configured to skip)", display_name);
             }
@@ -406,6 +414,29 @@ impl MapEditorPlugin {
         
         // Save config
         self.asset_config.set(&file_path, AssetConfig::Tileset { columns, rows, ignored_tiles: ignored_tiles_clone });
+        self.save_asset_config();
+    }
+    
+    /// Process a pending sprite sheet as a 9-slice UI element with the user's border margins.
+    pub fn resolve_nine_slice(&mut self, index: usize, left: u32, right: u32, top: u32, bottom: u32) {
+        if index >= self.pending_sprite_sheets.len() {
+            return;
+        }
+        
+        let pending = self.pending_sprite_sheets.remove(index);
+        let file_path = pending.file_path.clone();
+        
+        let size = Vec2::new(pending.width as f32, pending.height as f32);
+        
+        let object = MapObject::nine_slice(&pending.display_name, &pending.file_path, size, left, right, top, bottom)
+            .with_category("UI");
+        
+        println!("[MapEditor] Registered as 9-slice UI: {} (margins: L={}, R={}, T={}, B={})", 
+            pending.display_name, left, right, top, bottom);
+        self.editor.register_object(object);
+        
+        // Save config
+        self.asset_config.set(&file_path, AssetConfig::NineSlice { left, right, top, bottom });
         self.save_asset_config();
     }
     
@@ -706,6 +737,55 @@ impl MapEditorPlugin {
                             self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
                         }
                     }
+                    ObjectVisual::NineSlice { tint, texture_name, .. } => {
+                        let scaled_size = Vec2::new(
+                            object_def.size.x * obj.scale.x,
+                            object_def.size.y * obj.scale.y,
+                        );
+                        
+                        // Apply selection/hover tint
+                        let render_tint = if is_selected {
+                            Color::rgba(
+                                (tint.r * 1.3).min(1.0),
+                                (tint.g * 1.3).min(1.0),
+                                (tint.b * 1.3).min(1.0),
+                                tint.a,
+                            )
+                        } else if is_hovered {
+                            Color::rgba(tint.r, tint.g, tint.b, tint.a * 0.8)
+                        } else {
+                            *tint
+                        };
+                        
+                        // Try to render the 9-slice texture (full texture for now)
+                        // TODO: Implement proper 9-slice rendering with stretching
+                        #[cfg(feature = "textures")]
+                        {
+                            if draw.has_texture(texture_name) {
+                                draw.texture_ex(
+                                    texture_name,
+                                    obj.position,
+                                    scaled_size,
+                                    render_tint,
+                                    obj.rotation,
+                                    0,
+                                );
+                            } else {
+                                // Texture not in atlas - draw 9-slice placeholder
+                                self.draw_nine_slice_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
+                            }
+                        }
+                        
+                        #[cfg(not(feature = "textures"))]
+                        {
+                            // No texture support - draw placeholder
+                            self.draw_nine_slice_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
+                        }
+                        
+                        if is_selected {
+                            self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
+                        }
+                    }
                 }
             }
         }
@@ -856,6 +936,37 @@ impl MapEditorPlugin {
                 {
                     // No texture support - draw placeholder
                     self.draw_tileset_placeholder(draw, preview_pos, object_def.size, *columns, *rows, false, false);
+                    self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                }
+            }
+            ObjectVisual::NineSlice { tint, texture_name, .. } => {
+                let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
+                
+                // Try to render the 9-slice texture
+                #[cfg(feature = "textures")]
+                {
+                    if draw.has_texture(texture_name) {
+                        draw.texture_ex(
+                            texture_name,
+                            preview_pos,
+                            object_def.size,
+                            preview_tint,
+                            0.0,
+                            0,
+                        );
+                        // Outline for preview visibility
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    } else {
+                        // 9-slice not in atlas - draw placeholder
+                        self.draw_nine_slice_placeholder(draw, preview_pos, object_def.size, false, false);
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    }
+                }
+                
+                #[cfg(not(feature = "textures"))]
+                {
+                    // No texture support - draw placeholder
+                    self.draw_nine_slice_placeholder(draw, preview_pos, object_def.size, false, false);
                     self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
                 }
             }
@@ -1047,6 +1158,54 @@ impl MapEditorPlugin {
                 grid_color,
             ));
         }
+    }
+    
+    fn draw_nine_slice_placeholder(&self, draw: &mut DrawContext, center: Vec2, size: Vec2, is_selected: bool, is_hovered: bool) {
+        // Draw a visible placeholder for 9-slice UI elements not in atlas
+        let base_color = if is_selected {
+            Color::rgba(0.5, 0.5, 0.8, 0.9)  // Blue tint for UI
+        } else if is_hovered {
+            Color::rgba(0.4, 0.4, 0.7, 0.8)
+        } else {
+            Color::rgba(0.3, 0.3, 0.6, 0.7)
+        };
+        
+        // Filled background
+        self.draw_filled_rect(draw, center, size, base_color);
+        
+        // Border
+        let border_color = Color::rgba(0.7, 0.7, 0.95, 0.9);
+        self.draw_rect_outline(draw, center, size, border_color);
+        
+        // Draw 9-slice guides (2 vertical, 2 horizontal lines dividing into 9 sections)
+        let half = size * 0.5;
+        let guide_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
+        let third_w = size.x / 3.0;
+        let third_h = size.y / 3.0;
+        
+        // Vertical guide lines
+        draw.line((
+            Vec2::new(center.x - half.x + third_w, center.y - half.y),
+            Vec2::new(center.x - half.x + third_w, center.y + half.y),
+            guide_color,
+        ));
+        draw.line((
+            Vec2::new(center.x + half.x - third_w, center.y - half.y),
+            Vec2::new(center.x + half.x - third_w, center.y + half.y),
+            guide_color,
+        ));
+        
+        // Horizontal guide lines
+        draw.line((
+            Vec2::new(center.x - half.x, center.y - half.y + third_h),
+            Vec2::new(center.x + half.x, center.y - half.y + third_h),
+            guide_color,
+        ));
+        draw.line((
+            Vec2::new(center.x - half.x, center.y + half.y - third_h),
+            Vec2::new(center.x + half.x, center.y + half.y - third_h),
+            guide_color,
+        ));
     }
 }
 

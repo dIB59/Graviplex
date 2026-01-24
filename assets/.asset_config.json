@@ -1,0 +1,1307 @@
+{
+  "version": 1,
+  "assets": {
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Hammer.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 5_Highlight.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_DownRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Knife.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/sprites/enemy.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Hammer.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_DownRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack1.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Up_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Monk/Heal_Effect.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Right_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Gold.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Yellow.png": {
+      "NineSlice": {
+        "left": 8,
+        "right": 8,
+        "top": 8,
+        "bottom": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Down_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 2_Highlight.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Pickaxe.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Meat.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Hammer.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Down_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_04.png": {
+      "SpriteSheet": {
+        "frames": 16
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Up_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Axe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Wood.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_DownRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_UpRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Guard.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_DownRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Heal.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Axe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Axe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_07.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Knife.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_DownRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Down_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Knife.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Blue.png": {
+      "NineSlice": {
+        "left": 8,
+        "right": 8,
+        "top": 8,
+        "bottom": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Monk/Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Dust_01.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_UpRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree4.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Explosion_01.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_01.png": {
+      "SpriteSheet": {
+        "frames": 16
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_05.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Monk/Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_DownRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Pickaxe.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Right_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_UpRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Gold.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Meat.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/SmallBar_Base.png": {
+      "NineSlice": {
+        "left": 50,
+        "right": 50,
+        "top": 20,
+        "bottom": 20
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_08.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Wood.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Knife.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Knife.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Wood.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Right_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Meat.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Right_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Wood.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Hammer.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Gold.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree3.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Gold.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Wood.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Hammer.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Tileset/Water Foam.png": {
+      "SpriteSheet": {
+        "frames": 16
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Fire_03.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Monk/Heal.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Shoot.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Down_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Attack2.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Hammer.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_UpRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 1_Highlight.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Bushes/Bushe1.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Resource/Gold_Resource_Highlight.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Hammer.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Down_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Up_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Up_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Hammer.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Down_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Move.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Monk/Heal.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Hammer.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Water Splash.png": {
+      "SpriteSheet": {
+        "frames": 9
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Attack1.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Guard.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 6_Highlight.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Wood.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Bushes/Bushe4.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Wood.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Knife.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_DownRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Gold.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Right_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Knife.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Guard.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Meat.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Guard.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Attack2.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_UpRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Up_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/sprites/player.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Gold.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Monk/Heal_Effect.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Up_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Monk/Heal_Effect.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Hammer.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Up_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Knife.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Down_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_DownRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_03.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Guard.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Monk/Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Meat.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Shoot.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Knife.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Down_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Down_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Fire_01.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Gold.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Axe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Interact Knife.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/BigBar_Base.png": {
+      "NineSlice": {
+        "left": 40,
+        "right": 40,
+        "top": 8,
+        "bottom": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Monk/Heal.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Interact Hammer.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 3_Highlight.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Meat.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_UpRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Shoot.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Knife.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_UpRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Grass.png": {
+      "SpriteSheet": {
+        "frames": 12
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Purple.png": {
+      "NineSlice": {
+        "left": 8,
+        "right": 8,
+        "top": 8,
+        "bottom": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Hammer.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack1.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_UpRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Attack1.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_02.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_02.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree2.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_03.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_UpRight_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_UpRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Monk/Heal_Effect.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_06.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Meat.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Up_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Right_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_04.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Shoot.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Gold.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Knife.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Dust_02.png": {
+      "SpriteSheet": {
+        "frames": 10
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Hammer.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Hammer.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Meat.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_DownRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Monk/Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Bushes/Bushe2.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Monk/Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Heal_Effect.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Gold/Gold Stones/Gold Stone 4_Highlight.png": "Skip",
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Wood.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Attack1.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Knife.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Wood.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Up_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Explosion_02.png": {
+      "SpriteSheet": {
+        "frames": 10
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Interact Knife.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Monk/Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_DownRight_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Interact Hammer.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Attack2.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Interact Axe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Right_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Shoot.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Meat.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Right_Defence.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Meat.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_01.png": "Texture",
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Axe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Up_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Down_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Attack2.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Knife.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Particle FX/Fire_02.png": {
+      "SpriteSheet": {
+        "frames": 10
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Monk/Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Pickaxe.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Right_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Monk/Run.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Red.png": {
+      "SpriteSheet": {
+        "frames": 2
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Right_Attack.png": {
+      "SpriteSheet": {
+        "frames": 3
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Monk/Heal.png": {
+      "SpriteSheet": {
+        "frames": 11
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Attack2.png": {
+      "SpriteSheet": {
+        "frames": 4
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Idle.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/UI Elements/UI Banners from the store page/Ribbons/Ribbon_Black.png": {
+      "NineSlice": {
+        "left": 8,
+        "right": 8,
+        "top": 8,
+        "bottom": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Meat/Sheep/Sheep_Idle.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Gold.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Run.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Decorations/Bushes/Bushe3.png": {
+      "SpriteSheet": {
+        "frames": 8
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Gold.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Wood.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    },
+    "assets/Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree1.png": {
+      "SpriteSheet": {
+        "frames": 6
+      }
+    }
+  }
+}

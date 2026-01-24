@@ -117,6 +117,7 @@ enum AssetType {
     SingleTexture,
     SpriteSheet,
     Tileset,
+    NineSlice,
 }
 
 #[cfg(feature = "gui")]
@@ -132,6 +133,11 @@ struct EditorDemo {
     tileset_columns: u32,
     /// Tileset rows
     tileset_rows: u32,
+    /// 9-slice border margins
+    nine_slice_left: u32,
+    nine_slice_right: u32,
+    nine_slice_top: u32,
+    nine_slice_bottom: u32,
     /// Cached preview texture for the dialog
     preview_texture: Option<egui::TextureHandle>,
     /// Path of the currently loaded preview texture
@@ -169,6 +175,10 @@ impl EditorDemo {
             sprite_sheet_frame_count: 1,
             tileset_columns: 4,
             tileset_rows: 4,
+            nine_slice_left: 8,
+            nine_slice_right: 8,
+            nine_slice_top: 8,
+            nine_slice_bottom: 8,
             preview_texture: None,
             preview_texture_path: None,
             tileset_ignored_tiles: HashSet::new(),
@@ -204,9 +214,31 @@ impl EditorDemo {
             // Load the image
             if let Ok(img) = image::open(&file_path) {
                 let rgba = img.to_rgba8();
-                let size = [rgba.width() as usize, rgba.height() as usize];
-                let pixels = rgba.into_raw();
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, &pixels);
+                let (img_width, img_height) = (rgba.width(), rgba.height());
+                
+                // Resize if too large for egui (max 2048 on any side)
+                const MAX_TEXTURE_SIZE: u32 = 2048;
+                let (final_image, size) = if img_width > MAX_TEXTURE_SIZE || img_height > MAX_TEXTURE_SIZE {
+                    // Calculate scale to fit within limits
+                    let scale = (MAX_TEXTURE_SIZE as f32 / img_width as f32)
+                        .min(MAX_TEXTURE_SIZE as f32 / img_height as f32);
+                    let new_width = (img_width as f32 * scale) as u32;
+                    let new_height = (img_height as f32 * scale) as u32;
+                    
+                    let resized = image::imageops::resize(
+                        &rgba,
+                        new_width,
+                        new_height,
+                        image::imageops::FilterType::Triangle,
+                    );
+                    let size = [resized.width() as usize, resized.height() as usize];
+                    (resized.into_raw(), size)
+                } else {
+                    let size = [img_width as usize, img_height as usize];
+                    (rgba.into_raw(), size)
+                };
+                
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, &final_image);
                 self.preview_texture = Some(ctx.load_texture(
                     &file_path,
                     color_image,
@@ -271,6 +303,7 @@ impl EditorDemo {
                     ui.selectable_value(&mut self.dialog_asset_type, AssetType::SingleTexture, "📷 Single");
                     ui.selectable_value(&mut self.dialog_asset_type, AssetType::SpriteSheet, "🎬 Animation");
                     ui.selectable_value(&mut self.dialog_asset_type, AssetType::Tileset, "🧱 Tileset");
+                    ui.selectable_value(&mut self.dialog_asset_type, AssetType::NineSlice, "🖼️ 9-Slice");
                 });
                 
                 ui.add_space(8.0);
@@ -318,6 +351,42 @@ impl EditorDemo {
                         if width % self.tileset_columns != 0 || height % self.tileset_rows != 0 {
                             ui.colored_label(egui::Color32::YELLOW, 
                                 "⚠️ Dimensions don't divide evenly");
+                        }
+                    }
+                    AssetType::NineSlice => {
+                        ui.label("9-slice UI element - corners stay fixed, edges stretch.");
+                        ui.add_space(4.0);
+                        
+                        ui.horizontal(|ui| {
+                            ui.label("Left:");
+                            ui.add(egui::DragValue::new(&mut self.nine_slice_left)
+                                .range(1..=width/2)
+                                .speed(0.5));
+                            ui.label("Right:");
+                            ui.add(egui::DragValue::new(&mut self.nine_slice_right)
+                                .range(1..=width/2)
+                                .speed(0.5));
+                        });
+                        
+                        ui.horizontal(|ui| {
+                            ui.label("Top:");
+                            ui.add(egui::DragValue::new(&mut self.nine_slice_top)
+                                .range(1..=height/2)
+                                .speed(0.5));
+                            ui.label("Bottom:");
+                            ui.add(egui::DragValue::new(&mut self.nine_slice_bottom)
+                                .range(1..=height/2)
+                                .speed(0.5));
+                        });
+                        
+                        // Show warnings if margins are too large
+                        if self.nine_slice_left + self.nine_slice_right >= width {
+                            ui.colored_label(egui::Color32::RED, 
+                                "⚠️ Left + Right margins exceed width");
+                        }
+                        if self.nine_slice_top + self.nine_slice_bottom >= height {
+                            ui.colored_label(egui::Color32::RED, 
+                                "⚠️ Top + Bottom margins exceed height");
                         }
                     }
                 }
@@ -478,6 +547,56 @@ impl EditorDemo {
                                 );
                             }
                         }
+                        AssetType::NineSlice => {
+                            // Draw border
+                            painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
+                            
+                            // Draw 9-slice guides
+                            let left_x = rect.left() + self.nine_slice_left as f32 * scale;
+                            let right_x = rect.right() - self.nine_slice_right as f32 * scale;
+                            let top_y = rect.top() + self.nine_slice_top as f32 * scale;
+                            let bottom_y = rect.bottom() - self.nine_slice_bottom as f32 * scale;
+                            
+                            // Vertical lines
+                            painter.line_segment(
+                                [egui::pos2(left_x, rect.top()), egui::pos2(left_x, rect.bottom())],
+                                stroke,
+                            );
+                            painter.line_segment(
+                                [egui::pos2(right_x, rect.top()), egui::pos2(right_x, rect.bottom())],
+                                stroke,
+                            );
+                            
+                            // Horizontal lines
+                            painter.line_segment(
+                                [egui::pos2(rect.left(), top_y), egui::pos2(rect.right(), top_y)],
+                                stroke,
+                            );
+                            painter.line_segment(
+                                [egui::pos2(rect.left(), bottom_y), egui::pos2(rect.right(), bottom_y)],
+                                stroke,
+                            );
+                            
+                            // Label the 9 sections
+                            let label_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 180);
+                            let font = egui::FontId::proportional(10.0);
+                            
+                            // Corner labels
+                            painter.text(egui::pos2(rect.left() + 4.0, rect.top() + 4.0), 
+                                egui::Align2::LEFT_TOP, "TL", font.clone(), label_color);
+                            painter.text(egui::pos2(rect.right() - 4.0, rect.top() + 4.0), 
+                                egui::Align2::RIGHT_TOP, "TR", font.clone(), label_color);
+                            painter.text(egui::pos2(rect.left() + 4.0, rect.bottom() - 4.0), 
+                                egui::Align2::LEFT_BOTTOM, "BL", font.clone(), label_color);
+                            painter.text(egui::pos2(rect.right() - 4.0, rect.bottom() - 4.0), 
+                                egui::Align2::RIGHT_BOTTOM, "BR", font.clone(), label_color);
+                            
+                            // Center label
+                            let center_x = (left_x + right_x) / 2.0;
+                            let center_y = (top_y + bottom_y) / 2.0;
+                            painter.text(egui::pos2(center_x, center_y), 
+                                egui::Align2::CENTER_CENTER, "CENTER", font, label_color);
+                        }
                     }
                 }
                 
@@ -523,6 +642,15 @@ impl EditorDemo {
                     let ignored: Vec<u32> = self.tileset_ignored_tiles.iter().copied().collect();
                     self.editor_plugin.resolve_tileset(0, self.tileset_columns, self.tileset_rows, ignored);
                     self.tileset_ignored_tiles.clear();
+                }
+                AssetType::NineSlice => {
+                    self.editor_plugin.resolve_nine_slice(
+                        0, 
+                        self.nine_slice_left, 
+                        self.nine_slice_right, 
+                        self.nine_slice_top, 
+                        self.nine_slice_bottom
+                    );
                 }
             }
             self.sprite_sheet_dialog_index = None;

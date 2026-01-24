@@ -749,6 +749,20 @@ impl MapEditor {
                             z_order: obj.layer,
                         }
                     }
+                    ObjectVisual::NineSlice { texture_name, tint, .. } => {
+                        // For 9-slice, use the texture (actual 9-slice rendering handled separately)
+                        Sprite {
+                            shape: SpriteShape::Texture {
+                                region_name: texture_name.clone(),
+                                size: Vec2::new(
+                                    object_def.size.x * obj.scale.x,
+                                    object_def.size.y * obj.scale.y,
+                                ),
+                            },
+                            color: *tint,
+                            z_order: obj.layer,
+                        }
+                    }
                     ObjectVisual::Line { color, thickness: _ } => {
                         // Lines need special handling
                         Sprite::rect(object_def.size.x, object_def.size.y, *color)

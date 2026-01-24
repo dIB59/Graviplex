@@ -476,6 +476,53 @@ impl AssetPalette {
                     egui::Color32::WHITE,
                 );
             }
+            ObjectVisual::NineSlice { tint, .. } => {
+                // Draw a 9-slice icon showing the 3x3 grid pattern
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 180.0) as u8,
+                        (tint.g * 180.0) as u8,
+                        (tint.b * 220.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw 9-slice guides (2 vertical, 2 horizontal lines)
+                let grid_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 150));
+                let third_w = preview_rect.width() / 3.0;
+                let third_h = preview_rect.height() / 3.0;
+                // Vertical lines
+                painter.line_segment([
+                    egui::pos2(preview_rect.left() + third_w, preview_rect.top()),
+                    egui::pos2(preview_rect.left() + third_w, preview_rect.bottom())
+                ], grid_stroke);
+                painter.line_segment([
+                    egui::pos2(preview_rect.right() - third_w, preview_rect.top()),
+                    egui::pos2(preview_rect.right() - third_w, preview_rect.bottom())
+                ], grid_stroke);
+                // Horizontal lines
+                painter.line_segment([
+                    egui::pos2(preview_rect.left(), preview_rect.top() + third_h),
+                    egui::pos2(preview_rect.right(), preview_rect.top() + third_h)
+                ], grid_stroke);
+                painter.line_segment([
+                    egui::pos2(preview_rect.left(), preview_rect.bottom() - third_h),
+                    egui::pos2(preview_rect.right(), preview_rect.bottom() - third_h)
+                ], grid_stroke);
+                // Label
+                painter.text(
+                    center,
+                    egui::Align2::CENTER_CENTER,
+                    "9",
+                    egui::FontId::proportional(size * 0.3),
+                    egui::Color32::WHITE,
+                );
+            }
         }
     }
     
@@ -658,6 +705,53 @@ impl AssetPalette {
                     egui::Align2::CENTER_CENTER,
                     format!("{}t", columns * rows),
                     egui::FontId::proportional(size * 0.2),
+                    egui::Color32::WHITE,
+                );
+            }
+            ObjectVisual::NineSlice { tint, .. } => {
+                // Draw a 9-slice icon showing the 3x3 grid pattern
+                let preview_rect = egui::Rect::from_center_size(
+                    center,
+                    egui::vec2(size * 0.7, size * 0.7),
+                );
+                painter.rect_filled(
+                    preview_rect,
+                    4.0,
+                    egui::Color32::from_rgba_unmultiplied(
+                        (tint.r * 180.0) as u8,
+                        (tint.g * 180.0) as u8,
+                        (tint.b * 220.0) as u8,
+                        180,
+                    ),
+                );
+                // Draw 9-slice guides (2 vertical, 2 horizontal lines)
+                let grid_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 150));
+                let third_w = preview_rect.width() / 3.0;
+                let third_h = preview_rect.height() / 3.0;
+                // Vertical lines
+                painter.line_segment([
+                    egui::pos2(preview_rect.left() + third_w, preview_rect.top()),
+                    egui::pos2(preview_rect.left() + third_w, preview_rect.bottom())
+                ], grid_stroke);
+                painter.line_segment([
+                    egui::pos2(preview_rect.right() - third_w, preview_rect.top()),
+                    egui::pos2(preview_rect.right() - third_w, preview_rect.bottom())
+                ], grid_stroke);
+                // Horizontal lines
+                painter.line_segment([
+                    egui::pos2(preview_rect.left(), preview_rect.top() + third_h),
+                    egui::pos2(preview_rect.right(), preview_rect.top() + third_h)
+                ], grid_stroke);
+                painter.line_segment([
+                    egui::pos2(preview_rect.left(), preview_rect.bottom() - third_h),
+                    egui::pos2(preview_rect.right(), preview_rect.bottom() - third_h)
+                ], grid_stroke);
+                // Label
+                painter.text(
+                    center,
+                    egui::Align2::CENTER_CENTER,
+                    "9",
+                    egui::FontId::proportional(size * 0.3),
                     egui::Color32::WHITE,
                 );
             }

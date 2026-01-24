@@ -22,6 +22,8 @@ pub enum AssetConfig {
     SpriteSheet { frames: u32 },
     /// Tileset with columns, rows, and ignored tiles.
     Tileset { columns: u32, rows: u32, ignored_tiles: Vec<u32> },
+    /// 9-slice UI element with border margins.
+    NineSlice { left: u32, right: u32, top: u32, bottom: u32 },
     /// Skip this asset entirely.
     Skip,
 }

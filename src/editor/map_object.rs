@@ -131,6 +131,40 @@ impl MapObject {
         }
     }
 
+    /// Create a new map object with a 9-slice UI visual.
+    /// 9-slice allows UI elements to stretch while keeping corners/edges intact.
+    pub fn nine_slice(
+        name: impl Into<String>,
+        texture_name: impl Into<String>,
+        size: Vec2,
+        left: u32,
+        right: u32,
+        top: u32,
+        bottom: u32,
+    ) -> Self {
+        let name = name.into();
+        Self {
+            display_name: name.clone(),
+            name,
+            category: "UI".to_string(),
+            visual: ObjectVisual::NineSlice {
+                texture_name: texture_name.into(),
+                left,
+                right,
+                top,
+                bottom,
+                tint: Color::WHITE,
+            },
+            size,
+            pivot: Vec2::new(0.5, 0.5),
+            rotatable: false,
+            scalable: true,
+            properties: Vec::new(),
+            collision: None,
+            default_layer: 0,
+        }
+    }
+
     /// Create a new map object with a circle visual.
     pub fn circle(name: impl Into<String>, radius: f32, color: Color) -> Self {
         let name = name.into();
@@ -251,6 +285,20 @@ pub enum ObjectVisual {
         selected_tile: u32,
         /// Tile indices that are ignored/empty (not usable)
         ignored_tiles: Vec<u32>,
+        tint: Color,
+    },
+    /// 9-slice UI element - corners stay fixed, edges and center stretch.
+    NineSlice {
+        /// Texture name
+        texture_name: String,
+        /// Left margin (pixels from left edge that don't stretch)
+        left: u32,
+        /// Right margin (pixels from right edge that don't stretch)
+        right: u32,
+        /// Top margin (pixels from top edge that don't stretch)
+        top: u32,
+        /// Bottom margin (pixels from bottom edge that don't stretch)
+        bottom: u32,
         tint: Color,
     },
     /// Solid circle.
