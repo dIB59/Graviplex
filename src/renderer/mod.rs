@@ -32,7 +32,7 @@ pub use pipeline::RenderPipeline as ShaderPipeline;
 #[cfg(feature = "textures")]
 pub use sprite_pipeline::SpritePipeline;
 #[cfg(feature = "textures")]
-pub use texture_atlas::{AtlasBuilder, AtlasError, AtlasRegion, TextureAtlas};
+pub use texture_atlas::{AtlasBuilder, AtlasError, AtlasRegion, RegionId, TextureAtlas};
 
 // Internal types (for advanced module)
 pub use render_state::RenderState;

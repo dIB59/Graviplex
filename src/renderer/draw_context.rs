@@ -403,6 +403,21 @@ impl<'a> DrawContext<'a> {
                         texture_sprite_warning_shown = true;
                     }
                 }
+                #[cfg(feature = "textures")]
+                SpriteShape::TextureId { region, size } => {
+                    if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                        // Fast O(1) lookup by pre-resolved RegionId
+                        let atlas_region = atlas.get_by_id(region);
+                        sprite_pipeline.draw(
+                            [transform.position.x, transform.position.y],
+                            [size.x * transform.scale.x, size.y * transform.scale.y],
+                            atlas_region.uv_rect(),
+                            sprite.color.into(),
+                            transform.rotation,
+                            *z_order,
+                        );
+                    }
+                }
             }
         }
 
@@ -622,6 +637,12 @@ impl<'a> DrawContext<'a> {
                 // Texture sprites require SpritePipeline with atlas
                 // Use draw_sprite() or render_world_with_atlas() instead
                 log::warn!("Texture sprites not supported in render_entity(), use SpritePipeline");
+            }
+            #[cfg(feature = "textures")]
+            SpriteShape::TextureId { .. } => {
+                // TextureId sprites require SpritePipeline with atlas
+                // Use draw_sprite() or render_world() instead
+                log::warn!("TextureId sprites not supported in render_entity(), use SpritePipeline");
             }
         }
     }

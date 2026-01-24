@@ -581,6 +581,7 @@ mod tests {
                     SpriteShape::Rect { .. } => "rect",
                     SpriteShape::Line { .. } => "line",
                     SpriteShape::Texture { .. } => "texture",
+                    SpriteShape::TextureId { .. } => "textureId",
                 };
                 (sprite.z_order, type_name)
             })

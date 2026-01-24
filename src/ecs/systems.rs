@@ -25,6 +25,8 @@ use super::components::{
     Acceleration, BodyType, Despawn, Gravity, Lifetime, PlayerController, RigidBody, Sprite,
     SpriteAnimation, SpriteShape, Transform, Velocity,
 };
+#[cfg(feature = "textures")]
+use super::components::SpriteAnimationId;
 use super::world::World;
 use super::Entity;
 use crate::core::math::Vec2;
@@ -125,6 +127,40 @@ pub fn animation_system(world: &mut World, dt: f32) {
         // Update sprite's region name to current frame
         if let SpriteShape::Texture { ref mut region_name, .. } = sprite.shape {
             *region_name = animation.current_region_name();
+        }
+    }
+}
+
+/// Updates ID-based sprite animations (zero-allocation variant).
+///
+/// For each entity with [`SpriteAnimationId`] and [`Sprite`]:
+/// 1. Updates the animation timer
+/// 2. Advances to the next frame when needed
+/// 3. Updates the Sprite's region to the current frame ID
+///
+/// This is the performance-optimized version of [`animation_system`] that avoids
+/// per-frame string allocations by using pre-resolved [`RegionId`] values.
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+///
+/// # Example
+///
+/// ```ignore
+/// // In your game's update method:
+/// animation_id_system(&mut world, res.time.delta());
+/// ```
+#[cfg(feature = "textures")]
+pub fn animation_id_system(world: &mut World, dt: f32) {
+    for (_, (sprite, animation)) in world.query::<(&mut Sprite, &mut SpriteAnimationId)>().iter() {
+        // Update animation timing
+        animation.tick(dt);
+
+        // Update sprite's region ID to current frame (zero allocation)
+        if let SpriteShape::TextureId { ref mut region, .. } = sprite.shape {
+            *region = animation.current_frame_id();
         }
     }
 }

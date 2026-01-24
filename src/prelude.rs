@@ -47,7 +47,7 @@ pub use crate::renderer::Graphics;
 
 // Texture atlas builder (for use with App::build().atlas())
 #[cfg(feature = "textures")]
-pub use crate::renderer::AtlasBuilder;
+pub use crate::renderer::{AtlasBuilder, RegionId};
 
 // ECS - Core types
 pub use crate::ecs::{Entity, Resources, World};
@@ -57,6 +57,8 @@ pub use crate::ecs::{
     Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody,
     Sprite, SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
 };
+#[cfg(feature = "textures")]
+pub use crate::ecs::SpriteAnimationId;
 
 // ECS - Tilemap support
 pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
@@ -69,6 +71,8 @@ pub use crate::ecs::{
     acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
     lifetime_system, movement_system, physics_system, player_input_system,
 };
+#[cfg(feature = "textures")]
+pub use crate::ecs::animation_id_system;
 
 // Collision detection
 pub use crate::collision::{Collider, ColliderShape, CollisionEvent, CollisionLayer};
@@ -93,4 +97,6 @@ pub mod systems {
         acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
         lifetime_system, movement_system, physics_system, player_input_system, run_systems,
     };
+    #[cfg(feature = "textures")]
+    pub use crate::ecs::animation_id_system;
 }

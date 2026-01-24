@@ -16,6 +16,9 @@
 use crate::core::color::Color;
 use crate::core::math::Vec2;
 
+#[cfg(feature = "textures")]
+use crate::renderer::texture_atlas::RegionId;
+
 // =============================================================================
 // TRANSFORM
 // =============================================================================
@@ -483,6 +486,30 @@ impl Sprite {
         }
     }
 
+    /// Creates a textured sprite from a pre-resolved region ID.
+    ///
+    /// This is the preferred method for performance-critical code, as it avoids
+    /// per-frame string allocations and HashMap lookups. Resolve the [`RegionId`]
+    /// once at startup using [`TextureAtlas::get_id`].
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Resolve once at startup
+    /// let player_id = atlas.get_id("player").unwrap();
+    ///
+    /// // Use in hot loop with zero allocation
+    /// let sprite = Sprite::texture_id(player_id, Vec2::new(32.0, 32.0), Color::WHITE);
+    /// ```
+    #[cfg(feature = "textures")]
+    pub fn texture_id(region: RegionId, size: Vec2, tint: Color) -> Self {
+        Self {
+            shape: SpriteShape::TextureId { region, size },
+            color: tint,
+            z_order: 0,
+        }
+    }
+
     /// Sets the z-order (draw order).
     pub fn with_z_order(mut self, z_order: i32) -> Self {
         self.z_order = z_order;
@@ -511,7 +538,10 @@ pub enum SpriteShape {
     Rect { size: Vec2 },
     /// Line from entity position to position + end_offset.
     Line { end_offset: Vec2 },
-    /// Textured sprite from an atlas region.
+    /// Textured sprite from an atlas region (name-based lookup).
+    ///
+    /// **Note:** For better performance in hot paths, prefer using
+    /// [`SpriteShape::TextureId`] with a pre-resolved [`RegionId`].
     ///
     /// The `region_name` maps to an [`AtlasRegion`] in the texture atlas.
     /// Use with [`TextureAtlas`] for efficient batched rendering.
@@ -525,6 +555,28 @@ pub enum SpriteShape {
     Texture {
         /// Name of the region in the texture atlas.
         region_name: String,
+        /// Display size in world units.
+        size: Vec2,
+    },
+    /// Textured sprite from an atlas region (ID-based lookup, zero-allocation).
+    ///
+    /// This is the preferred variant for performance-critical code. The [`RegionId`]
+    /// is obtained once from [`TextureAtlas::get_id`] and reused, avoiding per-frame
+    /// string allocations and HashMap lookups.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Resolve ID once at startup
+    /// let player_id = atlas.get_id("player").expect("player region not found");
+    ///
+    /// // Create sprites with zero-allocation lookup
+    /// let sprite = Sprite::texture_id(player_id, Vec2::new(32.0, 32.0), Color::WHITE);
+    /// ```
+    #[cfg(feature = "textures")]
+    TextureId {
+        /// Pre-resolved region ID for O(1) lookup.
+        region: RegionId,
         /// Display size in world units.
         size: Vec2,
     },
@@ -804,6 +856,185 @@ impl SpriteAnimation {
                     self.current_frame = 0;
                 } else {
                     self.current_frame = self.frame_count - 1;
+                    self.playing = false;
+                }
+            }
+        }
+    }
+}
+
+// =============================================================================
+// SPRITE ANIMATION (ID-BASED)
+// =============================================================================
+
+/// Zero-allocation sprite animation using pre-resolved [`RegionId`]s.
+///
+/// This is the performance-optimized version of [`SpriteAnimation`]. Instead of
+/// constructing region names each frame with string formatting, it stores pre-resolved
+/// `RegionId` values for O(1) frame lookup.
+///
+/// # When to use
+///
+/// Use `SpriteAnimationId` when:
+/// - You have many animated sprites (100+)
+/// - Animation updates are a measurable cost
+/// - You want predictable, allocation-free animation
+///
+/// Use [`SpriteAnimation`] when:
+/// - Prototyping or when performance isn't critical
+/// - Dynamic animation prefixes are needed
+/// - Frame count may change at runtime
+///
+/// # Example
+///
+/// ```ignore
+/// // Resolve frame IDs once at startup
+/// let walk_frames: Vec<RegionId> = (0..6)
+///     .map(|i| atlas.get_id(&format!("player_walk_{}", i)).unwrap())
+///     .collect();
+///
+/// // Create animation with pre-resolved IDs
+/// let anim = SpriteAnimationId::from_frames(walk_frames)
+///     .with_fps(12.0);
+///
+/// // Spawn animated sprite
+/// world.spawn((
+///     Transform::from_position(pos),
+///     Sprite::texture_id(anim.current_frame_id(), Vec2::new(64.0, 64.0), Color::WHITE),
+///     anim,
+///     Visible,
+/// ));
+/// ```
+#[cfg(feature = "textures")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpriteAnimationId {
+    /// Pre-resolved frame IDs for O(1) lookup
+    frames: Vec<RegionId>,
+    /// Current frame index (0-based)
+    pub current_frame: u32,
+    /// Time accumulated since last frame change
+    pub elapsed: f32,
+    /// Seconds per frame (1.0 / fps)
+    pub frame_duration: f32,
+    /// Whether the animation should loop
+    pub looping: bool,
+    /// Whether the animation is playing
+    pub playing: bool,
+}
+
+#[cfg(feature = "textures")]
+impl SpriteAnimationId {
+    /// Create a new animation from pre-resolved frame IDs.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `frames` is empty.
+    pub fn from_frames(frames: Vec<RegionId>) -> Self {
+        assert!(!frames.is_empty(), "Animation must have at least one frame");
+        Self {
+            frames,
+            current_frame: 0,
+            elapsed: 0.0,
+            frame_duration: 0.1, // 10 FPS default
+            looping: true,
+            playing: true,
+        }
+    }
+
+    /// Create animation by resolving frame names from an atlas.
+    ///
+    /// Resolves frames named "{prefix}_0", "{prefix}_1", etc.
+    ///
+    /// # Returns
+    ///
+    /// `None` if any frame is not found in the atlas.
+    pub fn from_prefix(
+        atlas: &crate::renderer::TextureAtlas,
+        prefix: &str,
+        frame_count: u32,
+    ) -> Option<Self> {
+        let frames: Option<Vec<RegionId>> = (0..frame_count)
+            .map(|i| atlas.get_id(&format!("{}_{}", prefix, i)))
+            .collect();
+        
+        frames.map(Self::from_frames)
+    }
+
+    /// Set the animation speed in frames per second.
+    pub fn with_fps(mut self, fps: f32) -> Self {
+        self.frame_duration = 1.0 / fps.max(0.001);
+        self
+    }
+
+    /// Set the frame duration directly (seconds per frame).
+    pub fn with_frame_duration(mut self, duration: f32) -> Self {
+        self.frame_duration = duration;
+        self
+    }
+
+    /// Set whether the animation loops.
+    pub fn with_looping(mut self, looping: bool) -> Self {
+        self.looping = looping;
+        self
+    }
+
+    /// Start playing the animation from the beginning.
+    pub fn play(&mut self) {
+        self.playing = true;
+        self.current_frame = 0;
+        self.elapsed = 0.0;
+    }
+
+    /// Stop the animation.
+    pub fn stop(&mut self) {
+        self.playing = false;
+    }
+
+    /// Pause the animation (keeps current frame).
+    pub fn pause(&mut self) {
+        self.playing = false;
+    }
+
+    /// Resume a paused animation.
+    pub fn resume(&mut self) {
+        self.playing = true;
+    }
+
+    /// Get the current frame's RegionId (O(1) lookup).
+    #[inline]
+    pub fn current_frame_id(&self) -> RegionId {
+        self.frames[self.current_frame as usize]
+    }
+
+    /// Get the number of frames in this animation.
+    #[inline]
+    pub fn frame_count(&self) -> u32 {
+        self.frames.len() as u32
+    }
+
+    /// Check if the animation has finished (only relevant for non-looping animations).
+    pub fn is_finished(&self) -> bool {
+        !self.looping && self.current_frame >= self.frame_count() - 1
+    }
+
+    /// Update the animation state. Called by [`animation_id_system`].
+    pub fn tick(&mut self, dt: f32) {
+        if !self.playing {
+            return;
+        }
+
+        self.elapsed += dt;
+        let frame_count = self.frame_count();
+
+        while self.elapsed >= self.frame_duration {
+            self.elapsed -= self.frame_duration;
+            self.current_frame += 1;
+
+            if self.current_frame >= frame_count {
+                if self.looping {
+                    self.current_frame = 0;
+                } else {
+                    self.current_frame = frame_count - 1;
                     self.playing = false;
                 }
             }
@@ -1147,6 +1378,11 @@ mod tests {
                 SpriteShape::Line { end_offset } => assert!(end_offset.length() > 0.0),
                 SpriteShape::Texture { region_name, size } => {
                     assert!(!region_name.is_empty());
+                    assert!(size.x > 0.0 && size.y > 0.0);
+                }
+                #[cfg(feature = "textures")]
+                SpriteShape::TextureId { region, size } => {
+                    assert!(region.is_valid());
                     assert!(size.x > 0.0 && size.y > 0.0);
                 }
             }

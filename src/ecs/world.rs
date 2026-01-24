@@ -2,13 +2,32 @@
 
 use super::Entity;
 use hecs::DynamicBundle;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::fmt;
 
 /// Central container for all entities and their components.
 ///
-/// The World stores all game entities and their associated components.
+/// The World stores all game entities and their associated components,
+/// plus shared resources that don't belong to any specific entity.
 /// Use it to spawn entities, attach components, and query for entities
 /// with specific component combinations.
+///
+/// # Resources
+///
+/// Resources are singleton data that doesn't belong to any entity.
+/// Store things like game configuration, asset handles, or global state.
+///
+/// ```ignore
+/// // Insert a resource
+/// world.insert_resource(GameConfig { difficulty: 3 });
+///
+/// // Get a resource
+/// let config = world.resource::<GameConfig>();
+///
+/// // Mutably access a resource
+/// world.resource_mut::<GameConfig>().difficulty += 1;
+/// ```
 ///
 /// # Stability
 ///
@@ -42,6 +61,7 @@ use std::fmt;
 /// ```
 pub struct World {
     inner: hecs::World,
+    resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Default for World {
@@ -55,6 +75,7 @@ impl World {
     pub fn new() -> Self {
         Self {
             inner: hecs::World::new(),
+            resources: HashMap::new(),
         }
     }
 
@@ -126,6 +147,157 @@ impl World {
     /// Removes all entities from the world.
     pub fn clear(&mut self) {
         self.inner.clear();
+    }
+
+    // =========================================================================
+    // Resource Management
+    // =========================================================================
+
+    /// Inserts a resource into the world.
+    ///
+    /// Resources are singleton data that doesn't belong to any entity.
+    /// If a resource of this type already exists, it is replaced.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// #[derive(Default)]
+    /// struct GameConfig {
+    ///     difficulty: u32,
+    ///     sound_enabled: bool,
+    /// }
+    ///
+    /// world.insert_resource(GameConfig::default());
+    /// ```
+    pub fn insert_resource<T: 'static>(&mut self, resource: T) {
+        self.resources.insert(TypeId::of::<T>(), Box::new(resource));
+    }
+
+    /// Gets an immutable reference to a resource.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resource doesn't exist. Use [`try_resource`](Self::try_resource)
+    /// for fallible access.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = world.resource::<GameConfig>();
+    /// println!("Difficulty: {}", config.difficulty);
+    /// ```
+    pub fn resource<T: 'static>(&self) -> &T {
+        self.try_resource::<T>()
+            .unwrap_or_else(|| panic!("Resource {} not found", std::any::type_name::<T>()))
+    }
+
+    /// Gets a mutable reference to a resource.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resource doesn't exist. Use [`try_resource_mut`](Self::try_resource_mut)
+    /// for fallible access.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// world.resource_mut::<GameConfig>().difficulty += 1;
+    /// ```
+    pub fn resource_mut<T: 'static>(&mut self) -> &mut T {
+        let type_name = std::any::type_name::<T>();
+        self.try_resource_mut::<T>()
+            .unwrap_or_else(|| panic!("Resource {} not found", type_name))
+    }
+
+    /// Tries to get an immutable reference to a resource.
+    ///
+    /// Returns `None` if the resource doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(config) = world.try_resource::<GameConfig>() {
+    ///     // Resource exists
+    /// }
+    /// ```
+    pub fn try_resource<T: 'static>(&self) -> Option<&T> {
+        self.resources
+            .get(&TypeId::of::<T>())
+            .and_then(|r| r.downcast_ref::<T>())
+    }
+
+    /// Tries to get a mutable reference to a resource.
+    ///
+    /// Returns `None` if the resource doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if let Some(config) = world.try_resource_mut::<GameConfig>() {
+    ///     config.difficulty += 1;
+    /// }
+    /// ```
+    pub fn try_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|r| r.downcast_mut::<T>())
+    }
+
+    /// Removes a resource from the world and returns it.
+    ///
+    /// Returns `None` if the resource doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let old_config = world.remove_resource::<GameConfig>();
+    /// ```
+    pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
+        self.resources
+            .remove(&TypeId::of::<T>())
+            .and_then(|r| r.downcast::<T>().ok())
+            .map(|b| *b)
+    }
+
+    /// Checks if the world contains a resource of this type.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// if world.has_resource::<GameConfig>() {
+    ///     // Resource exists
+    /// }
+    /// ```
+    pub fn has_resource<T: 'static>(&self) -> bool {
+        self.resources.contains_key(&TypeId::of::<T>())
+    }
+
+    /// Gets a resource, inserting the default value if it doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = world.resource_or_default::<GameConfig>();
+    /// ```
+    pub fn resource_or_default<T: 'static + Default>(&mut self) -> &mut T {
+        if !self.has_resource::<T>() {
+            self.insert_resource(T::default());
+        }
+        self.resource_mut::<T>()
+    }
+
+    /// Gets a resource, inserting the provided value if it doesn't exist.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let config = world.resource_or_insert(GameConfig { difficulty: 3, .. });
+    /// ```
+    pub fn resource_or_insert<T: 'static>(&mut self, value: T) -> &mut T {
+        if !self.has_resource::<T>() {
+            self.insert_resource(value);
+        }
+        self.resource_mut::<T>()
     }
 
     // =========================================================================
@@ -587,5 +759,128 @@ mod tests {
             .map(|(_, h)| h.current)
             .sum();
         assert_eq!(total_health, 150.0);
+    }
+
+    // =========================================================================
+    // Resource Tests
+    // =========================================================================
+
+    #[derive(Debug, Clone, PartialEq, Default)]
+    struct GameConfig {
+        difficulty: u32,
+        sound_enabled: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Score(u32);
+
+    #[test]
+    fn test_insert_and_get_resource() {
+        let mut world = World::new();
+        
+        world.insert_resource(GameConfig { difficulty: 3, sound_enabled: true });
+        
+        let config = world.resource::<GameConfig>();
+        assert_eq!(config.difficulty, 3);
+        assert!(config.sound_enabled);
+    }
+
+    #[test]
+    fn test_resource_mut() {
+        let mut world = World::new();
+        
+        world.insert_resource(GameConfig { difficulty: 1, sound_enabled: true });
+        
+        world.resource_mut::<GameConfig>().difficulty = 5;
+        
+        assert_eq!(world.resource::<GameConfig>().difficulty, 5);
+    }
+
+    #[test]
+    fn test_try_resource() {
+        let mut world = World::new();
+        
+        assert!(world.try_resource::<GameConfig>().is_none());
+        
+        world.insert_resource(GameConfig::default());
+        
+        assert!(world.try_resource::<GameConfig>().is_some());
+    }
+
+    #[test]
+    fn test_has_resource() {
+        let mut world = World::new();
+        
+        assert!(!world.has_resource::<GameConfig>());
+        
+        world.insert_resource(GameConfig::default());
+        
+        assert!(world.has_resource::<GameConfig>());
+    }
+
+    #[test]
+    fn test_remove_resource() {
+        let mut world = World::new();
+        
+        world.insert_resource(Score(100));
+        
+        let removed = world.remove_resource::<Score>();
+        assert_eq!(removed, Some(Score(100)));
+        assert!(!world.has_resource::<Score>());
+        
+        let removed_again = world.remove_resource::<Score>();
+        assert!(removed_again.is_none());
+    }
+
+    #[test]
+    fn test_resource_or_default() {
+        let mut world = World::new();
+        
+        let config = world.resource_or_default::<GameConfig>();
+        assert_eq!(config.difficulty, 0);
+        
+        // Should return existing now
+        config.difficulty = 42;
+        assert_eq!(world.resource::<GameConfig>().difficulty, 42);
+    }
+
+    #[test]
+    fn test_resource_or_insert() {
+        let mut world = World::new();
+        
+        let score = world.resource_or_insert(Score(100));
+        assert_eq!(score.0, 100);
+        
+        // Should return existing, not insert again
+        let score = world.resource_or_insert(Score(999));
+        assert_eq!(score.0, 100);
+    }
+
+    #[test]
+    fn test_multiple_resource_types() {
+        let mut world = World::new();
+        
+        world.insert_resource(GameConfig { difficulty: 3, sound_enabled: true });
+        world.insert_resource(Score(500));
+        
+        assert_eq!(world.resource::<GameConfig>().difficulty, 3);
+        assert_eq!(world.resource::<Score>().0, 500);
+    }
+
+    #[test]
+    fn test_resource_replace() {
+        let mut world = World::new();
+        
+        world.insert_resource(Score(100));
+        world.insert_resource(Score(200)); // Replaces
+        
+        assert_eq!(world.resource::<Score>().0, 200);
+    }
+
+    #[test]
+    #[should_panic(expected = "Resource")]
+    fn test_resource_missing_panics() {
+        let world = World::new();
+        let _ = world.resource::<GameConfig>();
     }
 }

@@ -4,6 +4,7 @@
 //! - [`AtlasBuilder`] - Accumulates images and packs them into an atlas
 //! - [`TextureAtlas`] - GPU texture with named region lookups
 //! - [`AtlasRegion`] - UV coordinates and size for a sprite in the atlas
+//! - [`RegionId`] - Zero-cost identifier for O(1) region lookups
 //!
 //! # Example
 //!
@@ -14,11 +15,63 @@
 //!     .add_image("bullet", "assets/bullet.png")?
 //!     .build(&gpu, 2048)?;
 //!
+//! // String-based lookup (for convenience)
 //! let region = atlas.get("player").unwrap();
+//!
+//! // ID-based lookup (for performance - cache the ID at init)
+//! let player_id = atlas.get_id("player").unwrap();
+//! let region = atlas.get_by_id(player_id);
 //! ```
 
 use std::collections::HashMap;
 use std::path::Path;
+
+// =============================================================================
+// REGION ID - Zero-cost texture region identifier
+// =============================================================================
+
+/// A lightweight, copyable identifier for a texture region.
+///
+/// Use [`TextureAtlas::get_id`] to obtain a `RegionId` from a region name,
+/// then use [`TextureAtlas::get_by_id`] for O(1) lookups without hashing.
+///
+/// This is the recommended approach for hot paths like rendering and animations
+/// where you'd otherwise be doing string lookups every frame.
+///
+/// # Example
+///
+/// ```ignore
+/// // At initialization: look up the ID once
+/// let player_walk_0 = atlas.get_id("player_walk_0").unwrap();
+///
+/// // In update/render loop: use the ID for O(1) access
+/// let region = atlas.get_by_id(player_walk_0);
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub struct RegionId(u32);
+
+impl RegionId {
+    /// Invalid/null region ID (used as a sentinel value).
+    pub const INVALID: Self = Self(u32::MAX);
+
+    /// Create a new RegionId from a raw index (internal use).
+    #[inline]
+    pub(crate) const fn new(index: u32) -> Self {
+        Self(index)
+    }
+
+    /// Get the raw index (internal use).
+    #[inline]
+    pub(crate) const fn index(self) -> u32 {
+        self.0
+    }
+
+    /// Check if this is a valid region ID.
+    #[inline]
+    pub const fn is_valid(self) -> bool {
+        self.0 != u32::MAX
+    }
+}
 
 /// A region within a texture atlas, containing UV coordinates and pixel dimensions.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -45,6 +98,12 @@ impl AtlasRegion {
 /// A GPU texture atlas with named region lookups.
 ///
 /// Created by [`AtlasBuilder::build`] or [`Graphics::build_atlas`].
+///
+/// # Lookup Methods
+///
+/// - [`get(name)`](Self::get) - String-based lookup, returns `Option<&AtlasRegion>`
+/// - [`get_id(name)`](Self::get_id) - Get a [`RegionId`] from a name (do this once at init)
+/// - [`get_by_id(id)`](Self::get_by_id) - O(1) lookup by ID (use this in hot paths)
 pub struct TextureAtlas {
     /// The GPU texture containing all packed sprites.
     #[allow(dead_code)]
@@ -59,32 +118,170 @@ pub struct TextureAtlas {
     pub(crate) bind_group: wgpu::BindGroup,
     /// Bind group layout (for pipeline creation).
     pub(crate) bind_group_layout: wgpu::BindGroupLayout,
-    /// Named regions within the atlas.
-    regions: HashMap<String, AtlasRegion>,
+    /// Regions indexed by RegionId (dense array for O(1) lookup).
+    regions_by_id: Vec<AtlasRegion>,
+    /// Name → RegionId mapping for string lookups.
+    name_to_id: HashMap<String, RegionId>,
     /// Atlas dimensions.
     pub width: u32,
     pub height: u32,
 }
 
 impl TextureAtlas {
-    /// Get a region by name.
+    /// Get a region by name (string-based lookup).
+    ///
+    /// For hot paths, prefer [`get_id`](Self::get_id) + [`get_by_id`](Self::get_by_id).
     pub fn get(&self, name: &str) -> Option<&AtlasRegion> {
-        self.regions.get(name)
+        self.name_to_id
+            .get(name)
+            .map(|id| &self.regions_by_id[id.index() as usize])
+    }
+
+    /// Get a region ID by name.
+    ///
+    /// Call this once at initialization and cache the ID for O(1) lookups later.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // In init:
+    /// let player_region = atlas.get_id("player").expect("player region not found");
+    ///
+    /// // In update/render (every frame):
+    /// let region = atlas.get_by_id(player_region);
+    /// ```
+    #[inline]
+    pub fn get_id(&self, name: &str) -> Option<RegionId> {
+        self.name_to_id.get(name).copied()
+    }
+
+    /// Get a region by ID (O(1) lookup, no hashing).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the ID is invalid (created from a different atlas or [`RegionId::INVALID`]).
+    /// In debug builds, this includes bounds checking.
+    #[inline]
+    pub fn get_by_id(&self, id: RegionId) -> &AtlasRegion {
+        debug_assert!(
+            (id.index() as usize) < self.regions_by_id.len(),
+            "Invalid RegionId: {} (atlas has {} regions)",
+            id.index(),
+            self.regions_by_id.len()
+        );
+        // SAFETY: We trust that RegionIds are only created by this atlas
+        // and the debug_assert catches misuse in development
+        &self.regions_by_id[id.index() as usize]
+    }
+
+    /// Try to get a region by ID, returning None if invalid.
+    #[inline]
+    pub fn try_get_by_id(&self, id: RegionId) -> Option<&AtlasRegion> {
+        self.regions_by_id.get(id.index() as usize)
     }
 
     /// Get all region names.
     pub fn region_names(&self) -> impl Iterator<Item = &String> {
-        self.regions.keys()
+        self.name_to_id.keys()
     }
 
     /// Get the number of regions in the atlas.
     pub fn region_count(&self) -> usize {
-        self.regions.len()
+        self.regions_by_id.len()
     }
 
     /// Check if the atlas contains a region with the given name.
     pub fn contains(&self, name: &str) -> bool {
-        self.regions.contains_key(name)
+        self.name_to_id.contains_key(name)
+    }
+
+    /// Iterate over all regions with their names.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, RegionId, &AtlasRegion)> {
+        self.name_to_id.iter().map(|(name, id)| {
+            (name.as_str(), *id, &self.regions_by_id[id.index() as usize])
+        })
+    }
+
+    /// Resolve multiple region names to IDs at once.
+    ///
+    /// Returns `None` if any name is not found.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let [player, enemy, bullet] = atlas
+    ///     .resolve_all(&["player", "enemy", "bullet"])?;
+    /// ```
+    pub fn resolve_all<const N: usize>(&self, names: &[&str; N]) -> Option<[RegionId; N]> {
+        let mut result = [RegionId::INVALID; N];
+        for (i, name) in names.iter().enumerate() {
+            result[i] = self.get_id(name)?;
+        }
+        Some(result)
+    }
+
+    /// Resolve region names to IDs, returning a Vec.
+    ///
+    /// Useful when the number of regions is not known at compile time.
+    /// Returns `None` if any name is not found.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let frame_ids = atlas.resolve_vec(&frame_names)?;
+    /// ```
+    pub fn resolve_vec(&self, names: &[&str]) -> Option<Vec<RegionId>> {
+        names.iter().map(|name| self.get_id(name)).collect()
+    }
+
+    /// Get a region ID by name, panicking with a helpful message if not found.
+    ///
+    /// Useful for required regions where missing is a program error.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the region is not found.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let player_id = atlas.require("player"); // Panics if "player" doesn't exist
+    /// ```
+    pub fn require(&self, name: &str) -> RegionId {
+        self.get_id(name).unwrap_or_else(|| {
+            panic!(
+                "Required atlas region '{}' not found. Available regions: {:?}",
+                name,
+                self.name_to_id.keys().collect::<Vec<_>>()
+            )
+        })
+    }
+
+    /// Resolve animation frame IDs for a prefix.
+    ///
+    /// Looks for regions named "{prefix}_0", "{prefix}_1", etc. until one is not found.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // If atlas has player_walk_0, player_walk_1, player_walk_2
+    /// let frames = atlas.resolve_animation("player_walk");
+    /// assert_eq!(frames.len(), 3);
+    /// ```
+    pub fn resolve_animation(&self, prefix: &str) -> Vec<RegionId> {
+        let mut frames = Vec::new();
+        let mut i = 0;
+        loop {
+            let name = format!("{}_{}", prefix, i);
+            match self.get_id(&name) {
+                Some(id) => {
+                    frames.push(id);
+                    i += 1;
+                }
+                None => break,
+            }
+        }
+        frames
     }
 }
 
@@ -594,7 +791,10 @@ impl AtlasBuilder {
             .and_then(|bytes| usize::try_from(bytes).ok())
             .ok_or(AtlasError::PackingFailed { max_size })?;
         let mut atlas_data = vec![0u8; atlas_bytes];
-        let mut regions = HashMap::new();
+        
+        // Build both the dense Vec (for O(1) ID lookup) and HashMap (for name lookup)
+        let mut regions_by_id: Vec<AtlasRegion> = Vec::with_capacity(self.images.len());
+        let mut name_to_id: HashMap<String, RegionId> = HashMap::with_capacity(self.images.len());
 
         for (name, (_, loc)) in packed.packed_locations() {
             let img = &self.images[name];
@@ -623,14 +823,16 @@ impl AtlasBuilder {
             let u_max = (x + w) as f32 / atlas_width as f32;
             let v_max = (y + h) as f32 / atlas_height as f32;
 
-            regions.insert(
-                name.clone(),
-                AtlasRegion {
-                    uv: [u_min, v_min, u_max, v_max],
-                    width: w,
-                    height: h,
-                },
-            );
+            let region = AtlasRegion {
+                uv: [u_min, v_min, u_max, v_max],
+                width: w,
+                height: h,
+            };
+
+            // Assign sequential ID and store in both structures
+            let id = RegionId::new(regions_by_id.len() as u32);
+            regions_by_id.push(region);
+            name_to_id.insert(name.clone(), id);
         }
 
         // Create GPU texture
@@ -728,7 +930,8 @@ impl AtlasBuilder {
             sampler,
             bind_group,
             bind_group_layout,
-            regions,
+            regions_by_id,
+            name_to_id,
             width: atlas_width,
             height: atlas_height,
         })
