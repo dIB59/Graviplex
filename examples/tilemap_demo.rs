@@ -68,7 +68,7 @@ impl TilemapGame {
             .add_image("tower", format!("{}/Buildings/Blue Buildings/Tower.png", ASSETS))?
             // Player character - sprite sheet with animation frames
             // Pawn_Idle.png is 1536x192 = 8 frames of 192x192 each
-            .add_sprite_sheet("player_idle", format!("{}/Units/Blue Units/Pawn/Pawn_Idle.png", ASSETS), 192, 192)?;
+            .add_sprite_sheet("player_idle", format!("{}/Units/Blue Units/Pawn/Pawn_Idle.png", ASSETS), 8)?;
         
         Ok(builder)
     }
