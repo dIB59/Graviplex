@@ -178,6 +178,10 @@ impl AtlasBuilder {
     ///     .add_solid_color("white", 32, 32, [255, 255, 255, 255])
     /// ```
     pub fn add_solid_color(mut self, name: &str, width: u32, height: u32, color: [u8; 4]) -> Self {
+        if width == 0 || height == 0 {
+            log::warn!("add_solid_color: skipping '{}' with zero dimension ({}x{})", name, width, height);
+            return self;
+        }
         let mut img = image::RgbaImage::new(width, height);
         for pixel in img.pixels_mut() {
             *pixel = image::Rgba(color);
@@ -201,19 +205,19 @@ impl AtlasBuilder {
         color_left: [u8; 4],
         color_right: [u8; 4],
     ) -> Self {
+        if width == 0 || height == 0 {
+            log::warn!("add_gradient: skipping '{}' with zero dimension ({}x{})", name, width, height);
+            return self;
+        }
         let mut img = image::RgbaImage::new(width, height);
-
-        if width > 0 && height > 0 {
-
-            for y in 0..height {
-                for x in 0..width {
-                    let t = x as f32 / width as f32;
-                    let r = (color_left[0] as f32 * (1.0 - t) + color_right[0] as f32 * t) as u8;
-                    let g = (color_left[1] as f32 * (1.0 - t) + color_right[1] as f32 * t) as u8;
-                    let b = (color_left[2] as f32 * (1.0 - t) + color_right[2] as f32 * t) as u8;
-                    let a = (color_left[3] as f32 * (1.0 - t) + color_right[3] as f32 * t) as u8;
-                    img.put_pixel(x, y, image::Rgba([r, g, b, a]));
-                }
+        for y in 0..height {
+            for x in 0..width {
+                let t = x as f32 / width as f32;
+                let r = (color_left[0] as f32 * (1.0 - t) + color_right[0] as f32 * t) as u8;
+                let g = (color_left[1] as f32 * (1.0 - t) + color_right[1] as f32 * t) as u8;
+                let b = (color_left[2] as f32 * (1.0 - t) + color_right[2] as f32 * t) as u8;
+                let a = (color_left[3] as f32 * (1.0 - t) + color_right[3] as f32 * t) as u8;
+                img.put_pixel(x, y, image::Rgba([r, g, b, a]));
             }
         }
         self.images.insert(name.to_string(), img);
@@ -236,6 +240,14 @@ impl AtlasBuilder {
         color1: [u8; 4],
         color2: [u8; 4],
     ) -> Self {
+        if width == 0 || height == 0 {
+            log::warn!("add_checkerboard: skipping '{}' with zero dimension ({}x{})", name, width, height);
+            return self;
+        }
+        if cell_size == 0 {
+            log::warn!("add_checkerboard: skipping '{}' with zero cell_size", name);
+            return self;
+        }
         let mut img = image::RgbaImage::new(width, height);
         for y in 0..height {
             for x in 0..width {
@@ -263,6 +275,10 @@ impl AtlasBuilder {
         fill_color: [u8; 4],
         border: Option<([u8; 4], u32)>,
     ) -> Self {
+        if diameter == 0 {
+            log::warn!("add_circle: skipping '{}' with zero diameter", name);
+            return self;
+        }
         let mut img = image::RgbaImage::new(diameter, diameter);
         let center = diameter as f32 / 2.0;
         let radius = center - 1.0;
@@ -301,6 +317,14 @@ impl AtlasBuilder {
     ///     .add_ring("halo", 64, 8, [255, 255, 0, 255])
     /// ```
     pub fn add_ring(mut self, name: &str, diameter: u32, thickness: u32, color: [u8; 4]) -> Self {
+        if diameter == 0 {
+            log::warn!("add_ring: skipping '{}' with zero diameter", name);
+            return self;
+        }
+        if thickness == 0 {
+            log::warn!("add_ring: skipping '{}' with zero thickness", name);
+            return self;
+        }
         let mut img = image::RgbaImage::new(diameter, diameter);
         let center = diameter as f32 / 2.0;
         let outer = center - 1.0;
