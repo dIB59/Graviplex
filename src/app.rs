@@ -411,6 +411,13 @@ impl<T: GameLoop> App<T> {
             self.input.pressed_keys(),
         );
 
+        // Apply camera target from game (if specified) with smoothing
+        if let Some(target) = self.game.camera_target(&self.world) {
+            let mut camera_follow = self.game.camera_follow_config();
+            camera_follow.set_target(target);
+            camera_follow.update(&mut self.camera, self.time.delta());
+        }
+
         // Let game handle input
         self.game.handle_input(&mut self.world, &self.input, &self.camera);
 

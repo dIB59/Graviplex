@@ -357,6 +357,63 @@ impl From<f32> for Lifetime {
     }
 }
 
+// =============================================================================
+// PLAYER CONTROLLER
+// =============================================================================
+
+/// Component for input-driven character movement.
+///
+/// Attach this to an entity with [`Transform`] and [`Velocity`] to enable
+/// WASD/Arrow key movement via [`player_input_system`](super::player_input_system).
+///
+/// # Example
+///
+/// ```ignore
+/// world.spawn((
+///     Transform::from_position(Vec2::new(400.0, 300.0)),
+///     Velocity::new(0.0, 0.0),
+///     Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE),
+///     PlayerController::new(200.0),  // 200 pixels/second
+///     Visible,
+/// ));
+///
+/// // In update:
+/// systems::player_input(world, &res.input);
+/// systems::movement(world, res.time.delta());
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlayerController {
+    /// Movement speed in units per second
+    pub speed: f32,
+    /// Whether diagonal movement should be normalized (same speed in all directions)
+    pub normalize_diagonal: bool,
+}
+
+impl PlayerController {
+    /// Create a new player controller with the given speed.
+    pub fn new(speed: f32) -> Self {
+        Self {
+            speed,
+            normalize_diagonal: true,
+        }
+    }
+
+    /// Set whether to normalize diagonal movement.
+    ///
+    /// When true (default), diagonal movement has the same speed as cardinal movement.
+    /// When false, diagonal movement is ~1.41x faster.
+    pub fn with_diagonal_normalized(mut self, normalize: bool) -> Self {
+        self.normalize_diagonal = normalize;
+        self
+    }
+}
+
+impl Default for PlayerController {
+    fn default() -> Self {
+        Self::new(200.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

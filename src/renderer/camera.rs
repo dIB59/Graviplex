@@ -5,6 +5,167 @@ use wgpu::{BindGroup, BindGroupLayout, Buffer, Device, Queue};
 use winit::event::MouseScrollDelta;
 use winit::keyboard::KeyCode;
 
+/// Camera follow behavior configuration.
+///
+/// This struct handles smooth camera following with configurable smoothing
+/// and maximum offset constraints. Use it to make the camera follow a target
+/// (like a player) with a natural "lag behind" effect that conveys speed.
+///
+/// # Example
+/// ```ignore
+/// let mut camera_follow = CameraFollow::new()
+///     .with_smoothing(5.0)      // Lower = more lag behind player
+///     .with_max_offset(200.0);  // Max pixels camera can lag behind
+///
+/// // In update loop:
+/// camera_follow.set_target([player.x, player.y]);
+/// camera_follow.update(&mut camera, delta_time);
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct CameraFollow {
+    /// The target position the camera should follow
+    pub target: Option<[f32; 2]>,
+    /// Smoothing factor (lower = more lag, higher = snappier)
+    /// - 2.0-4.0 = lots of lag, shows speed well
+    /// - 5.0-8.0 = balanced
+    /// - 10.0+ = snappy, minimal lag
+    pub smoothing: f32,
+    /// Maximum distance the camera can lag behind the target (in world units)
+    /// The camera will be pulled forward if it falls too far behind.
+    /// Set to 0.0 or negative for no limit.
+    pub max_offset: f32,
+    /// Deadzone - camera won't move if target is within this distance
+    pub deadzone: f32,
+}
+
+impl Default for CameraFollow {
+    fn default() -> Self {
+        Self {
+            target: None,
+            smoothing: 8.0,
+            max_offset: 0.0, // No limit by default
+            deadzone: 0.0,
+        }
+    }
+}
+
+impl CameraFollow {
+    /// Create a new CameraFollow with default settings
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the smoothing factor
+    ///
+    /// Lower values = more lag (camera falls behind player more)
+    /// - `2.0-4.0` = lots of lag, great for showing speed
+    /// - `5.0-8.0` = balanced
+    /// - `10.0+` = snappy, minimal lag
+    /// - `100.0+` = nearly instant snap
+    pub fn with_smoothing(mut self, smoothing: f32) -> Self {
+        self.smoothing = smoothing;
+        self
+    }
+
+    /// Set the maximum lag distance
+    ///
+    /// The camera will be pulled forward if it falls more than this
+    /// distance behind the target. Set to 0.0 for no limit.
+    pub fn with_max_offset(mut self, max_offset: f32) -> Self {
+        self.max_offset = max_offset;
+        self
+    }
+
+    /// Set the deadzone radius
+    ///
+    /// The camera won't move if the target is within this distance
+    /// of the current camera position. Good for reducing jitter.
+    pub fn with_deadzone(mut self, deadzone: f32) -> Self {
+        self.deadzone = deadzone;
+        self
+    }
+
+    /// Set the target position for the camera to follow
+    pub fn set_target(&mut self, target: [f32; 2]) {
+        self.target = Some(target);
+    }
+
+    /// Clear the target (camera will stop following)
+    pub fn clear_target(&mut self) {
+        self.target = None;
+    }
+
+    /// Update the camera position based on the current target
+    ///
+    /// Call this once per frame with the delta time.
+    /// Returns `true` if the camera position changed.
+    pub fn update(&self, camera: &mut Camera2D, delta_time: f32) -> bool {
+        let Some(target) = self.target else {
+            return false;
+        };
+
+        let dx = target[0] - camera.position[0];
+        let dy = target[1] - camera.position[1];
+        let distance = (dx * dx + dy * dy).sqrt();
+
+        // Don't move if within deadzone
+        if distance <= self.deadzone {
+            return false;
+        }
+
+        // Calculate interpolation factor using exponential smoothing
+        let t = if self.smoothing <= 1.0 {
+            1.0 // Instant snap
+        } else {
+            // Frame-rate independent exponential decay
+            1.0 - (-self.smoothing * delta_time).exp()
+        };
+
+        // Calculate new position
+        let mut new_x = camera.position[0] + dx * t;
+        let mut new_y = camera.position[1] + dy * t;
+
+        // Apply max offset constraint
+        if self.max_offset > 0.0 {
+            let new_dx = target[0] - new_x;
+            let new_dy = target[1] - new_y;
+            let new_distance = (new_dx * new_dx + new_dy * new_dy).sqrt();
+
+            if new_distance > self.max_offset {
+                // Clamp to max offset distance from target
+                let scale = self.max_offset / new_distance;
+                new_x = target[0] - new_dx * scale;
+                new_y = target[1] - new_dy * scale;
+            }
+        }
+
+        let changed = (new_x - camera.position[0]).abs() > 0.001
+            || (new_y - camera.position[1]).abs() > 0.001;
+
+        camera.position[0] = new_x;
+        camera.position[1] = new_y;
+
+        changed
+    }
+
+    /// Get the current offset from target (useful for UI effects)
+    pub fn current_offset(&self, camera: &Camera2D) -> [f32; 2] {
+        match self.target {
+            Some(target) => [
+                camera.position[0] - target[0],
+                camera.position[1] - target[1],
+            ],
+            None => [0.0, 0.0],
+        }
+    }
+
+    /// Get the current offset distance from target
+    pub fn current_offset_distance(&self, camera: &Camera2D) -> f32 {
+        let offset = self.current_offset(camera);
+        (offset[0] * offset[0] + offset[1] * offset[1]).sqrt()
+    }
+}
+
 /// Camera component that handles 2D view transformations
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -53,6 +214,35 @@ impl Camera2D {
         let x = (screen_pos[0] - self.screen_size[0] / 2.0) / self.scale + self.position[0];
         let y = (self.screen_size[1] / 2.0 - screen_pos[1]) / self.scale + self.position[1];
         [x, y]
+    }
+
+    /// Returns the visible world bounds as (min, max) corners.
+    ///
+    /// Useful for culling objects outside the camera view.
+    pub fn visible_bounds(&self) -> (crate::core::math::Vec2, crate::core::math::Vec2) {
+        let half_width = self.screen_size[0] / (2.0 * self.scale);
+        let half_height = self.screen_size[1] / (2.0 * self.scale);
+        
+        let min = crate::core::math::Vec2::new(
+            self.position[0] - half_width,
+            self.position[1] - half_height,
+        );
+        let max = crate::core::math::Vec2::new(
+            self.position[0] + half_width,
+            self.position[1] + half_height,
+        );
+        
+        (min, max)
+    }
+
+    /// Returns the visible world width in world units.
+    pub fn visible_width(&self) -> f32 {
+        self.screen_size[0] / self.scale
+    }
+
+    /// Returns the visible world height in world units.
+    pub fn visible_height(&self) -> f32 {
+        self.screen_size[1] / self.scale
     }
 }
 
@@ -123,7 +313,7 @@ impl Default for CameraController {
         Self {
             move_speed: 200.0,
             zoom_sensitivity: 0.01,
-            min_zoom: 0.001,
+            min_zoom: 1.0,
             max_zoom: 15000.0,
         }
     }

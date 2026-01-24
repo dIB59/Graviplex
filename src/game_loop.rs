@@ -83,6 +83,51 @@ pub trait GameLoop: 'static {
         false
     }
 
+    /// Returns the position the camera should follow/center on.
+    ///
+    /// Override this method to make the camera follow an entity (like a player).
+    /// Return `None` to use the default camera controller (arrow keys/mouse).
+    ///
+    /// For smoothing and offset configuration, see [`camera_follow_config`].
+    ///
+    /// # Arguments
+    /// * `world` - The ECS world (read-only)
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn camera_target(&self, world: &World) -> Option<[f32; 2]> {
+    ///     // Follow the player entity
+    ///     for (_, (transform, _)) in world.query::<(&Transform, &Player)>().iter() {
+    ///         return Some([transform.position.x, transform.position.y]);
+    ///     }
+    ///     None
+    /// }
+    /// ```
+    fn camera_target(&self, world: &World) -> Option<[f32; 2]> {
+        let _ = world;
+        None
+    }
+
+    /// Returns the camera follow configuration.
+    ///
+    /// Override this to customize how the camera follows the target:
+    /// - `smoothing`: How fast camera catches up (8.0 = balanced, 5.0 = floaty, 15.0 = snappy)
+    /// - `max_offset`: Maximum distance camera can lag behind target (0 = no limit)
+    /// - `deadzone`: Camera won't move if target within this distance
+    ///
+    /// # Example
+    /// ```ignore
+    /// fn camera_follow_config(&self) -> CameraFollow {
+    ///     CameraFollow::new()
+    ///         .with_smoothing(6.0)      // Smooth follow
+    ///         .with_max_offset(150.0)   // Max 150 pixels behind
+    ///         .with_deadzone(5.0)       // Ignore tiny movements
+    /// }
+    /// ```
+    fn camera_follow_config(&self) -> crate::renderer::CameraFollow {
+        crate::renderer::CameraFollow::new()
+    }
+
     /// Called to render game-specific GUI elements (requires `gui` feature).
     #[cfg(feature = "gui")]
     fn gui(&mut self, ctx: &egui::Context) {

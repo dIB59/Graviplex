@@ -11,19 +11,68 @@
 //!     let dt = res.time.delta();
 //!
 //!     // Run systems in desired order
+//!     systems::player_input(world, &res.input);
 //!     systems::movement(world, dt);
 //!     systems::lifetime(world, dt);
 //!     systems::despawn(world);
 //!
 //!     // Your custom systems...
-//!     my_player_system(world, &res.input);
 //!     my_collision_system(world);
 //! }
 //! ```
 
-use super::components::{Despawn, Lifetime, Transform, Velocity};
+use super::components::{Despawn, Lifetime, PlayerController, Transform, Velocity};
 use super::world::World;
 use super::Entity;
+use crate::core::math::Vec2;
+use crate::input::InputState;
+use winit::keyboard::KeyCode;
+
+/// Updates velocity based on player input (WASD/Arrow keys).
+///
+/// For each entity with [`Velocity`] and [`PlayerController`], reads the
+/// current input state and sets the velocity accordingly.
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `input` - Current input state
+///
+/// # Example
+///
+/// ```ignore
+/// // In your game's update method:
+/// player_input_system(&mut world, &res.input);
+/// movement_system(&mut world, res.time.delta());
+/// ```
+pub fn player_input_system(world: &mut World, input: &InputState) {
+    let keys = input.pressed_keys();
+
+    for (_, (velocity, controller)) in world.query::<(&mut Velocity, &PlayerController)>().iter() {
+        let mut dir = Vec2::ZERO;
+
+        // WASD
+        if keys.contains(&KeyCode::KeyW) || keys.contains(&KeyCode::ArrowUp) {
+            dir.y += 1.0;
+        }
+        if keys.contains(&KeyCode::KeyS) || keys.contains(&KeyCode::ArrowDown) {
+            dir.y -= 1.0;
+        }
+        if keys.contains(&KeyCode::KeyA) || keys.contains(&KeyCode::ArrowLeft) {
+            dir.x -= 1.0;
+        }
+        if keys.contains(&KeyCode::KeyD) || keys.contains(&KeyCode::ArrowRight) {
+            dir.x += 1.0;
+        }
+
+        // Normalize diagonal movement if enabled
+        if controller.normalize_diagonal && dir.length() > 1.0 {
+            dir = dir.normalize();
+        }
+
+        velocity.0 = dir * controller.speed;
+    }
+}
 
 /// Updates positions based on velocity.
 ///
