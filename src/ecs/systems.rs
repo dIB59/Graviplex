@@ -21,7 +21,10 @@
 //! }
 //! ```
 
-use super::components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity};
+use super::components::{
+    Acceleration, BodyType, Despawn, Gravity, Lifetime, PlayerController, RigidBody, Sprite,
+    SpriteAnimation, SpriteShape, Transform, Velocity,
+};
 use super::world::World;
 use super::Entity;
 use crate::core::math::Vec2;
@@ -186,22 +189,114 @@ pub fn despawn_system(world: &mut World) {
 
 /// Applies acceleration to velocity.
 ///
-/// For each entity with [`Velocity`] and `Acceleration`, applies:
+/// For each entity with [`Velocity`] and [`Acceleration`]:
 /// `velocity += acceleration * dt`
 ///
-/// Note: Acceleration component is not provided in the default components,
-/// as most games use direct velocity modification. Add your own if needed:
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+///
+/// # Example
 ///
 /// ```ignore
-/// #[derive(Clone, Copy)]
-/// pub struct Acceleration(pub Vec2);
-///
-/// pub fn acceleration_system(world: &mut World, dt: f32) {
-///     for (_, (mut velocity, accel)) in world.query::<(&mut Velocity, &Acceleration)>() {
-///         velocity.0 += accel.0 * dt;
-///     }
-/// }
+/// // In your game's update method:
+/// acceleration_system(&mut world, res.time.delta());
+/// movement_system(&mut world, res.time.delta());
 /// ```
+pub fn acceleration_system(world: &mut World, dt: f32) {
+    for (_, (velocity, acceleration)) in world.query::<(&mut Velocity, &Acceleration)>().iter() {
+        velocity.0 += acceleration.0 * dt;
+    }
+}
+
+/// Applies gravity to velocity for entities with the Gravity component.
+///
+/// For each entity with [`Velocity`] and [`Gravity`]:
+/// `velocity += gravity * dt`
+///
+/// Respects `RigidBody.gravity_scale` if present.
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+///
+/// # Example
+///
+/// ```ignore
+/// // In your game's update method:
+/// gravity_system(&mut world, res.time.delta());
+/// movement_system(&mut world, res.time.delta());
+/// ```
+pub fn gravity_system(world: &mut World, dt: f32) {
+    // Entities with Gravity and RigidBody (respects gravity_scale)
+    for (_, (velocity, gravity, rigidbody)) in world
+        .query::<(&mut Velocity, &Gravity, &RigidBody)>()
+        .iter()
+    {
+        if rigidbody.body_type != BodyType::Static {
+            velocity.0 += gravity.0 * rigidbody.gravity_scale * dt;
+        }
+    }
+
+    // Collect entities with Gravity but no RigidBody, along with their gravity values
+    let entities_to_update: Vec<(Entity, Vec2)> = world
+        .query::<(&Velocity, &Gravity)>()
+        .iter()
+        .filter(|(entity, _)| !world.has::<RigidBody>(*entity))
+        .map(|(entity, (_, gravity))| (entity, gravity.0))
+        .collect();
+
+    // Apply gravity to them
+    for (entity, gravity_vec) in entities_to_update {
+        if let Some(mut velocity) = world.get_mut::<Velocity>(entity) {
+            velocity.0 += gravity_vec * dt;
+        }
+    }
+}
+
+/// Applies drag to velocity for entities with RigidBody.
+///
+/// For each entity with [`Velocity`] and [`RigidBody`]:
+/// `velocity *= (1.0 - drag).powf(dt)`
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+pub fn drag_system(world: &mut World, dt: f32) {
+    for (_, (velocity, rigidbody)) in world.query::<(&mut Velocity, &RigidBody)>().iter() {
+        if rigidbody.drag > 0.0 && rigidbody.body_type != BodyType::Static {
+            // Exponential decay for frame-rate independent drag
+            let drag_factor = (1.0 - rigidbody.drag).powf(dt * 60.0);
+            velocity.0 *= drag_factor;
+        }
+    }
+}
+
+/// Combined physics system that runs gravity, acceleration, drag, and movement.
+///
+/// This is a convenience function that runs all physics-related systems
+/// in the correct order.
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+///
+/// # Example
+///
+/// ```ignore
+/// // In your game's update method:
+/// physics_system(&mut world, res.time.delta());
+/// ```
+pub fn physics_system(world: &mut World, dt: f32) {
+    gravity_system(world, dt);
+    acceleration_system(world, dt);
+    drag_system(world, dt);
+    movement_system(world, dt);
+}
 
 // =============================================================================
 // System Utilities

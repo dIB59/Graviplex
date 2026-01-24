@@ -50,10 +50,16 @@ pub mod tilemap;
 mod world;
 
 // Primary exports
-pub use components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
+pub use components::{
+    Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody, Sprite,
+    SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
+};
 pub use entity::Entity;
 pub use resources::Resources;
-pub use systems::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
+pub use systems::{
+    acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
+    lifetime_system, movement_system, physics_system, player_input_system, run_systems,
+};
 pub use tilemap::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
 pub use world::{EntityBuilder, World};
 
@@ -63,7 +69,10 @@ pub use hecs::{Component, Query, Ref, RefMut};
 
 /// Re-export systems module for namespaced access: `ecs::systems::movement()`
 pub mod prelude {
-    pub use super::components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
+    pub use super::components::{
+        Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody, Sprite,
+        SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
+    };
     pub use super::entity::Entity;
     pub use super::resources::Resources;
     pub use super::systems;

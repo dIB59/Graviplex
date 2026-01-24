@@ -53,7 +53,10 @@ pub use crate::renderer::AtlasBuilder;
 pub use crate::ecs::{Entity, Resources, World};
 
 // ECS - Built-in components
-pub use crate::ecs::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
+pub use crate::ecs::{
+    Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody,
+    Sprite, SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
+};
 
 // ECS - Tilemap support
 pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
@@ -61,10 +64,33 @@ pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCol
 // ECS - Traits for queries and components (re-exported from hecs)
 pub use crate::ecs::{Component, Query, Ref, RefMut};
 
-// ECS - Built-in systems (namespaced)
-pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system};
+// ECS - Built-in systems
+pub use crate::ecs::{
+    acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
+    lifetime_system, movement_system, physics_system, player_input_system,
+};
+
+// Collision detection
+pub use crate::collision::{Collider, ColliderShape, CollisionEvent, CollisionLayer};
+pub use crate::collision::{collision_system, point_query, raycast};
+
+// Scene management
+pub use crate::scene::{Scene, SceneManager, Transition};
+
+// Events
+pub use crate::events::{EventBus, Events};
+
+// State machine
+pub use crate::state_machine::{SimpleState, StateId, StateMachine};
+
+// Audio (placeholder)
+pub use crate::audio::{AudioClip, AudioListener, AudioManager, AudioSource};
 
 /// Convenient access to all built-in systems.
 pub mod systems {
-    pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
+    pub use crate::collision::{collision_system, point_query, raycast};
+    pub use crate::ecs::{
+        acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
+        lifetime_system, movement_system, physics_system, player_input_system, run_systems,
+    };
 }

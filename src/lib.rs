@@ -34,12 +34,17 @@
 //! - [`plugin`] - Plugin system for extensibility
 
 // Public modules
+pub mod audio;
+pub mod collision;
 pub mod core;
 pub mod ecs;
+pub mod events;
 pub mod input;
 pub mod plugin;
 pub mod prelude;
 pub mod renderer;
+pub mod scene;
+pub mod state_machine;
 
 // Feature-gated modules
 #[cfg(feature = "gui")]
@@ -80,12 +85,32 @@ pub use renderer::Graphics;
 
 // ECS
 pub use ecs::{
-    Despawn, Entity, Lifetime, Resources, Sprite, SpriteShape, Transform, Velocity, Visible, World,
+    Acceleration, BodyType, Despawn, Entity, Gravity, Health, Lifetime, Name, Resources, RigidBody,
+    Sprite, SpriteShape, Tags, Transform, Velocity, Visible, World,
 };
+
+// Scene Management
+pub use scene::{Scene, SceneManager, Transition};
+
+// Collision Detection
+pub use collision::{Collider, ColliderShape, CollisionEvent, CollisionLayer};
+
+// Events
+pub use events::{EventBus, Events};
+
+// State Machine
+pub use state_machine::{SimpleState, StateId, StateMachine};
+
+// Audio (placeholder)
+pub use audio::{AudioClip, AudioListener, AudioManager, AudioSource, PlaybackState};
 
 /// Built-in ECS systems.
 pub mod systems {
-    pub use crate::ecs::{despawn_system, lifetime_system, movement_system, run_systems};
+    pub use crate::collision::{collision_system, point_query, raycast};
+    pub use crate::ecs::{
+        acceleration_system, despawn_system, drag_system, gravity_system, lifetime_system,
+        movement_system, physics_system, run_systems,
+    };
 }
 
 // =============================================================================

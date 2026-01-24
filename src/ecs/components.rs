@@ -156,6 +156,264 @@ impl From<Vec2> for Velocity {
 }
 
 // =============================================================================
+// ACCELERATION
+// =============================================================================
+
+/// Linear acceleration component for physics-based movement.
+///
+/// Used by the [`physics_system`] to update [`Velocity`] each frame.
+///
+/// # Example
+///
+/// ```ignore
+/// // Entity with acceleration (e.g., car accelerating)
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Velocity::new(0.0, 0.0),
+///     Acceleration::new(10.0, 0.0), // Accelerate right
+/// ));
+/// ```
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Acceleration(pub Vec2);
+
+impl Acceleration {
+    /// Creates a new acceleration.
+    pub fn new(x: f32, y: f32) -> Self {
+        Self(Vec2::new(x, y))
+    }
+
+    /// Creates acceleration pointing in a direction.
+    pub fn from_direction(direction: Vec2, magnitude: f32) -> Self {
+        Self(direction.normalize() * magnitude)
+    }
+
+    /// Returns the magnitude of the acceleration.
+    pub fn magnitude(&self) -> f32 {
+        self.0.length()
+    }
+}
+
+impl From<Vec2> for Acceleration {
+    fn from(v: Vec2) -> Self {
+        Self(v)
+    }
+}
+
+// =============================================================================
+// GRAVITY
+// =============================================================================
+
+/// Gravity component for entities affected by gravity.
+///
+/// This is separate from global gravity so individual entities can
+/// have different gravity effects (e.g., floating objects, underwater physics).
+///
+/// # Example
+///
+/// ```ignore
+/// // Standard downward gravity
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Velocity::new(0.0, 0.0),
+///     Gravity::default(), // Standard gravity
+/// ));
+///
+/// // Custom gravity (e.g., moon physics)
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Velocity::new(0.0, 0.0),
+///     Gravity::new(0.0, -163.2), // Moon gravity
+/// ));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gravity(pub Vec2);
+
+impl Gravity {
+    /// Standard Earth-like gravity (downward).
+    pub const STANDARD: Self = Self(Vec2 { x: 0.0, y: -980.0 });
+    
+    /// No gravity.
+    pub const NONE: Self = Self(Vec2::ZERO);
+
+    /// Creates a new gravity vector.
+    pub fn new(x: f32, y: f32) -> Self {
+        Self(Vec2::new(x, y))
+    }
+
+    /// Creates gravity with the standard downward direction but custom magnitude.
+    pub fn with_strength(strength: f32) -> Self {
+        Self(Vec2::new(0.0, -strength))
+    }
+}
+
+impl Default for Gravity {
+    fn default() -> Self {
+        Self::STANDARD
+    }
+}
+
+impl From<Vec2> for Gravity {
+    fn from(v: Vec2) -> Self {
+        Self(v)
+    }
+}
+
+// =============================================================================
+// RIGIDBODY
+// =============================================================================
+
+/// Physics body type determining how an entity responds to physics.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BodyType {
+    /// Dynamic bodies are affected by forces, gravity, and collisions.
+    #[default]
+    Dynamic,
+    /// Kinematic bodies move via velocity but aren't affected by forces.
+    /// Good for platforms, elevators, player controllers.
+    Kinematic,
+    /// Static bodies don't move but can be collided with.
+    /// Good for walls, floors, obstacles.
+    Static,
+}
+
+/// RigidBody component for physics simulation.
+///
+/// Controls how an entity interacts with the physics system.
+///
+/// # Example
+///
+/// ```ignore
+/// // Player character (kinematic - controlled directly)
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Velocity::new(0.0, 0.0),
+///     RigidBody::kinematic(),
+/// ));
+///
+/// // Falling crate (dynamic - affected by physics)
+/// world.spawn((
+///     Transform::from_position(Vec2::new(0.0, 100.0)),
+///     Velocity::new(0.0, 0.0),
+///     Gravity::default(),
+///     RigidBody::dynamic().with_mass(5.0),
+/// ));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RigidBody {
+    /// Type of physics body.
+    pub body_type: BodyType,
+    /// Mass in arbitrary units (affects force response).
+    pub mass: f32,
+    /// Linear drag coefficient (0 = no drag, 1 = heavy drag).
+    pub drag: f32,
+    /// Angular drag coefficient.
+    pub angular_drag: f32,
+    /// Bounciness (0 = no bounce, 1 = perfect bounce).
+    pub restitution: f32,
+    /// Friction coefficient for surface contacts.
+    pub friction: f32,
+    /// Whether gravity affects this body.
+    pub gravity_scale: f32,
+    /// Whether this body can rotate.
+    pub freeze_rotation: bool,
+}
+
+impl Default for RigidBody {
+    fn default() -> Self {
+        Self {
+            body_type: BodyType::Dynamic,
+            mass: 1.0,
+            drag: 0.0,
+            angular_drag: 0.05,
+            restitution: 0.0,
+            friction: 0.4,
+            gravity_scale: 1.0,
+            freeze_rotation: false,
+        }
+    }
+}
+
+impl RigidBody {
+    /// Creates a dynamic rigid body.
+    pub fn dynamic() -> Self {
+        Self {
+            body_type: BodyType::Dynamic,
+            ..Default::default()
+        }
+    }
+
+    /// Creates a kinematic rigid body.
+    pub fn kinematic() -> Self {
+        Self {
+            body_type: BodyType::Kinematic,
+            gravity_scale: 0.0,
+            ..Default::default()
+        }
+    }
+
+    /// Creates a static rigid body.
+    pub fn static_body() -> Self {
+        Self {
+            body_type: BodyType::Static,
+            mass: f32::INFINITY,
+            gravity_scale: 0.0,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the mass.
+    pub fn with_mass(mut self, mass: f32) -> Self {
+        self.mass = mass;
+        self
+    }
+
+    /// Sets the drag coefficient.
+    pub fn with_drag(mut self, drag: f32) -> Self {
+        self.drag = drag;
+        self
+    }
+
+    /// Sets the bounciness.
+    pub fn with_restitution(mut self, restitution: f32) -> Self {
+        self.restitution = restitution;
+        self
+    }
+
+    /// Sets the friction.
+    pub fn with_friction(mut self, friction: f32) -> Self {
+        self.friction = friction;
+        self
+    }
+
+    /// Sets the gravity scale.
+    pub fn with_gravity_scale(mut self, scale: f32) -> Self {
+        self.gravity_scale = scale;
+        self
+    }
+
+    /// Freezes rotation.
+    pub fn freeze_rotation(mut self) -> Self {
+        self.freeze_rotation = true;
+        self
+    }
+
+    /// Checks if this is a dynamic body.
+    pub fn is_dynamic(&self) -> bool {
+        self.body_type == BodyType::Dynamic
+    }
+
+    /// Checks if this is a kinematic body.
+    pub fn is_kinematic(&self) -> bool {
+        self.body_type == BodyType::Kinematic
+    }
+
+    /// Checks if this is a static body.
+    pub fn is_static(&self) -> bool {
+        self.body_type == BodyType::Static
+    }
+}
+
+// =============================================================================
 // SPRITE
 // =============================================================================
 
@@ -550,6 +808,246 @@ impl SpriteAnimation {
                 }
             }
         }
+    }
+}
+
+// =============================================================================
+// TAGS
+// =============================================================================
+
+/// A set of string tags for categorizing entities.
+///
+/// Tags allow flexible entity categorization without creating new component types.
+/// Useful for identifying entity types (Player, Enemy, Projectile), groups (Team1, Team2),
+/// or states (Invincible, Stunned).
+///
+/// # Example
+///
+/// ```ignore
+/// // Create entity with tags
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Tags::new().with("player").with("controllable"),
+/// ));
+///
+/// // Query entities by tag
+/// for (entity, (transform, tags)) in world.query::<(&Transform, &Tags)>().iter() {
+///     if tags.has("enemy") {
+///         // Handle enemy
+///     }
+/// }
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tags {
+    tags: std::collections::HashSet<String>,
+}
+
+impl Tags {
+    /// Create empty tags.
+    pub fn new() -> Self {
+        Self {
+            tags: std::collections::HashSet::new(),
+        }
+    }
+
+    /// Create tags from a slice of tag names.
+    pub fn from_slice(tags: &[&str]) -> Self {
+        Self {
+            tags: tags.iter().map(|s| (*s).to_string()).collect(),
+        }
+    }
+
+    /// Add a tag (builder pattern).
+    pub fn with(mut self, tag: impl Into<String>) -> Self {
+        self.tags.insert(tag.into());
+        self
+    }
+
+    /// Add a tag.
+    pub fn add(&mut self, tag: impl Into<String>) {
+        self.tags.insert(tag.into());
+    }
+
+    /// Remove a tag.
+    pub fn remove(&mut self, tag: &str) {
+        self.tags.remove(tag);
+    }
+
+    /// Check if a tag exists.
+    pub fn has(&self, tag: &str) -> bool {
+        self.tags.contains(tag)
+    }
+
+    /// Check if all given tags exist.
+    pub fn has_all(&self, tags: &[&str]) -> bool {
+        tags.iter().all(|t| self.tags.contains(*t))
+    }
+
+    /// Check if any of the given tags exist.
+    pub fn has_any(&self, tags: &[&str]) -> bool {
+        tags.iter().any(|t| self.tags.contains(*t))
+    }
+
+    /// Get the number of tags.
+    pub fn len(&self) -> usize {
+        self.tags.len()
+    }
+
+    /// Check if there are no tags.
+    pub fn is_empty(&self) -> bool {
+        self.tags.is_empty()
+    }
+
+    /// Clear all tags.
+    pub fn clear(&mut self) {
+        self.tags.clear();
+    }
+
+    /// Iterate over all tags.
+    pub fn iter(&self) -> impl Iterator<Item = &String> {
+        self.tags.iter()
+    }
+}
+
+// =============================================================================
+// NAME
+// =============================================================================
+
+/// A name component for identifying entities.
+///
+/// Useful for debugging and for finding specific entities by name.
+///
+/// # Example
+///
+/// ```ignore
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Name::new("Player 1"),
+/// ));
+///
+/// // Find entity by name
+/// for (entity, name) in world.query::<&Name>().iter() {
+///     if name.as_str() == "Player 1" {
+///         // Found the player
+///     }
+/// }
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Name(String);
+
+impl Name {
+    /// Create a new name.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self(name.into())
+    }
+
+    /// Get the name as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<&str> for Name {
+    fn from(s: &str) -> Self {
+        Self::new(s)
+    }
+}
+
+impl From<String> for Name {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+// =============================================================================
+// HEALTH
+// =============================================================================
+
+/// Health component for entities that can take damage and die.
+///
+/// # Example
+///
+/// ```ignore
+/// // Player with 100 HP
+/// world.spawn((
+///     Transform::from_position(Vec2::ZERO),
+///     Health::new(100.0),
+///     Tags::new().with("player"),
+/// ));
+///
+/// // In damage system
+/// for (entity, health) in world.query::<&mut Health>().iter() {
+///     if health.is_dead() {
+///         // Handle death
+///     }
+/// }
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Health {
+    /// Current health points.
+    pub current: f32,
+    /// Maximum health points.
+    pub max: f32,
+}
+
+impl Health {
+    /// Create a new health component.
+    pub fn new(max: f32) -> Self {
+        Self { current: max, max }
+    }
+
+    /// Create with specific current and max values.
+    pub fn with_current(current: f32, max: f32) -> Self {
+        Self {
+            current: current.min(max),
+            max,
+        }
+    }
+
+    /// Deal damage to this health.
+    pub fn damage(&mut self, amount: f32) {
+        self.current = (self.current - amount).max(0.0);
+    }
+
+    /// Heal this health.
+    pub fn heal(&mut self, amount: f32) {
+        self.current = (self.current + amount).min(self.max);
+    }
+
+    /// Set current health to max.
+    pub fn restore_full(&mut self) {
+        self.current = self.max;
+    }
+
+    /// Check if dead (health <= 0).
+    pub fn is_dead(&self) -> bool {
+        self.current <= 0.0
+    }
+
+    /// Check if at full health.
+    pub fn is_full(&self) -> bool {
+        self.current >= self.max
+    }
+
+    /// Get health as a percentage (0.0 - 1.0).
+    pub fn percentage(&self) -> f32 {
+        if self.max > 0.0 {
+            self.current / self.max
+        } else {
+            0.0
+        }
+    }
+}
+
+impl Default for Health {
+    fn default() -> Self {
+        Self::new(100.0)
     }
 }
 
