@@ -1,6 +1,7 @@
 // ui_pipeline.rs
 use egui::epaint::Primitive;
 use egui::ClippedPrimitive;
+use std::collections::HashMap;
 use wgpu::*;
 
 pub struct UiPipeline {
@@ -15,6 +16,8 @@ pub struct UiPipeline {
     bind_group: BindGroup,
     bind_layout: BindGroupLayout,
     uniform_buf: Buffer,
+    // User textures loaded via egui
+    user_textures: HashMap<egui::TextureId, (Texture, TextureView, BindGroup)>,
 }
 
 impl UiPipeline {
@@ -152,6 +155,7 @@ impl UiPipeline {
             bind_layout,
             uniform_buf,
             font_tex,
+            user_textures: HashMap::new(),
         }
     }
 
@@ -210,7 +214,6 @@ impl UiPipeline {
         });
 
         rpass.set_pipeline(&self.pipeline);
-        rpass.set_bind_group(0, &self.bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vtx_buf.slice(..));
         rpass.set_index_buffer(self.idx_buf.slice(..), IndexFormat::Uint32);
 
@@ -247,15 +250,13 @@ impl UiPipeline {
                     scissor_h
                 );
 
-                rpass.set_scissor_rect(scissor_x, scissor_y, scissor_w, scissor_h);
-
-                log::debug!(
-                    "  Scissor: x={}, y={}, w={}, h={}",
-                    scissor_x,
-                    scissor_y,
-                    scissor_w,
-                    scissor_h
-                );
+                // Select the right bind group based on texture ID
+                let bind_group = if let Some((_, _, bg)) = self.user_textures.get(&mesh.texture_id) {
+                    bg
+                } else {
+                    &self.bind_group // Default font texture
+                };
+                rpass.set_bind_group(0, bind_group, &[]);
 
                 rpass.set_scissor_rect(scissor_x, scissor_y, scissor_w, scissor_h);
                 let cnt = mesh.indices.len() as u32;
@@ -267,6 +268,11 @@ impl UiPipeline {
 
     // Process texture deltas from egui
     pub fn handle_textures(&mut self, textures_delta: egui::TexturesDelta) {
+        // Handle texture deletions first
+        for id in &textures_delta.free {
+            self.user_textures.remove(id);
+        }
+        
         for (id, delta) in textures_delta.set {
             log::debug!(
                 "Texture update - ID: {:?}, size: {:?}, pos: {:?}",
@@ -275,25 +281,22 @@ impl UiPipeline {
                 delta.pos
             );
 
-            if id == egui::TextureId::default() {
-                let [w, h] = delta.image.size();
-                let data: Vec<u8> = match &delta.image {
-                    egui::ImageData::Color(color_image) => {
-                        log::debug!(
-                            "Font texture: {}x{}, pixels: {}",
-                            w,
-                            h,
-                            color_image.pixels.len()
-                        );
-                        color_image
-                            .pixels
-                            .iter()
-                            .flat_map(|c| c.to_array())
-                            .collect()
-                    }
-                };
+            let [w, h] = delta.image.size();
+            let data: Vec<u8> = match &delta.image {
+                egui::ImageData::Color(color_image) => {
+                    color_image
+                        .pixels
+                        .iter()
+                        .flat_map(|c| c.to_array())
+                        .collect()
+                }
+            };
 
-                log::debug!("Data bytes: {}, expected: {}", data.len(), w * h * 4);
+            if id == egui::TextureId::default() {
+                log::debug!(
+                    "Font texture: {}x{}, data bytes: {}",
+                    w, h, data.len()
+                );
 
                 // Check if this is a partial update (delta.pos is Some) or full texture
                 if let Some([x, y]) = delta.pos {
@@ -337,6 +340,18 @@ impl UiPipeline {
                         &self.uniform_buf,
                     );
                 }
+            } else {
+                // User texture
+                log::debug!("User texture {:?}: {}x{}", id, w, h);
+                let (tex, view) = Self::make_font_tex(&self.device, &self.queue, w as u32, h as u32, &data);
+                let bind_group = Self::make_bg(
+                    &self.device,
+                    &self.bind_layout,
+                    &view,
+                    &self.sampler,
+                    &self.uniform_buf,
+                );
+                self.user_textures.insert(id, (tex, view, bind_group));
             }
         }
     }

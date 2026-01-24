@@ -118,6 +118,7 @@ impl MapObject {
                 columns,
                 rows,
                 selected_tile: 0,
+                ignored_tiles: Vec::new(),
                 tint: Color::WHITE,
             },
             size: tile_size,
@@ -248,6 +249,8 @@ pub enum ObjectVisual {
         rows: u32,
         /// Currently selected tile index
         selected_tile: u32,
+        /// Tile indices that are ignored/empty (not usable)
+        ignored_tiles: Vec<u32>,
         tint: Color,
     },
     /// Solid circle.

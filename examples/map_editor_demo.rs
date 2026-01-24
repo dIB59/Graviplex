@@ -15,6 +15,7 @@
 //! - Ctrl+A: Select all
 
 use graviplex::prelude::*;
+use std::collections::HashSet;
 
 #[cfg(feature = "gui")]
 use graviplex::editor::{MapEditorPlugin, EditorConfig, GridConfig, MapObject};
@@ -135,6 +136,8 @@ struct EditorDemo {
     preview_texture: Option<egui::TextureHandle>,
     /// Path of the currently loaded preview texture
     preview_texture_path: Option<String>,
+    /// Set of ignored tile indices for tileset configuration
+    tileset_ignored_tiles: HashSet<u32>,
 }
 
 #[cfg(feature = "gui")]
@@ -168,6 +171,7 @@ impl EditorDemo {
             tileset_rows: 4,
             preview_texture: None,
             preview_texture_path: None,
+            tileset_ignored_tiles: HashSet::new(),
         }
     }
     
@@ -217,6 +221,7 @@ impl EditorDemo {
             self.sprite_sheet_dialog_index = Some(0);
             self.sprite_sheet_frame_count = suggested_frame_count;
             self.dialog_asset_type = AssetType::SpriteSheet;
+            self.tileset_ignored_tiles.clear();
             // Guess tileset dimensions based on aspect ratio
             let aspect = width as f32 / height as f32;
             if aspect > 0.8 && aspect < 1.2 {
@@ -328,22 +333,51 @@ impl EditorDemo {
                 let preview_width = width as f32 * scale;
                 let preview_height = height as f32 * scale;
                 
-                let (rect, _response) = ui.allocate_exact_size(
+                // Use click sense for tileset, hover for others
+                let sense = if self.dialog_asset_type == AssetType::Tileset {
+                    egui::Sense::click()
+                } else {
+                    egui::Sense::hover()
+                };
+                
+                let (rect, response) = ui.allocate_exact_size(
                     egui::vec2(preview_width, preview_height),
-                    egui::Sense::hover(),
+                    sense,
                 );
+                
+                // Handle tile clicking for tileset mode
+                if self.dialog_asset_type == AssetType::Tileset {
+                    if response.clicked() {
+                        if let Some(pointer_pos) = response.interact_pointer_pos() {
+                            let tile_width = preview_width / self.tileset_columns as f32;
+                            let tile_height = preview_height / self.tileset_rows as f32;
+                            
+                            let rel_x = pointer_pos.x - rect.left();
+                            let rel_y = pointer_pos.y - rect.top();
+                            
+                            let col = (rel_x / tile_width).floor() as u32;
+                            let row = (rel_y / tile_height).floor() as u32;
+                            
+                            if col < self.tileset_columns && row < self.tileset_rows {
+                                let tile_idx = row * self.tileset_columns + col;
+                                // Toggle ignored status
+                                if self.tileset_ignored_tiles.contains(&tile_idx) {
+                                    self.tileset_ignored_tiles.remove(&tile_idx);
+                                } else {
+                                    self.tileset_ignored_tiles.insert(tile_idx);
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 if ui.is_rect_visible(rect) {
                     let painter = ui.painter();
                     
                     // Draw the actual image if loaded
                     if let Some(tex) = &self.preview_texture {
-                        painter.image(
-                            tex.id(),
-                            rect,
-                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                            egui::Color32::WHITE,
-                        );
+                        let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                        painter.image(tex.id(), rect, uv, egui::Color32::WHITE);
                     } else {
                         // Fallback background if image not loaded
                         painter.rect_filled(rect, 2.0, egui::Color32::from_rgb(40, 40, 50));
@@ -392,6 +426,40 @@ impl EditorDemo {
                             let tile_width = preview_width / self.tileset_columns as f32;
                             let tile_height = preview_height / self.tileset_rows as f32;
                             
+                            // Draw ignored tile overlays
+                            for &tile_idx in &self.tileset_ignored_tiles {
+                                let col = tile_idx % self.tileset_columns;
+                                let row = tile_idx / self.tileset_columns;
+                                if row < self.tileset_rows {
+                                    let tile_rect = egui::Rect::from_min_size(
+                                        egui::pos2(
+                                            rect.left() + col as f32 * tile_width,
+                                            rect.top() + row as f32 * tile_height,
+                                        ),
+                                        egui::vec2(tile_width, tile_height),
+                                    );
+                                    // Semi-transparent red overlay for ignored tiles
+                                    painter.rect_filled(tile_rect, 0.0, egui::Color32::from_rgba_unmultiplied(200, 50, 50, 150));
+                                    // X mark
+                                    let x_stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+                                    let margin = 4.0;
+                                    painter.line_segment(
+                                        [
+                                            egui::pos2(tile_rect.left() + margin, tile_rect.top() + margin),
+                                            egui::pos2(tile_rect.right() - margin, tile_rect.bottom() - margin),
+                                        ],
+                                        x_stroke,
+                                    );
+                                    painter.line_segment(
+                                        [
+                                            egui::pos2(tile_rect.right() - margin, tile_rect.top() + margin),
+                                            egui::pos2(tile_rect.left() + margin, tile_rect.bottom() - margin),
+                                        ],
+                                        x_stroke,
+                                    );
+                                }
+                            }
+                            
                             // Vertical lines
                             for i in 1..self.tileset_columns {
                                 let x = rect.left() + tile_width * i as f32;
@@ -410,6 +478,14 @@ impl EditorDemo {
                                 );
                             }
                         }
+                    }
+                }
+                
+                // Show instruction for tileset mode
+                if self.dialog_asset_type == AssetType::Tileset {
+                    ui.small("💡 Click tiles to mark as ignored/empty");
+                    if !self.tileset_ignored_tiles.is_empty() {
+                        ui.small(format!("Ignored: {} tiles", self.tileset_ignored_tiles.len()));
                     }
                 }
                 
@@ -444,7 +520,9 @@ impl EditorDemo {
                     self.editor_plugin.resolve_sprite_sheet(0, Some(self.sprite_sheet_frame_count));
                 }
                 AssetType::Tileset => {
-                    self.editor_plugin.resolve_tileset(0, self.tileset_columns, self.tileset_rows);
+                    let ignored: Vec<u32> = self.tileset_ignored_tiles.iter().copied().collect();
+                    self.editor_plugin.resolve_tileset(0, self.tileset_columns, self.tileset_rows, ignored);
+                    self.tileset_ignored_tiles.clear();
                 }
             }
             self.sprite_sheet_dialog_index = None;

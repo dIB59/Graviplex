@@ -273,7 +273,7 @@ impl MapEditorPlugin {
     }
     
     /// Process a pending sprite sheet as a tileset with the user's column/row configuration.
-    pub fn resolve_tileset(&mut self, index: usize, columns: u32, rows: u32) {
+    pub fn resolve_tileset(&mut self, index: usize, columns: u32, rows: u32, ignored_tiles: Vec<u32>) {
         if index >= self.pending_sprite_sheets.len() {
             return;
         }
@@ -284,12 +284,18 @@ impl MapEditorPlugin {
         let tile_height = pending.height / rows;
         let tile_size = Vec2::new(tile_width as f32, tile_height as f32);
         let total_tiles = columns * rows;
+        let usable_tiles = total_tiles - ignored_tiles.len() as u32;
         
-        let object = MapObject::tileset(&pending.display_name, &pending.file_path, columns, rows, tile_size)
+        let mut object = MapObject::tileset(&pending.display_name, &pending.file_path, columns, rows, tile_size)
             .with_category(&pending.category);
         
-        println!("[MapEditor] Registered as tileset: {} ({}x{} = {} tiles, {})", 
-            pending.display_name, columns, rows, total_tiles, pending.category);
+        // Set ignored tiles
+        if let ObjectVisual::Tileset { ignored_tiles: ref mut tiles, .. } = object.visual {
+            *tiles = ignored_tiles;
+        }
+        
+        println!("[MapEditor] Registered as tileset: {} ({}x{} = {} tiles, {} usable, {})", 
+            pending.display_name, columns, rows, total_tiles, usable_tiles, pending.category);
         self.editor.register_object(object);
     }
     
