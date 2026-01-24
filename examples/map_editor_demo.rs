@@ -27,11 +27,86 @@ fn main() {
 
 #[cfg(feature = "gui")]
 fn main() {
-    App::build(EditorDemo::new())
+    // Build atlas with sprites from assets folder
+    #[cfg(feature = "textures")]
+    let atlas = build_atlas_from_assets();
+    
+    let mut app = App::build(EditorDemo::new())
         .title("Map Editor Demo - Press F1 or ` to toggle editor")
-        .size(1280, 720)
-        .run()
-        .unwrap();
+        .size(1280, 720);
+    
+    #[cfg(feature = "textures")]
+    {
+        // Use 4096 atlas - should be enough for filtered textures
+        app = app.atlas(atlas).atlas_size(4096);
+    }
+    
+    app.run().unwrap();
+}
+
+#[cfg(all(feature = "gui", feature = "textures"))]
+fn build_atlas_from_assets() -> graviplex::prelude::AtlasBuilder {
+    use graviplex::prelude::AtlasBuilder;
+    use image::GenericImageView;
+    use std::fs;
+    use std::path::Path;
+    
+    // Recursively collect all image paths
+    fn collect_images(path: &Path, images: &mut Vec<(String, std::path::PathBuf)>) {
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    collect_images(&entry_path, images);
+                } else if let Some(ext) = entry_path.extension().and_then(|e| e.to_str()) {
+                    let ext_lower = ext.to_lowercase();
+                    if matches!(ext_lower.as_str(), "png" | "jpg" | "jpeg" | "gif" | "bmp" | "webp") {
+                        // Use the full path as the texture name (same as plugin does)
+                        let texture_name = entry_path.to_string_lossy().to_string();
+                        images.push((texture_name, entry_path));
+                    }
+                }
+            }
+        }
+    }
+    
+    let mut images = Vec::new();
+    collect_images(Path::new("assets"), &mut images);
+    
+    // Filter to only valid images and collect their sizes
+    // Skip large sprite sheets that won't fit in atlas
+    let max_texture_size = 512; // Skip textures larger than this (likely sprite sheets)
+    let valid_images: Vec<_> = images.into_iter()
+        .filter_map(|(name, path)| {
+            // Try to open the image to verify it's valid
+            match image::open(&path) {
+                Ok(img) => {
+                    let (w, h) = img.dimensions();
+                    // Skip very large textures (likely sprite sheets)
+                    if w > max_texture_size || h > max_texture_size {
+                        return None;
+                    }
+                    Some((name, path))
+                }
+                Err(e) => {
+                    eprintln!("Skipping invalid texture {}: {}", name, e);
+                    None
+                }
+            }
+        })
+        .collect();
+    
+    println!("[Atlas] Loading {} textures (filtered to max {}x{})...", valid_images.len(), max_texture_size, max_texture_size);
+    
+    // Build the atlas with all valid images
+    // Since we pre-validated with image::open(), add_image should never fail
+    let mut builder = AtlasBuilder::new();
+    for (name, path) in valid_images {
+        builder = builder.add_image(&name, &path)
+            .expect("Pre-validated image should load successfully");
+    }
+    
+    builder
 }
 
 #[cfg(feature = "gui")]
@@ -87,11 +162,6 @@ impl GameLoop for EditorDemo {
     }
 
     fn handle_input(&mut self, world: &mut World, input: &InputState, camera: &Camera2D) -> bool {
-        // Debug: Check if any keys are being pressed
-        if !input.pressed_keys().is_empty() {
-            println!("[Demo] Keys pressed: {:?}", input.pressed_keys());
-        }
-        
         // Let the editor plugin handle input (includes F1/` toggle)
         self.editor_plugin.handle_input(world, input, camera)
     }
@@ -107,8 +177,8 @@ impl GameLoop for EditorDemo {
         let world = World::new();
         self.editor_plugin.editor.ui(ctx, &world);
         
-        // Show help window - track if it has focus
-        let help_response = egui::Window::new("📖 Help")
+        // Show help window
+        egui::Window::new("📖 Help")
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 10.0))
             .collapsible(true)
             .default_open(false)
