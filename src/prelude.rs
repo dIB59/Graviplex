@@ -48,7 +48,7 @@ pub use crate::renderer::AtlasBuilder;
 pub use crate::ecs::{Entity, Resources, World};
 
 // ECS - Built-in components
-pub use crate::ecs::{Despawn, Lifetime, PlayerController, Sprite, SpriteShape, Transform, Velocity, Visible};
+pub use crate::ecs::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
 
 // ECS - Tilemap support
 pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
@@ -57,9 +57,9 @@ pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCol
 pub use crate::ecs::{Component, Query, Ref, RefMut};
 
 // ECS - Built-in systems (namespaced)
-pub use crate::ecs::{despawn_system, lifetime_system, movement_system, player_input_system};
+pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system};
 
 /// Convenient access to all built-in systems.
 pub mod systems {
-    pub use crate::ecs::{despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
+    pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
 }

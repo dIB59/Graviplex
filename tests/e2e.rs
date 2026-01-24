@@ -409,7 +409,7 @@ mod tests {
         let mut renderables: Vec<(i32, SpriteShape)> = world
             .query::<(&Transform, &Sprite, &Visible)>()
             .iter()
-            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape))
+            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape.clone()))
             .collect();
 
         renderables.sort_by_key(|(z, _)| *z);
@@ -452,7 +452,7 @@ mod tests {
         let mut renderables: Vec<(i32, SpriteShape)> = world
             .query::<(&Transform, &Sprite, &Visible)>()
             .iter()
-            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape))
+            .map(|(_, (_, sprite, _))| (sprite.z_order, sprite.shape.clone()))
             .collect();
 
         renderables.sort_by_key(|(z, _)| *z);
@@ -523,7 +523,7 @@ mod tests {
         let mut renderables: Vec<(i32, SpriteShape)> = world
             .query::<(&Sprite, &Visible)>()
             .iter()
-            .map(|(_, (sprite, _))| (sprite.z_order, sprite.shape))
+            .map(|(_, (sprite, _))| (sprite.z_order, sprite.shape.clone()))
             .collect();
 
         renderables.sort_by_key(|(z, _)| *z);

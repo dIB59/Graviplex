@@ -241,7 +241,7 @@ impl SpritePipeline {
     pub fn render_world(&mut self, world: &World, state: &RenderState, atlas: &TextureAtlas) {
         // Query all visible entities with sprites
         for (_, (transform, sprite, _)) in world.query::<(&Transform, &Sprite, &Visible)>().iter() {
-            if let SpriteShape::Texture { region_name, size } = sprite.shape {
+            if let SpriteShape::Texture { ref region_name, size } = sprite.shape {
                 if let Some(region) = atlas.get(region_name) {
                     self.staging_instances.push(SpriteInstance {
                         position: [transform.position.x, transform.position.y],

@@ -66,8 +66,9 @@ impl TilemapGame {
             .add_image("house1", format!("{}/Buildings/Blue Buildings/House1.png", ASSETS))?
             .add_image("house2", format!("{}/Buildings/Blue Buildings/House2.png", ASSETS))?
             .add_image("tower", format!("{}/Buildings/Blue Buildings/Tower.png", ASSETS))?
-            // Player character
-            .add_image("player_idle", format!("{}/Units/Blue Units/Pawn/Pawn_Idle.png", ASSETS))?;
+            // Player character - sprite sheet with animation frames
+            // Pawn_Idle.png is 1536x192 = 8 frames of 192x192 each
+            .add_sprite_sheet("player_idle", format!("{}/Units/Blue Units/Pawn/Pawn_Idle.png", ASSETS), 192, 192)?;
         
         Ok(builder)
     }
@@ -169,12 +170,15 @@ impl GameLoop for TilemapGame {
         ));
 
         // =====================================================================
-        // PLAYER - Using Tiny Swords pawn sprite with PlayerController
+        // PLAYER - Using Tiny Swords pawn sprite with animation
         // =====================================================================
         let player_start = Vec2::new(10.0 * tile_size as f32, 10.0 * tile_size as f32);
         world.spawn((
             Transform::from_position(player_start),
-            Sprite::texture("player_idle", Vec2::new(192.0, 192.0), Color::WHITE).with_z_order(5),
+            // Start with first frame of idle animation
+            Sprite::texture("player_idle_0", Vec2::new(192.0, 192.0), Color::WHITE).with_z_order(5),
+            // Animation cycles through 8 frames at 10 FPS
+            SpriteAnimation::new("player_idle", 8).with_fps(10.0),
             Velocity::new(0.0, 0.0),
             PlayerController::new(150.0),  // 150 pixels/second movement speed
             Visible,
@@ -190,6 +194,9 @@ impl GameLoop for TilemapGame {
 
     fn update(&mut self, world: &mut World, res: &Resources) {
         let dt = res.time.delta();
+
+        // Run animation system
+        animation_system(world, dt);
 
         // Run player input system (reads WASD, sets velocity)
         player_input_system(world, &res.input);
@@ -290,7 +297,7 @@ impl GameLoop for TilemapGame {
 
         // Render player sprite
         for (_, (transform, sprite, _)) in world.query::<(&Transform, &Sprite, &Visible)>().iter() {
-            if let SpriteShape::Texture { region_name, size } = sprite.shape {
+            if let SpriteShape::Texture { ref region_name, size } = sprite.shape {
                 if let Some(region) = atlas.get(region_name) {
                     pipeline.draw(
                         [transform.position.x, transform.position.y],

@@ -172,7 +172,7 @@ impl From<Vec2> for Velocity {
 /// // Blue rectangle with z-order
 /// let sprite = Sprite::rect(100.0, 50.0, Color::BLUE).with_z_order(10);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Sprite {
     /// The shape to render.
     pub shape: SpriteShape,
@@ -217,9 +217,9 @@ impl Sprite {
     /// The `region_name` must match a region in the texture atlas.
     /// The `size` is the display size in world units.
     /// The `tint` color is multiplied with the texture color (use WHITE for no tint).
-    pub fn texture(region_name: &'static str, size: Vec2, tint: Color) -> Self {
+    pub fn texture(region_name: impl Into<String>, size: Vec2, tint: Color) -> Self {
         Self {
-            shape: SpriteShape::Texture { region_name, size },
+            shape: SpriteShape::Texture { region_name: region_name.into(), size },
             color: tint,
             z_order: 0,
         }
@@ -245,7 +245,7 @@ impl Default for Sprite {
 }
 
 /// Shape types for sprites.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SpriteShape {
     /// Circle with given radius.
     Circle { radius: f32 },
@@ -255,7 +255,7 @@ pub enum SpriteShape {
     Line { end_offset: Vec2 },
     /// Textured sprite from an atlas region.
     ///
-    /// The `region_name` is an index or hash that maps to an [`AtlasRegion`].
+    /// The `region_name` maps to an [`AtlasRegion`] in the texture atlas.
     /// Use with [`TextureAtlas`] for efficient batched rendering.
     ///
     /// # Example
@@ -266,7 +266,7 @@ pub enum SpriteShape {
     /// ```
     Texture {
         /// Name of the region in the texture atlas.
-        region_name: &'static str,
+        region_name: String,
         /// Display size in world units.
         size: Vec2,
     },
@@ -414,6 +414,145 @@ impl Default for PlayerController {
     }
 }
 
+// =============================================================================
+// SPRITE ANIMATION
+// =============================================================================
+
+/// Component for animating sprites through a sequence of frames.
+///
+/// Works with sprite sheets that have been sliced using
+/// [`AtlasBuilder::add_sprite_sheet`]. The animation cycles through
+/// frames named `{prefix}_0`, `{prefix}_1`, etc.
+///
+/// Use [`animation_system`](super::animation_system) to update animations each frame.
+///
+/// # Example
+///
+/// ```ignore
+/// // Load sprite sheet with 6 frames
+/// let atlas = AtlasBuilder::new()
+///     .add_sprite_sheet("player_walk", "assets/walk.png", 64, 64)?
+///     .build(&gfx, 2048)?;
+///
+/// // Spawn animated sprite
+/// world.spawn((
+///     Transform::from_position(pos),
+///     Sprite::texture("player_walk_0", Vec2::new(64.0, 64.0), Color::WHITE),
+///     SpriteAnimation::new("player_walk", 6).with_fps(12.0),
+///     Visible,
+/// ));
+///
+/// // In update:
+/// systems::animation(world, res.time.delta());
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpriteAnimation {
+    /// Prefix for frame names (frames are named "{prefix}_0", "{prefix}_1", etc.)
+    pub prefix: &'static str,
+    /// Total number of frames in the animation
+    pub frame_count: u32,
+    /// Current frame index (0-based)
+    pub current_frame: u32,
+    /// Time accumulated since last frame change
+    pub elapsed: f32,
+    /// Seconds per frame (1.0 / fps)
+    pub frame_duration: f32,
+    /// Whether the animation should loop
+    pub looping: bool,
+    /// Whether the animation is playing
+    pub playing: bool,
+}
+
+impl SpriteAnimation {
+    /// Create a new animation with the given prefix and frame count.
+    ///
+    /// Default settings: 10 FPS, looping, playing.
+    pub fn new(prefix: &'static str, frame_count: u32) -> Self {
+        Self {
+            prefix,
+            frame_count,
+            current_frame: 0,
+            elapsed: 0.0,
+            frame_duration: 0.1, // 10 FPS default
+            looping: true,
+            playing: true,
+        }
+    }
+
+    /// Set the animation speed in frames per second.
+    pub fn with_fps(mut self, fps: f32) -> Self {
+        self.frame_duration = 1.0 / fps.max(0.001);
+        self
+    }
+
+    /// Set the frame duration directly (seconds per frame).
+    pub fn with_frame_duration(mut self, duration: f32) -> Self {
+        self.frame_duration = duration;
+        self
+    }
+
+    /// Set whether the animation loops.
+    pub fn with_looping(mut self, looping: bool) -> Self {
+        self.looping = looping;
+        self
+    }
+
+    /// Start playing the animation from the beginning.
+    pub fn play(&mut self) {
+        self.playing = true;
+        self.current_frame = 0;
+        self.elapsed = 0.0;
+    }
+
+    /// Stop the animation.
+    pub fn stop(&mut self) {
+        self.playing = false;
+    }
+
+    /// Pause the animation (keeps current frame).
+    pub fn pause(&mut self) {
+        self.playing = false;
+    }
+
+    /// Resume a paused animation.
+    pub fn resume(&mut self) {
+        self.playing = true;
+    }
+
+    /// Get the current frame's region name (e.g., "player_walk_3").
+    pub fn current_region_name(&self) -> String {
+        format!("{}_{}", self.prefix, self.current_frame)
+    }
+
+    /// Check if the animation has finished (only relevant for non-looping animations).
+    pub fn is_finished(&self) -> bool {
+        !self.looping && self.current_frame >= self.frame_count - 1
+    }
+
+    /// Update the animation state. Called by [`animation_system`](super::animation_system).
+    pub fn tick(&mut self, dt: f32) {
+        if !self.playing {
+            return;
+        }
+
+        self.elapsed += dt;
+
+        while self.elapsed >= self.frame_duration {
+            self.elapsed -= self.frame_duration;
+            self.current_frame += 1;
+
+            if self.current_frame >= self.frame_count {
+                if self.looping {
+                    self.current_frame = 0;
+                } else {
+                    self.current_frame = self.frame_count - 1;
+                    self.playing = false;
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,11 +593,11 @@ mod tests {
     #[test]
     fn test_sprite_texture_shape() {
         let texture_sprite = Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE);
-
+        let name ="player".to_string();
         assert!(matches!(
             texture_sprite.shape,
             SpriteShape::Texture {
-                region_name: "player",
+                region_name: name,
                 ..
             }
         ));
@@ -498,7 +637,7 @@ mod tests {
                 end_offset: Vec2::new(50.0, 0.0),
             },
             SpriteShape::Texture {
-                region_name: "test",
+                region_name: "test".to_string(),
                 size: Vec2::new(32.0, 32.0),
             },
         ];
@@ -528,15 +667,15 @@ mod tests {
         assert_ne!(shape1, shape3);
 
         let tex1 = SpriteShape::Texture {
-            region_name: "player",
+            region_name: "player".to_string(),
             size: Vec2::new(32.0, 32.0),
         };
         let tex2 = SpriteShape::Texture {
-            region_name: "player",
+            region_name: "player".to_string(),
             size: Vec2::new(32.0, 32.0),
         };
         let tex3 = SpriteShape::Texture {
-            region_name: "enemy",
+            region_name: "enemy".to_string(),
             size: Vec2::new(32.0, 32.0),
         };
 

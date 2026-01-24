@@ -21,7 +21,7 @@
 //! }
 //! ```
 
-use super::components::{Despawn, Lifetime, PlayerController, Transform, Velocity};
+use super::components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity};
 use super::world::World;
 use super::Entity;
 use crate::core::math::Vec2;
@@ -93,6 +93,36 @@ pub fn player_input_system(world: &mut World, input: &InputState) {
 pub fn movement_system(world: &mut World, dt: f32) {
     for (_, (transform, velocity)) in world.query::<(&mut Transform, &Velocity)>().iter() {
         transform.position += velocity.0 * dt;
+    }
+}
+
+/// Updates sprite animations and syncs the current frame to the Sprite component.
+///
+/// For each entity with [`SpriteAnimation`] and [`Sprite`]:
+/// 1. Updates the animation timer
+/// 2. Advances to the next frame when needed
+/// 3. Updates the Sprite's region_name to the current frame
+///
+/// # Arguments
+///
+/// * `world` - The ECS world
+/// * `dt` - Delta time in seconds
+///
+/// # Example
+///
+/// ```ignore
+/// // In your game's update method:
+/// animation_system(&mut world, res.time.delta());
+/// ```
+pub fn animation_system(world: &mut World, dt: f32) {
+    for (_, (sprite, animation)) in world.query::<(&mut Sprite, &mut SpriteAnimation)>().iter() {
+        // Update animation timing
+        animation.tick(dt);
+
+        // Update sprite's region name to current frame
+        if let SpriteShape::Texture { ref mut region_name, .. } = sprite.shape {
+            *region_name = animation.current_region_name();
+        }
     }
 }
 

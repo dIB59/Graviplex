@@ -147,6 +147,112 @@ impl AtlasBuilder {
         Ok(self)
     }
 
+    /// Add a sprite sheet and slice it into individual frames.
+    ///
+    /// Frames are named `{prefix}_0`, `{prefix}_1`, etc.
+    /// The sprite sheet is sliced in row-major order (left-to-right, top-to-bottom).
+    ///
+    /// # Arguments
+    /// * `prefix` - Base name for the frames (e.g., "player_idle" -> "player_idle_0", "player_idle_1", ...)
+    /// * `path` - Path to the sprite sheet image
+    /// * `frame_width` - Width of each frame in pixels
+    /// * `frame_height` - Height of each frame in pixels
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     // Slice a 192x64 sprite sheet into 3 frames of 64x64 each
+    ///     .add_sprite_sheet("player_walk", "assets/player_walk.png", 64, 64)?
+    ///     // Results in: "player_walk_0", "player_walk_1", "player_walk_2"
+    /// ```
+    pub fn add_sprite_sheet<P: AsRef<Path>>(
+        mut self,
+        prefix: &str,
+        path: P,
+        frame_width: u32,
+        frame_height: u32,
+    ) -> Result<Self, AtlasError> {
+        let img = image::open(path.as_ref())
+            .map_err(|_| AtlasError::ImageLoad(path.as_ref().display().to_string()))?
+            .to_rgba8();
+
+        let (sheet_width, sheet_height) = img.dimensions();
+        let cols = sheet_width / frame_width;
+        let rows = sheet_height / frame_height;
+
+        let mut frame_index = 0;
+        for row in 0..rows {
+            for col in 0..cols {
+                let x = col * frame_width;
+                let y = row * frame_height;
+
+                // Extract frame from sprite sheet
+                let frame = image::imageops::crop_imm(&img, x, y, frame_width, frame_height).to_image();
+                let name = format!("{}_{}", prefix, frame_index);
+                self.images.insert(name, frame);
+                frame_index += 1;
+            }
+        }
+
+        log::debug!(
+            "Loaded sprite sheet '{}': {}x{} -> {} frames of {}x{}",
+            prefix,
+            sheet_width,
+            sheet_height,
+            frame_index,
+            frame_width,
+            frame_height
+        );
+
+        Ok(self)
+    }
+
+    /// Add a sprite sheet with explicit frame count.
+    ///
+    /// Use this when the sprite sheet has padding or doesn't fill completely.
+    ///
+    /// # Arguments
+    /// * `prefix` - Base name for the frames
+    /// * `path` - Path to the sprite sheet image
+    /// * `frame_width` - Width of each frame in pixels
+    /// * `frame_height` - Height of each frame in pixels
+    /// * `frame_count` - Number of frames to extract
+    ///
+    /// # Example
+    /// ```ignore
+    /// AtlasBuilder::new()
+    ///     // Extract only first 4 frames from a larger sheet
+    ///     .add_sprite_sheet_frames("player_idle", "assets/player.png", 64, 64, 4)?
+    /// ```
+    pub fn add_sprite_sheet_frames<P: AsRef<Path>>(
+        mut self,
+        prefix: &str,
+        path: P,
+        frame_width: u32,
+        frame_height: u32,
+        frame_count: u32,
+    ) -> Result<Self, AtlasError> {
+        let img = image::open(path.as_ref())
+            .map_err(|_| AtlasError::ImageLoad(path.as_ref().display().to_string()))?
+            .to_rgba8();
+
+        let (sheet_width, _sheet_height) = img.dimensions();
+        let cols = sheet_width / frame_width;
+
+        for i in 0..frame_count {
+            let col = i % cols;
+            let row = i / cols;
+            let x = col * frame_width;
+            let y = row * frame_height;
+
+            let frame = image::imageops::crop_imm(&img, x, y, frame_width, frame_height).to_image();
+            let name = format!("{}_{}", prefix, i);
+            self.images.insert(name, frame);
+        }
+
+        Ok(self)
+    }
+
     /// Add an image from raw RGBA bytes.
     pub fn add_image_bytes(
         mut self,

@@ -297,7 +297,7 @@ impl<'a> DrawContext<'a> {
         let mut renderables: Vec<(i32, Transform, Sprite)> = world
             .query::<(&Transform, &Sprite, &Visible)>()
             .iter()
-            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, *sprite))
+            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, sprite.clone()))
             .collect();
 
         // Sort by z_order (lower values first = rendered first = behind)
@@ -380,7 +380,7 @@ impl<'a> DrawContext<'a> {
                         color: sprite.color.into(),
                     });
                 }   
-                SpriteShape::Texture { region_name, size } => {
+                SpriteShape::Texture { ref region_name, size } => {
                     #[cfg(feature = "textures")]
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
                         if let Some(region) = atlas.get(region_name) {
