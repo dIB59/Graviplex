@@ -225,7 +225,6 @@ impl MapEditorPlugin {
                         // Skip textures not in atlas (if filter is set)
                         if let Some(ref available) = self.available_textures {
                             if !available.contains(&texture_path) {
-                                println!("[MapEditor] Skipping (not in atlas): {}", texture_path);
                                 continue; // Skip - not in atlas
                             }
                         }
@@ -631,18 +630,6 @@ impl MapEditorPlugin {
                         // Try to render the actual texture
                         #[cfg(feature = "textures")]
                         {
-                            // Debug: print every frame until we find what's wrong
-                            static DEBUG_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-                            let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                            if count < 5 {
-                                println!("[DEBUG] Looking for texture: '{}'", texture_name);
-                                println!("[DEBUG] has_texture result: {}", draw.has_texture(texture_name));
-                                // Also try to list what textures ARE available
-                                if count == 0 {
-                                    println!("[DEBUG] Checking if atlas exists...");
-                                }
-                            }
-                            
                             if draw.has_texture(texture_name) {
                                 draw.texture_ex(
                                     texture_name,

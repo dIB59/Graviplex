@@ -609,26 +609,14 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             match self.gpu.build_atlas(atlas_builder, self.textures.atlas_size) {
                 Ok(atlas) => {
                     log::info!("Texture atlas built with {} regions", atlas.region_count());
-                    println!("[DEBUG] Texture atlas built with {} regions", atlas.region_count());
-                    // Debug: print first few texture names in atlas
-                    let mut count = 0;
-                    for name in atlas.region_names() {
-                        if count < 5 {
-                            println!("[DEBUG] Atlas contains: '{}'", name);
-                        }
-                        count += 1;
-                    }
                     let sprite_pipeline = self.gpu.create_sprite_pipeline(&atlas);
                     self.textures.texture_atlas = Some(atlas);
                     self.textures.sprite_pipeline = Some(sprite_pipeline);
                 }
                 Err(e) => {
                     log::error!("Failed to build texture atlas: {e}");
-                    println!("[DEBUG] Failed to build texture atlas: {e}");
                 }
             }
-        } else {
-            println!("[DEBUG] No atlas builder was provided!");
         }
 
         // Initialize game with world and GPU context

@@ -105,12 +105,6 @@ fn build_atlas_from_assets() -> (graviplex::prelude::AtlasBuilder, Vec<String>) 
     // Collect texture names for the editor
     let texture_names: Vec<String> = valid_images.iter().map(|(name, _)| name.clone()).collect();
     
-    // Debug: print first few texture names
-    println!("[Atlas] First 5 texture names:");
-    for name in texture_names.iter().take(5) {
-        println!("  - '{}'", name);
-    }
-    
     // Build the atlas with all valid images
     // Since we pre-validated with image::open(), add_image should never fail
     let mut builder = AtlasBuilder::new();
