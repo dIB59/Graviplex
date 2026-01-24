@@ -120,6 +120,7 @@ impl MapEditorPlugin {
         self.assets_scanned = true;
 
         let Some(dir) = self.asset_dir.clone() else {
+            println!("[MapEditor] No asset directory configured");
             return;
         };
 
@@ -129,7 +130,9 @@ impl MapEditorPlugin {
             return;
         }
 
-        self.scan_directory_recursive(path, "Assets");
+        println!("[MapEditor] Scanning asset directory: {}", dir);
+        self.scan_directory_recursive(path, "Sprites");
+        println!("[MapEditor] Found {} assets", self.editor.palette.len());
     }
 
     fn scan_directory_recursive(&mut self, path: &Path, category: &str) {
@@ -143,7 +146,7 @@ impl MapEditorPlugin {
             if entry_path.is_dir() {
                 // Use directory name as sub-category
                 if let Some(dir_name) = entry_path.file_name().and_then(|n| n.to_str()) {
-                    let sub_category = if category == "Assets" {
+                    let sub_category = if category == "Sprites" {
                         dir_name.to_string()
                     } else {
                         format!("{}/{}", category, dir_name)
@@ -162,9 +165,15 @@ impl MapEditorPlugin {
                         // Default size - could be improved by reading image dimensions
                         let size = Vec2::new(64.0, 64.0);
                         
-                        let object = MapObject::texture(file_name, &texture_path, size)
+                        // Format display name nicely
+                        let display_name = file_name
+                            .replace('_', " ")
+                            .replace('-', " ");
+                        
+                        let object = MapObject::texture(&display_name, &texture_path, size)
                             .with_category(category);
                         
+                        println!("[MapEditor] Registered: {} ({})", display_name, category);
                         self.editor.register_object(object);
                     }
                 }
@@ -311,23 +320,41 @@ impl MapEditorPlugin {
                             self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
                         }
                     }
-                    ObjectVisual::Texture { tint, .. } => {
+                    ObjectVisual::Texture { tint, texture_name } => {
                         let scaled_size = Vec2::new(
                             object_def.size.x * obj.scale.x,
                             object_def.size.y * obj.scale.y,
                         );
                         
-                        // For now, draw a placeholder rect for textures
-                        let c = if is_selected {
-                            Color::rgba(0.8, 0.8, 1.0, 0.8)
+                        // Draw a visible placeholder for textures
+                        let base_color = if is_selected {
+                            Color::rgba(0.4, 0.6, 1.0, 0.9)
                         } else if is_hovered {
-                            Color::rgba(0.7, 0.7, 0.9, 0.7)
+                            Color::rgba(0.3, 0.5, 0.8, 0.8)
                         } else {
-                            Color::rgba(tint.r * 0.5, tint.g * 0.5, tint.b * 0.5, 0.6)
+                            Color::rgba(0.2, 0.4, 0.6, 0.7)
                         };
                         
-                        self.draw_filled_rect(draw, obj.position, scaled_size, c);
-                        self.draw_rect_outline(draw, obj.position, scaled_size, Color::rgba(1.0, 1.0, 1.0, 0.5));
+                        // Filled background
+                        self.draw_filled_rect(draw, obj.position, scaled_size, base_color);
+                        
+                        // Border
+                        let border_color = Color::rgba(0.6, 0.8, 1.0, 0.9);
+                        self.draw_rect_outline(draw, obj.position, scaled_size, border_color);
+                        
+                        // Draw an X to indicate it's a texture placeholder
+                        let half = scaled_size * 0.5;
+                        let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.5);
+                        draw.line((
+                            obj.position - half,
+                            obj.position + half,
+                            cross_color,
+                        ));
+                        draw.line((
+                            Vec2::new(obj.position.x - half.x, obj.position.y + half.y),
+                            Vec2::new(obj.position.x + half.x, obj.position.y - half.y),
+                            cross_color,
+                        ));
                         
                         if is_selected {
                             self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
@@ -359,23 +386,38 @@ impl MapEditorPlugin {
         };
 
         let preview_pos = self.editor.config.grid.snap(self.editor.state.mouse_world_pos);
-        let preview_alpha = 0.5;
+        let preview_alpha = 0.6;
 
         match &object_def.visual {
             ObjectVisual::Circle { radius, color } => {
                 let c = Color::rgba(color.r, color.g, color.b, preview_alpha);
                 draw.circle(crate::core::geometry::Circle::new(preview_pos, *radius, c));
-                self.draw_circle_outline(draw, preview_pos, *radius, Color::rgba(1.0, 1.0, 1.0, 0.7));
+                self.draw_circle_outline(draw, preview_pos, *radius, Color::rgba(1.0, 1.0, 1.0, 0.8));
             }
             ObjectVisual::Rect { color } => {
                 let c = Color::rgba(color.r, color.g, color.b, preview_alpha);
                 self.draw_filled_rect(draw, preview_pos, object_def.size, c);
-                self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.7));
+                self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.8));
             }
             ObjectVisual::Texture { .. } => {
-                let c = Color::rgba(0.8, 0.8, 1.0, preview_alpha);
+                // Draw a visible preview for texture placeholders
+                let c = Color::rgba(0.3, 0.5, 0.8, preview_alpha);
                 self.draw_filled_rect(draw, preview_pos, object_def.size, c);
-                self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.7));
+                self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(0.6, 0.8, 1.0, 0.9));
+                
+                // Draw X pattern
+                let half = object_def.size * 0.5;
+                let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
+                draw.line((
+                    preview_pos - half,
+                    preview_pos + half,
+                    cross_color,
+                ));
+                draw.line((
+                    Vec2::new(preview_pos.x - half.x, preview_pos.y + half.y),
+                    Vec2::new(preview_pos.x + half.x, preview_pos.y - half.y),
+                    cross_color,
+                ));
             }
             ObjectVisual::Line { color, .. } => {
                 let c = Color::rgba(color.r, color.g, color.b, preview_alpha);

@@ -87,6 +87,11 @@ impl GameLoop for EditorDemo {
     }
 
     fn handle_input(&mut self, world: &mut World, input: &InputState, camera: &Camera2D) -> bool {
+        // Debug: Check if any keys are being pressed
+        if !input.pressed_keys().is_empty() {
+            println!("[Demo] Keys pressed: {:?}", input.pressed_keys());
+        }
+        
         // Let the editor plugin handle input (includes F1/` toggle)
         self.editor_plugin.handle_input(world, input, camera)
     }
@@ -102,12 +107,16 @@ impl GameLoop for EditorDemo {
         let world = World::new();
         self.editor_plugin.editor.ui(ctx, &world);
         
-        // Show help window
-        egui::Window::new("📖 Help")
+        // Show help window - track if it has focus
+        let help_response = egui::Window::new("📖 Help")
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 10.0))
             .collapsible(true)
             .default_open(false)
             .show(ctx, |ui| {
+                if ui.ui_contains_pointer() {
+                    self.editor_plugin.editor.state.panel_focused = true;
+                }
+                
                 ui.heading("Map Editor Controls");
                 ui.separator();
                 

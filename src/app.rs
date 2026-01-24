@@ -437,7 +437,6 @@ impl<T: GameLoop> App<T> {
         }
 
         self.time.update();
-        self.input.begin_frame();
 
         // Check for timed exit
         if let Some(exit_time) = self.exit_time {
@@ -516,6 +515,10 @@ impl<T: GameLoop> App<T> {
         self.render_gui(&view);
 
         frame.present();
+        
+        // Clear "just pressed/released" state at end of frame
+        // (after all input has been processed)
+        self.input.begin_frame();
     }
 
     #[cfg(feature = "gui")]
@@ -630,13 +633,16 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Let GUI handle event first
+        // Track if GUI consumed the event (for mouse events)
         #[cfg(feature = "gui")]
-        if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
-            if gui.handle_event(window, &event).consumed {
-                return;
-            }
-        }
+        let gui_consumed = if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
+            gui.handle_event(window, &event).consumed
+        } else {
+            false
+        };
+        
+        #[cfg(not(feature = "gui"))]
+        let gui_consumed = false;
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -648,6 +654,7 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
 
             WindowEvent::RedrawRequested => self.render_frame(event_loop),
 
+            // Always pass keyboard events - game can handle shortcuts even when GUI is active
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input.handle_keyboard_event(event);
             }
@@ -656,13 +663,18 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
                 self.input.handle_cursor_moved(position);
             }
 
+            // Only pass mouse input if GUI didn't consume it
             WindowEvent::MouseInput { state, button, .. } => {
-                self.input.handle_mouse_input(state, button);
+                if !gui_consumed {
+                    self.input.handle_mouse_input(state, button);
+                }
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                self.camera_controller
-                    .handle_scroll(&mut self.camera, delta);
+                if !gui_consumed {
+                    self.camera_controller
+                        .handle_scroll(&mut self.camera, delta);
+                }
             }
 
             _ => (),

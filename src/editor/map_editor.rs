@@ -483,14 +483,15 @@ impl MapEditor {
         input: &InputState,
         camera: &Camera2D,
     ) -> bool {
-        if !self.config.enabled || self.state.panel_focused {
+        if !self.config.enabled {
             return false;
         }
 
-        // Update mouse world position
+        // Always update mouse world position for preview
         let mouse_screen = input.mouse_pos();
         self.state.mouse_world_pos = camera.screen_to_world(mouse_screen).into();
 
+        // Keyboard shortcuts work regardless of panel focus
         // Handle keyboard shortcuts
         if input.is_key_just_pressed(winit::keyboard::KeyCode::Delete)
             || input.is_key_just_pressed(winit::keyboard::KeyCode::Backspace)
@@ -522,14 +523,17 @@ impl MapEditor {
 
         // Tool shortcuts
         if input.is_key_just_pressed(winit::keyboard::KeyCode::KeyV) {
+            println!("[MapEditor] Switched to Select tool");
             self.tool.tool = EditorTool::Select;
             return true;
         }
         if input.is_key_just_pressed(winit::keyboard::KeyCode::KeyP) {
+            println!("[MapEditor] Switched to Place tool");
             self.tool.tool = EditorTool::Place;
             return true;
         }
         if input.is_key_just_pressed(winit::keyboard::KeyCode::KeyE) {
+            println!("[MapEditor] Switched to Erase tool");
             self.tool.tool = EditorTool::Erase;
             return true;
         }
@@ -538,6 +542,7 @@ impl MapEditor {
             return true;
         }
         if input.is_key_just_pressed(winit::keyboard::KeyCode::KeyB) {
+            println!("[MapEditor] Switched to Paint tool");
             self.tool.tool = EditorTool::Paint;
             return true;
         }
@@ -545,7 +550,13 @@ impl MapEditor {
         // Toggle grid
         if input.is_key_just_pressed(winit::keyboard::KeyCode::KeyG) {
             self.config.grid.enabled = !self.config.grid.enabled;
+            println!("[MapEditor] Grid snap: {}", self.config.grid.enabled);
             return true;
+        }
+        
+        // Mouse input is blocked when over the panel
+        if self.state.panel_focused {
+            return false;
         }
 
         // Update hover state
@@ -633,7 +644,11 @@ impl MapEditor {
                     // Get selected asset name first to avoid borrow issues
                     let selected = self.palette.selected().map(|s| s.to_string());
                     if let Some(selected_asset) = selected {
-                        self.place_object(&selected_asset, mouse_pos);
+                        println!("[MapEditor] Placing '{}' at {:?}", selected_asset, mouse_pos);
+                        let result = self.place_object(&selected_asset, mouse_pos);
+                        println!("[MapEditor] Place result: {:?}", result);
+                    } else {
+                        println!("[MapEditor] No asset selected!");
                     }
                     return true;
                 }
@@ -734,7 +749,7 @@ impl MapEditor {
             return;
         }
 
-        // Track if panel has focus
+        // Reset panel focus - will be set true only if pointer is over UI
         self.state.panel_focused = false;
 
         // Main editor panel
@@ -742,7 +757,10 @@ impl MapEditor {
             egui::SidePanel::left("editor_panel")
                 .default_width(self.config.panel_width)
                 .show(ctx, |ui| {
-                    self.state.panel_focused = ui.ui_contains_pointer();
+                    // Check if this specific panel has the pointer
+                    if ui.ui_contains_pointer() {
+                        self.state.panel_focused = true;
+                    }
                     
                     // Header
                     ui.horizontal(|ui| {
