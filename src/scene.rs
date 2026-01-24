@@ -3,7 +3,46 @@
 //! This module provides a scene/state stack for managing game flow:
 //! menus, gameplay, pause screens, dialogue, cutscenes, etc.
 //!
-//! # Example
+//! # Integration with App
+//!
+//! `SceneManager` is an opt-in feature for games that need scene transitions.
+//! For simple games, you can use `GameLoop` directly without scenes.
+//!
+//! To use scenes, create a wrapper game struct that owns the SceneManager:
+//!
+//! ```ignore
+//! use graviplex::prelude::*;
+//! use graviplex::scene::{Scene, SceneManager, Transition};
+//!
+//! struct SceneGame {
+//!     scenes: SceneManager,
+//! }
+//!
+//! impl SceneGame {
+//!     fn new() -> Self {
+//!         Self {
+//!             scenes: SceneManager::with_scene(Box::new(MainMenuScene)),
+//!         }
+//!     }
+//! }
+//!
+//! impl GameLoop for SceneGame {
+//!     fn init(&mut self, world: &mut World, gfx: &Graphics) {
+//!         self.scenes.init(world, gfx);
+//!     }
+//!
+//!     fn update(&mut self, world: &mut World, res: &Resources) {
+//!         let transition = self.scenes.update(world, res);
+//!         self.scenes.apply_transition(transition, world, gfx);
+//!     }
+//!
+//!     fn render(&mut self, world: &World, draw: &mut DrawContext) {
+//!         self.scenes.render(world, draw);
+//!     }
+//! }
+//! ```
+//!
+//! # Example Scene
 //!
 //! ```ignore
 //! use graviplex::prelude::*;

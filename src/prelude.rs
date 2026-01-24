@@ -50,7 +50,7 @@ pub use crate::renderer::Graphics;
 pub use crate::renderer::{AtlasBuilder, RegionId};
 
 // ECS - Core types
-pub use crate::ecs::{Entity, Resources, World};
+pub use crate::ecs::{Entity, Resources, SystemContext, World};
 
 // ECS - Built-in components
 pub use crate::ecs::{

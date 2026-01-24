@@ -5,6 +5,7 @@
 //! - [`DrawContext`] - Immediate-mode drawing API
 //! - [`Camera2D`] - 2D camera with pan/zoom support
 //! - [`CameraFollow`] - Smooth camera following with offset limits
+//! - [`RenderFrame`] - Single-encoder frame rendering abstraction
 //! - Pipeline implementations for circles, lines, and custom shaders
 
 pub mod camera;
@@ -13,6 +14,7 @@ pub mod draw_context;
 pub mod gpu_context;
 pub mod line_pipeline;
 pub mod pipeline;
+pub mod render_frame;
 pub mod render_state;
 #[cfg(feature = "textures")]
 pub mod sprite_pipeline;
@@ -24,6 +26,7 @@ pub mod vertex_data;
 pub use camera::{Camera2D, CameraController, CameraFollow, CameraGpuData};
 pub use draw_context::DrawContext;
 pub use gpu_context::GpuContext as Graphics;
+pub use render_frame::{PipelineFlush, RenderFrame};
 
 // Pipeline exports
 pub use circle_pipeline::CirclePipeline;

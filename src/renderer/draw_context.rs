@@ -2,7 +2,7 @@ use crate::core::color::Color;
 use crate::core::math::Vec2;
 use crate::ecs::{Sprite, SpriteShape, Transform, Visible, World};
 use crate::renderer::{
-    Camera2D, CircleInstance, CirclePipeline, LinePipeline, RenderState,
+    Camera2D, CircleInstance, CirclePipeline, LinePipeline, RenderFrame, RenderState,
 };
 use crate::Circle;
 use gpu_context::GpuContext;
@@ -293,15 +293,42 @@ impl<'a> DrawContext<'a> {
     /// }
     /// ```
     pub fn render_world(&mut self, world: &World) {
-        // Collect all visible entities with their components
-        let mut renderables: Vec<(i32, Transform, Sprite)> = world
+        // Discriminant for sprite type - used for efficient batching
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        #[repr(u8)]
+        enum SpriteType {
+            Circle = 0,
+            Rect = 1,
+            Line = 2,
+            Texture = 3,
+            TextureId = 4,
+        }
+
+        fn sprite_type(shape: &SpriteShape) -> SpriteType {
+            match shape {
+                SpriteShape::Circle { .. } => SpriteType::Circle,
+                SpriteShape::Rect { .. } => SpriteType::Rect,
+                SpriteShape::Line { .. } => SpriteType::Line,
+                SpriteShape::Texture { .. } => SpriteType::Texture,
+                #[cfg(feature = "textures")]
+                SpriteShape::TextureId { .. } => SpriteType::TextureId,
+            }
+        }
+
+        // Collect entity handles with their sort keys (no cloning of sprite data!)
+        // Sort by (z_order, sprite_type) to maximize batching while preserving z-order
+        let mut renderables: Vec<(i32, SpriteType, crate::ecs::Entity)> = world
             .query::<(&Transform, &Sprite, &Visible)>()
             .iter()
-            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, sprite.clone()))
+            .map(|(entity, (_, sprite, _))| {
+                (sprite.z_order, sprite_type(&sprite.shape), entity)
+            })
             .collect();
 
-        // Sort by z_order (lower values first = rendered first = behind)
-        renderables.sort_by_key(|(z, _, _)| *z);
+        // Sort by z_order first (primary), then by sprite type (secondary) for batch efficiency
+        renderables.sort_unstable_by(|a, b| {
+            a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+        });
 
         // Track if we've warned about texture sprites (to avoid spam)
         #[cfg(not(feature = "textures"))]
@@ -319,35 +346,44 @@ impl<'a> DrawContext<'a> {
         let mut circle_batch: Vec<CircleInstance> = Vec::with_capacity(renderables.len());
         let mut line_batch: Vec<LineInstance> = Vec::with_capacity(renderables.len() / 4);
         
-        // Track current z-order to know when to flush
-        let mut current_z: Option<i32> = None;
+        // Track current sort key to know when to flush
+        let mut current_key: Option<(i32, SpriteType)> = None;
 
-        for (z_order, transform, sprite) in &renderables {
-            // When z-order changes, flush all batches to maintain correct ordering
-            if current_z.is_some() && current_z != Some(*z_order) {
-                // Flush circles
-                if !circle_batch.is_empty() {
-                    self.circles(&circle_batch);
-                    circle_batch.clear();
-                }
-                // Flush lines
-                if !line_batch.is_empty() {
-                    self.lines(&line_batch);
-                    line_batch.clear();
-                }
-                // Flush texture sprites
-                #[cfg(feature = "textures")]
-                if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
-                    if sprite_pipeline.staging_count() > 0 {
-                        sprite_pipeline.flush(&state, atlas);
+        for &(z_order, stype, entity) in &renderables {
+            // Get components by reference (no clone!)
+            let Some(transform) = world.get::<Transform>(entity) else { continue };
+            let Some(sprite) = world.get::<Sprite>(entity) else { continue };
+
+            let key = (z_order, stype);
+            
+            // When sort key changes, flush the relevant batch
+            // Because we sorted by (z_order, sprite_type), we only flush when BOTH change
+            // or when z_order changes (which necessitates flushing all)
+            if let Some(prev_key) = current_key {
+                if prev_key.0 != z_order {
+                    // Z-order changed - flush ALL batches to preserve ordering
+                    if !circle_batch.is_empty() {
+                        self.circles(&circle_batch);
+                        circle_batch.clear();
+                    }
+                    if !line_batch.is_empty() {
+                        self.lines(&line_batch);
+                        line_batch.clear();
+                    }
+                    #[cfg(feature = "textures")]
+                    if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                        if sprite_pipeline.staging_count() > 0 {
+                            sprite_pipeline.flush(&state, atlas);
+                        }
                     }
                 }
+                // Note: if only sprite_type changed but z_order is same, we don't need to flush
+                // because same z_order means the rendering order within that z doesn't matter
             }
-            current_z = Some(*z_order);
+            current_key = Some(key);
 
-            match sprite.shape {
+            match &sprite.shape {
                 SpriteShape::Circle { radius } => {
-                    // Apply transform scale to radius
                     let scaled_radius = radius * transform.scale.x;
                     circle_batch.push(CircleInstance {
                         position: [transform.position.x, transform.position.y],
@@ -356,41 +392,36 @@ impl<'a> DrawContext<'a> {
                     });
                 }
                 SpriteShape::Rect { size } => {
-                    // Draw rectangle as 4 lines (outline)
-                    // TODO: Add filled rectangle support via rect_pipeline
                     let half_w = size.x * transform.scale.x * 0.5;
                     let half_h = size.y * transform.scale.y * 0.5;
-                    let pos = transform.position;
-                    let color: [f32; 4] = sprite.color.into();
-
-                    // For now, approximate as circle with average dimension
                     let avg_radius = (half_w + half_h) * 0.5;
                     circle_batch.push(CircleInstance {
-                        position: [pos.x, pos.y],
+                        position: [transform.position.x, transform.position.y],
                         radius: avg_radius,
-                        color,
+                        color: sprite.color.into(),
                     });
                 }
                 SpriteShape::Line { end_offset } => {
                     let start = transform.position;
-                    let end = start + end_offset * transform.scale.x;
+                    let offset = *end_offset;
+                    let end = start + offset * transform.scale.x;
                     line_batch.push(LineInstance {
                         start: [start.x, start.y],
                         end: [end.x, end.y],
                         color: sprite.color.into(),
                     });
                 }   
-                SpriteShape::Texture { ref region_name, size } => {
+                SpriteShape::Texture { region_name, size } => {
                     #[cfg(feature = "textures")]
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
-                        if let Some(region) = atlas.get(region_name) {
+                        if let Some(region) = atlas.get(region_name.as_str()) {
                             sprite_pipeline.draw(
                                 [transform.position.x, transform.position.y],
                                 [size.x * transform.scale.x, size.y * transform.scale.y],
                                 region.uv_rect(),
                                 sprite.color.into(),
                                 transform.rotation,
-                                *z_order,
+                                z_order,
                             );
                         }
                     }
@@ -406,15 +437,14 @@ impl<'a> DrawContext<'a> {
                 #[cfg(feature = "textures")]
                 SpriteShape::TextureId { region, size } => {
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
-                        // Fast O(1) lookup by pre-resolved RegionId
-                        let atlas_region = atlas.get_by_id(region);
+                        let atlas_region = atlas.get_by_id(*region);
                         sprite_pipeline.draw(
                             [transform.position.x, transform.position.y],
                             [size.x * transform.scale.x, size.y * transform.scale.y],
                             atlas_region.uv_rect(),
                             sprite.color.into(),
                             transform.rotation,
-                            *z_order,
+                            z_order,
                         );
                     }
                 }
@@ -708,12 +738,25 @@ impl<'a> DrawContext<'a> {
     // INTERNAL
     // =========================================================================
 
-    /// Flush all batched draw calls to the GPU.
+    /// Flush all batched draw calls to the GPU using a single command encoder.
     /// The engine calls this automatically at the end of the render pass.
     pub fn flush(&mut self) {
-        let state = self.state();
-        self.circle_pipeline.flush(&state);
-        self.line_pipeline.flush(&state);
+        // Use unified RenderFrame for single GPU submission
+        let mut frame = RenderFrame::begin(self.gpu, self.view, self.camera);
+
+        // Flush all pipelines to the shared encoder
+        self.circle_pipeline.flush_to_frame(&mut frame);
+        self.line_pipeline.flush_to_frame(&mut frame);
+
+        #[cfg(feature = "textures")]
+        if let (Some(sprite_pipeline), Some(atlas)) =
+            (&mut self.sprite_pipeline, &self.texture_atlas)
+        {
+            sprite_pipeline.flush_to_frame(&mut frame, atlas);
+        }
+
+        // Single GPU submission
+        frame.submit();
     }
 }
 

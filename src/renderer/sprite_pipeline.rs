@@ -11,6 +11,7 @@
 
 use crate::ecs::{Sprite, SpriteShape, Transform, Visible, World};
 use crate::renderer::camera::CameraGpuData;
+use crate::renderer::render_frame::RenderFrame;
 use crate::renderer::vertex_data::{SpriteInstance, SpriteInstanceGpu, Vertex};
 use crate::renderer::{Camera2D, RenderState};
 use wgpu::*;
@@ -270,6 +271,66 @@ impl SpritePipeline {
     /// informational. The current limit is approximately 2.5 million sprites.
     pub const fn max_sprites_per_batch() -> usize {
         MAX_SPRITES_PER_BATCH
+    }
+
+    /// Flush the batch to a RenderFrame's shared encoder (single submission).
+    pub fn flush_to_frame(&mut self, frame: &mut RenderFrame<'_>, atlas: &TextureAtlas) {
+        if self.staging_instances.is_empty() {
+            return;
+        }
+
+        // Sort by z-order (stable sort preserves order for same z)
+        self.staging_instances
+            .sort_by(|a, b| a.z_order.cmp(&b.z_order));
+
+        // Convert to GPU format (strip z_order)
+        let gpu_instances: Vec<SpriteInstanceGpu> =
+            self.staging_instances.iter().map(|i| i.to_gpu()).collect();
+
+        // Clear staging early to avoid borrow issues
+        self.staging_instances.clear();
+
+        // Quad vertices: centered, size 1x1 (scaled by instance size)
+        let vertices = [
+            Vertex { pos: [-0.5, -0.5] },
+            Vertex { pos: [0.5, -0.5] },
+            Vertex { pos: [-0.5, 0.5] },
+            Vertex { pos: [-0.5, 0.5] },
+            Vertex { pos: [0.5, -0.5] },
+            Vertex { pos: [0.5, 0.5] },
+        ];
+
+        // Split into chunks if we exceed buffer capacity
+        for chunk in gpu_instances.chunks(MAX_SPRITES_PER_BATCH) {
+            frame.with_encoder(|encoder, view, camera, queue| {
+                self.camera_gpu_data.update(queue, camera);
+                queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+                queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(chunk));
+
+                let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Sprite Render Pass"),
+                    color_attachments: &[Some(RenderPassColorAttachment {
+                        depth_slice: None,
+                        view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load,
+                            store: StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: Default::default(),
+                    occlusion_query_set: Default::default(),
+                });
+
+                rpass.set_pipeline(&self.pipeline);
+                rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+                rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
+                rpass.set_bind_group(1, &atlas.bind_group, &[]);
+                rpass.draw(0..6, 0..chunk.len() as u32);
+            });
+        }
     }
 }
 

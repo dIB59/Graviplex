@@ -41,8 +41,10 @@
 //! - [`components`] - Built-in component types (Transform, Sprite, etc.)
 //! - [`systems`] - Built-in systems (movement, lifetime, etc.)
 //! - [`Resources`] - Per-frame resources (Time, Input, Camera)
+//! - [`SystemContext`] - Unified context for systems (optional)
 
 mod components;
+mod context;
 mod entity;
 mod resources;
 pub mod systems;
@@ -56,6 +58,7 @@ pub use components::{
 };
 #[cfg(feature = "textures")]
 pub use components::SpriteAnimationId;
+pub use context::{run_context_systems, System, SystemContext};
 pub use entity::Entity;
 pub use resources::Resources;
 pub use systems::{
@@ -79,6 +82,7 @@ pub mod prelude {
     };
     #[cfg(feature = "textures")]
     pub use super::components::SpriteAnimationId;
+    pub use super::context::{run_context_systems, System, SystemContext};
     pub use super::entity::Entity;
     pub use super::resources::Resources;
     pub use super::systems;

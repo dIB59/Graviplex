@@ -25,6 +25,40 @@ use crate::gui::Gui;
 use crate::renderer::{SpritePipeline, TextureAtlas, AtlasBuilder};
 
 // =============================================================================
+// TEXTURE STATE - Encapsulates all texture-related fields
+// =============================================================================
+
+/// Encapsulates all texture-related state to reduce feature flag annotations.
+#[cfg(feature = "textures")]
+struct TextureState {
+    sprite_pipeline: Option<SpritePipeline>,
+    texture_atlas: Option<TextureAtlas>,
+    pending_atlas_builder: Option<AtlasBuilder>,
+    atlas_size: u32,
+}
+
+#[cfg(feature = "textures")]
+impl TextureState {
+    fn new() -> Self {
+        Self {
+            sprite_pipeline: None,
+            texture_atlas: None,
+            pending_atlas_builder: None,
+            atlas_size: 2048,
+        }
+    }
+    
+    fn with_builder(builder: Option<AtlasBuilder>, size: u32) -> Self {
+        Self {
+            sprite_pipeline: None,
+            texture_atlas: None,
+            pending_atlas_builder: builder,
+            atlas_size: size,
+        }
+    }
+}
+
+// =============================================================================
 // APP CONFIGURATION
 // =============================================================================
 
@@ -251,13 +285,7 @@ impl<T: GameLoop> AppBuilder<T> {
             circle_pipeline: None,
             line_pipeline: None,
             #[cfg(feature = "textures")]
-            sprite_pipeline: None,
-            #[cfg(feature = "textures")]
-            texture_atlas: None,
-            #[cfg(feature = "textures")]
-            pending_atlas_builder: self.atlas_builder,
-            #[cfg(feature = "textures")]
-            atlas_size: self.atlas_size,
+            textures: TextureState::with_builder(self.atlas_builder, self.atlas_size),
             exit_time: self.exit_time,
             config: AppConfig {
                 title: self.title,
@@ -322,13 +350,7 @@ pub struct App<T: GameLoop> {
     circle_pipeline: Option<CirclePipeline>,
     line_pipeline: Option<LinePipeline>,
     #[cfg(feature = "textures")]
-    sprite_pipeline: Option<SpritePipeline>,
-    #[cfg(feature = "textures")]
-    texture_atlas: Option<TextureAtlas>,
-    #[cfg(feature = "textures")]
-    pending_atlas_builder: Option<AtlasBuilder>,
-    #[cfg(feature = "textures")]
-    atlas_size: u32,
+    textures: TextureState,
     exit_time: Option<f32>,
     config: AppConfig,
 }
@@ -356,13 +378,7 @@ impl<T: GameLoop> App<T> {
             circle_pipeline: None,
             line_pipeline: None,
             #[cfg(feature = "textures")]
-            sprite_pipeline: None,
-            #[cfg(feature = "textures")]
-            texture_atlas: None,
-            #[cfg(feature = "textures")]
-            pending_atlas_builder: None,
-            #[cfg(feature = "textures")]
-            atlas_size: 2048,
+            textures: TextureState::new(),
             exit_time: None,
             plugins: PluginRegistry::new(),
             config: AppConfig {
@@ -469,8 +485,8 @@ impl<T: GameLoop> App<T> {
             // Get optional sprite resources
             #[cfg(feature = "textures")]
             let (sprite_pipeline, texture_atlas) = {
-                let sp = self.sprite_pipeline.as_mut();
-                let ta = self.texture_atlas.as_ref();
+                let sp = self.textures.sprite_pipeline.as_mut();
+                let ta = self.textures.texture_atlas.as_ref();
                 (sp, ta)
             };
 
@@ -586,12 +602,12 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
 
         // Initialize texture atlas and sprite pipeline if configured
         #[cfg(feature = "textures")]
-        if let Some(atlas_builder) = self.pending_atlas_builder.take() {
-            match self.gpu.build_atlas(atlas_builder, self.atlas_size) {
+        if let Some(atlas_builder) = self.textures.pending_atlas_builder.take() {
+            match self.gpu.build_atlas(atlas_builder, self.textures.atlas_size) {
                 Ok(atlas) => {
                     let sprite_pipeline = self.gpu.create_sprite_pipeline(&atlas);
-                    self.texture_atlas = Some(atlas);
-                    self.sprite_pipeline = Some(sprite_pipeline);
+                    self.textures.texture_atlas = Some(atlas);
+                    self.textures.sprite_pipeline = Some(sprite_pipeline);
                 }
                 Err(e) => {
                     log::error!("Failed to build texture atlas: {e}");

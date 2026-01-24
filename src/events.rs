@@ -4,6 +4,40 @@
 //! without tight coupling. Systems can emit events and other systems
 //! can react to them.
 //!
+//! # Integration with GameLoop
+//!
+//! Events and EventBus are opt-in features. For simple games, you might not need them.
+//! To use events, store them in your game struct:
+//!
+//! ```ignore
+//! use graviplex::prelude::*;
+//! use graviplex::events::{Events, EventBus};
+//!
+//! #[derive(Clone)]
+//! struct DamageEvent { target: Entity, amount: f32 }
+//!
+//! struct MyGame {
+//!     damage_events: Events<DamageEvent>,
+//!     // Or use EventBus for multiple event types:
+//!     // events: EventBus,
+//! }
+//!
+//! impl GameLoop for MyGame {
+//!     fn update(&mut self, world: &mut World, res: &Resources) {
+//!         // Combat system emits damage events
+//!         // self.damage_events.send(DamageEvent { ... });
+//!
+//!         // Health system reads and processes events
+//!         for event in self.damage_events.read() {
+//!             // Apply damage...
+//!         }
+//!
+//!         // Clear events at end of frame
+//!         self.damage_events.clear();
+//!     }
+//! }
+//! ```
+//!
 //! # Example
 //!
 //! ```

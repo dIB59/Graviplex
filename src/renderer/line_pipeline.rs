@@ -1,4 +1,5 @@
 use crate::renderer::camera::CameraGpuData;
+use crate::renderer::render_frame::{PipelineFlush, RenderFrame};
 use crate::renderer::{Camera2D, RenderState};
 use bytemuck::NoUninit;
 use wgpu::*;
@@ -256,6 +257,52 @@ impl LinePipeline {
 
     pub fn staging_count(&self) -> usize {
         self.staging_instances.len()
+    }
+
+    /// Flush the batch to a RenderFrame's shared encoder (single submission).
+    pub fn flush_to_frame(&mut self, frame: &mut RenderFrame<'_>) {
+        if self.staging_instances.is_empty() {
+            return;
+        }
+
+        // Copy to local to avoid borrow issues
+        let staging_instances = std::mem::take(&mut self.staging_instances);
+        let instance_count = staging_instances.len() as u32;
+
+        frame.with_encoder(|encoder, view, camera, queue| {
+            self.camera_gpu_data.update(queue, camera);
+
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&Self::LINE_VERTICES));
+            queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&staging_instances));
+
+            let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Line Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    depth_slice: None,
+                    view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: Default::default(),
+                occlusion_query_set: Default::default(),
+            });
+
+            rpass.set_pipeline(&self.pipeline);
+            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            rpass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            rpass.set_bind_group(0, &self.camera_gpu_data.bind_group, &[]);
+            rpass.draw(0..2, 0..instance_count);
+        });
+    }
+}
+
+impl PipelineFlush for LinePipeline {
+    fn flush_to(&mut self, frame: &mut RenderFrame<'_>) {
+        self.flush_to_frame(frame);
     }
 }
 
