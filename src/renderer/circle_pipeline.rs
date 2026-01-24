@@ -116,7 +116,7 @@ impl CirclePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
+        self.camera_gpu_data.update(state.gpu.raw_queue(), state.camera);
 
         // Upload defaults if not done (though we could just do it once in new)
         let vertices = [
@@ -178,7 +178,7 @@ impl CirclePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
+        self.camera_gpu_data.update(state.gpu.raw_queue(), state.camera);
 
         let vertices = [
             Vertex { pos: [-1.0, -1.0] },

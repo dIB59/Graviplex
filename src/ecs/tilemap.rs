@@ -867,7 +867,7 @@ impl TileLayer {
         self.apply_autotile(config, |tile| {
             // Match any tile that uses this autotile config
             if let Some(ref regions) = config.regions {
-                regions.iter().any(|r| tile.region_name == *r)
+                regions.contains(&tile.region_name)
             } else {
                 tile.region_name.starts_with(&config.prefix)
             }

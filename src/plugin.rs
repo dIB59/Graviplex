@@ -107,18 +107,12 @@ pub trait Plugin: 'static {
 ///     .run();
 /// ```
 #[cfg(feature = "gui")]
+#[derive(Default)]
 pub struct FpsPlugin {
     config: FpsDisplayConfig,
 }
 
 #[cfg(feature = "gui")]
-impl Default for FpsPlugin {
-    fn default() -> Self {
-        Self {
-            config: FpsDisplayConfig::default(),
-        }
-    }
-}
 
 #[cfg(feature = "gui")]
 impl FpsPlugin {

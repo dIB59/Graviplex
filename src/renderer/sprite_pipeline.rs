@@ -161,7 +161,7 @@ impl SpritePipeline {
         let gpu_instances: Vec<SpriteInstanceGpu> =
             self.staging_instances.iter().map(|i| i.to_gpu()).collect();
 
-        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
+        self.camera_gpu_data.update(state.gpu.raw_queue(), state.camera);
 
         // Quad vertices: centered, size 1x1 (scaled by instance size)
         let vertices = [

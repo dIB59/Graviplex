@@ -154,7 +154,7 @@ impl LinePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
+        self.camera_gpu_data.update(state.gpu.raw_queue(), state.camera);
 
         state.gpu.raw_queue().write_buffer(
             &self.vertex_buffer,
@@ -211,7 +211,7 @@ impl LinePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
+        self.camera_gpu_data.update(state.gpu.raw_queue(), state.camera);
 
         state.gpu.raw_queue().write_buffer(
             &self.vertex_buffer,

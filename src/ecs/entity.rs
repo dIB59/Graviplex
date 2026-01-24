@@ -47,10 +47,7 @@ impl Entity {
     /// Always check with [`World::contains`] before using.
     #[inline]
     pub fn from_bits(bits: u64) -> Option<Self> {
-        match hecs::Entity::from_bits(bits) {
-            Some(e) => Some(Entity(e)),
-            None => None,
-        }
+        hecs::Entity::from_bits(bits).map(Entity)
     }
 
     /// Returns the underlying hecs entity (for internal use).

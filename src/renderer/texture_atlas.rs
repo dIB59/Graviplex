@@ -302,7 +302,7 @@ impl AtlasBuilder {
 
         let (sheet_width, sheet_height) = img.dimensions();
         let frame_width = sheet_width / cols;
-        let rows = (frame_count + cols - 1) / cols; // ceiling division
+        let rows = frame_count.div_ceil(cols); // ceiling division
         let frame_height = sheet_height / rows;
 
         for i in 0..frame_count {
@@ -433,7 +433,7 @@ impl AtlasBuilder {
         let mut img = image::RgbaImage::new(width, height);
         for y in 0..height {
             for x in 0..width {
-                let checker = ((x / cell_size) + (y / cell_size)) % 2 == 0;
+                let checker = ((x / cell_size) + (y / cell_size)).is_multiple_of(2);
                 let color = if checker { color1 } else { color2 };
                 img.put_pixel(x, y, image::Rgba(color));
             }
@@ -574,7 +574,7 @@ impl AtlasBuilder {
         // Find actual used dimensions
         let mut actual_width = 0u32;
         let mut actual_height = 0u32;
-        for (_, (_, loc)) in packed.packed_locations() {
+        for (_, loc) in packed.packed_locations().values() {
             actual_width = actual_width.max(loc.x() + loc.width());
             actual_height = actual_height.max(loc.y() + loc.height());
         }
@@ -592,7 +592,7 @@ impl AtlasBuilder {
             .checked_mul(atlas_height as u64)
             .and_then(|pixels| pixels.checked_mul(4)) // RGBA: 4 bytes per pixel
             .and_then(|bytes| usize::try_from(bytes).ok())
-            .ok_or_else(|| AtlasError::PackingFailed { max_size })?;
+            .ok_or(AtlasError::PackingFailed { max_size })?;
         let mut atlas_data = vec![0u8; atlas_bytes];
         let mut regions = HashMap::new();
 
