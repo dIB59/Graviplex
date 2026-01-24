@@ -97,20 +97,21 @@ mod tests {
     }
 
     #[test]
-    fn test_time_tracking() {
-        let mut time = Time::new();
+    fn test_fps_counter_tracking() {
+        use graviplex::core::stats::FpsCounter;
+
+        let mut fps_counter = FpsCounter::new();
 
         // Initial state
-        assert_eq!(time.frame_count(), 0);
-        assert_eq!(time.delta(), 0.0);
+        assert_eq!(fps_counter.frame_count(), 0);
+        assert_eq!(fps_counter.fps(), 0.0);
 
-        // After one update
-        std::thread::sleep(std::time::Duration::from_millis(16));
-        time.update();
+        // Simulate 60 FPS frame
+        fps_counter.update(1.0 / 60.0);
 
-        assert_eq!(time.frame_count(), 1);
-        assert!(time.delta() > 0.0);
-        assert!(time.elapsed() > 0.0);
+        assert_eq!(fps_counter.frame_count(), 1);
+        assert!(fps_counter.fps() > 0.0);
+        assert!(fps_counter.frame_time_ms() > 0.0);
     }
 
     // =========================================================================

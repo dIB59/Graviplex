@@ -1,47 +1,28 @@
 //! Frame timing and FPS tracking.
 //!
 //! The [`Time`] struct provides frame timing information and is passed to
-//! `GameLoop::update()` each frame.
+//! `GameLoop::update()` each frame via `Resources`.
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use crate::core::stats::FpsCounter;
 
-static GLOBAL_FPS: AtomicU32 = AtomicU32::new(0);
-static GLOBAL_FRAME_TIME: AtomicU32 = AtomicU32::new(0);
-
-/// Returns the current smoothed FPS (global accessor).
-///
-/// **Deprecated**: Use `time.fps()` from the `Time` reference passed to `update()` instead.
-#[deprecated(since = "0.3.0", note = "Use time.fps() from GameLoop::update() instead")]
-pub fn get_fps() -> f32 {
-    GLOBAL_FPS.load(Ordering::Relaxed) as f32 / 10.0
-}
-
-/// Returns the time difference between current and last frame in seconds (global accessor).
-///
-/// **Deprecated**: Use `time.delta()` from the `Time` reference passed to `update()` instead.
-#[deprecated(since = "0.3.0", note = "Use time.delta() from GameLoop::update() instead")]
-pub fn get_frame_time() -> f32 {
-    GLOBAL_FRAME_TIME.load(Ordering::Relaxed) as f32 / 10000.0
-}
-
 /// Frame timing information.
 ///
 /// Provides access to delta time, FPS, and elapsed time.
-/// An instance is passed to `GameLoop::update()` each frame.
+/// Access via `Resources.time` in `GameLoop::update()`.
 ///
 /// # Example
 ///
 /// ```ignore
-/// fn update(&mut self, time: &Time, _gfx: &Graphics) {
+/// fn update(&mut self, world: &mut World, res: &Resources) {
 ///     // Move player based on delta time
-///     self.player.position += self.player.velocity * time.delta();
+///     let dt = res.time.delta();
+///     self.player.position += self.player.velocity * dt;
 ///     
-///     // Log performance
-///     if time.frame_count() % 60 == 0 {
-///         println!("FPS: {:.1}", time.fps());
+///     // Log performance periodically
+///     if res.time.frame_count() % 60 == 0 {
+///         println!("FPS: {:.1}", res.time.fps());
 ///     }
 /// }
 /// ```
@@ -71,17 +52,13 @@ impl Time {
     }
 
     /// Update timing (called by the engine each frame).
-    pub fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         let now = Instant::now();
         self.delta = now.duration_since(self.last_frame).as_secs_f32();
         self.last_frame = now;
 
         // Update the FPS counter
         self.fps_counter.update(self.delta);
-
-        // Update globals for backwards compatibility
-        GLOBAL_FPS.store((self.fps_counter.fps() * 10.0) as u32, Ordering::Relaxed);
-        GLOBAL_FRAME_TIME.store((self.delta * 10000.0) as u32, Ordering::Relaxed);
     }
 
     /// Time since last frame in seconds.

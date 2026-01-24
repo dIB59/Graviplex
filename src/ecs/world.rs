@@ -255,6 +255,7 @@ pub struct EntityBuilder<'w> {
 
 impl<'w> EntityBuilder<'w> {
     /// Adds a component to the entity being built.
+    #[allow(clippy::should_implement_trait)]
     pub fn add<T: hecs::Component>(mut self, component: T) -> Self {
         self.builder.add(component);
         self

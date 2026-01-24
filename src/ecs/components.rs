@@ -448,7 +448,7 @@ impl Default for PlayerController {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpriteAnimation {
     /// Prefix for frame names (frames are named "{prefix}_0", "{prefix}_1", etc.)
-    pub prefix: &'static str,
+    pub prefix: String,
     /// Total number of frames in the animation
     pub frame_count: u32,
     /// Current frame index (0-based)
@@ -467,9 +467,9 @@ impl SpriteAnimation {
     /// Create a new animation with the given prefix and frame count.
     ///
     /// Default settings: 10 FPS, looping, playing.
-    pub fn new(prefix: &'static str, frame_count: u32) -> Self {
+    pub fn new(prefix: impl Into<String>, frame_count: u32) -> Self {
         Self {
-            prefix,
+            prefix: prefix.into(),
             frame_count,
             current_frame: 0,
             elapsed: 0.0,
@@ -593,14 +593,12 @@ mod tests {
     #[test]
     fn test_sprite_texture_shape() {
         let texture_sprite = Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE);
-        let name ="player".to_string();
-        assert!(matches!(
-            texture_sprite.shape,
-            SpriteShape::Texture {
-                region_name: name,
-                ..
-            }
-        ));
+        if let SpriteShape::Texture { region_name, size } = &texture_sprite.shape {
+            assert_eq!(region_name, "player");
+            assert_eq!(*size, Vec2::new(64.0, 64.0));
+        } else {
+            panic!("Expected Texture shape");
+        }
         assert_eq!(texture_sprite.color, Color::WHITE);
         assert_eq!(texture_sprite.z_order, 0);
     }

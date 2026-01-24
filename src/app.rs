@@ -421,6 +421,7 @@ impl<T: GameLoop> App<T> {
         }
 
         self.time.update();
+        self.input.begin_frame();
 
         // Check for timed exit
         if let Some(exit_time) = self.exit_time {
