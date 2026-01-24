@@ -83,10 +83,24 @@ pub use renderer::{Camera2D, CameraController};
 // Graphics device (for advanced users creating custom buffers/pipelines)
 pub use renderer::Graphics;
 
-// ECS
+// ECS - Core types
 pub use ecs::{
     Acceleration, BodyType, Despawn, Entity, Gravity, Health, Lifetime, Name, Resources, RigidBody,
     Sprite, SpriteShape, Tags, Transform, Velocity, Visible, World,
+};
+
+// ECS - New architecture (Schedule-based systems)
+pub use ecs::{
+    // System parameters
+    Res, ResMut, Local,
+    // System trait and conversion
+    IntoSystem, SystemTrait,
+    // Schedule and stages
+    CoreStage, Schedule, StartupSchedule,
+    // Commands
+    Commands, CommandQueue,
+    // Change detection
+    Changed, Added, Tick,
 };
 
 // Scene Management
