@@ -1,5 +1,6 @@
 //! Map Editor Plugin for easy integration.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use image::GenericImageView;
@@ -46,6 +47,10 @@ pub struct MapEditorPlugin {
     asset_config: AssetConfigFile,
     /// Path to the asset config file.
     asset_config_path: Option<String>,
+    /// Set of texture names that are available in the atlas.
+    /// If Some, only textures in this set will be registered.
+    /// If None, all textures found will be registered.
+    available_textures: Option<HashSet<String>>,
 }
 
 /// Information about a potential sprite sheet that needs configuration.
@@ -84,6 +89,7 @@ impl MapEditorPlugin {
             pending_sprite_sheets: Vec::new(),
             asset_config: AssetConfigFile::new(),
             asset_config_path: None,
+            available_textures: None,
         }
     }
 
@@ -97,6 +103,7 @@ impl MapEditorPlugin {
             pending_sprite_sheets: Vec::new(),
             asset_config: AssetConfigFile::new(),
             asset_config_path: None,
+            available_textures: None,
         }
     }
 
@@ -127,6 +134,14 @@ impl MapEditorPlugin {
     /// Start with the editor disabled.
     pub fn disabled(mut self) -> Self {
         self.editor.config.enabled = false;
+        self
+    }
+
+    /// Set the available texture names from the atlas.
+    /// Only textures in this set will be shown in the palette.
+    /// Call this before `with_asset_folder` to filter which textures are registered.
+    pub fn with_available_textures(mut self, textures: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.available_textures = Some(textures.into_iter().map(|s| s.into()).collect());
         self
     }
 
@@ -206,6 +221,14 @@ impl MapEditorPlugin {
                     if let Some(file_name) = entry_path.file_stem().and_then(|n| n.to_str()) {
                         // Get relative path for texture name
                         let texture_path = entry_path.to_string_lossy().to_string();
+                        
+                        // Skip textures not in atlas (if filter is set)
+                        if let Some(ref available) = self.available_textures {
+                            if !available.contains(&texture_path) {
+                                println!("[MapEditor] Skipping (not in atlas): {}", texture_path);
+                                continue; // Skip - not in atlas
+                            }
+                        }
                         
                         // Format display name nicely
                         let display_name = file_name
@@ -533,6 +556,7 @@ impl MapEditorPlugin {
     fn render_objects(&self, draw: &mut DrawContext) {
         for obj in self.editor.objects() {
             if let Some(object_def) = self.editor.palette.get_object(&obj.object_type) {
+                
                 let is_selected = obj.selected;
                 let is_hovered = self.editor.state.hovered == Some(obj.id);
                 
@@ -607,6 +631,18 @@ impl MapEditorPlugin {
                         // Try to render the actual texture
                         #[cfg(feature = "textures")]
                         {
+                            // Debug: print every frame until we find what's wrong
+                            static DEBUG_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                            let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            if count < 5 {
+                                println!("[DEBUG] Looking for texture: '{}'", texture_name);
+                                println!("[DEBUG] has_texture result: {}", draw.has_texture(texture_name));
+                                // Also try to list what textures ARE available
+                                if count == 0 {
+                                    println!("[DEBUG] Checking if atlas exists...");
+                                }
+                            }
+                            
                             if draw.has_texture(texture_name) {
                                 draw.texture_ex(
                                     texture_name,

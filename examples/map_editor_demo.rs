@@ -30,9 +30,12 @@ fn main() {
 fn main() {
     // Build atlas with sprites from assets folder
     #[cfg(feature = "textures")]
-    let atlas = build_atlas_from_assets();
+    let (atlas, texture_names) = build_atlas_from_assets();
     
-    let mut app = App::build(EditorDemo::new())
+    #[cfg(not(feature = "textures"))]
+    let texture_names: Vec<String> = Vec::new();
+    
+    let mut app = App::build(EditorDemo::new(texture_names))
         .title("Map Editor Demo - Press F1 or ` to toggle editor")
         .size(1280, 720);
     
@@ -46,7 +49,7 @@ fn main() {
 }
 
 #[cfg(all(feature = "gui", feature = "textures"))]
-fn build_atlas_from_assets() -> graviplex::prelude::AtlasBuilder {
+fn build_atlas_from_assets() -> (graviplex::prelude::AtlasBuilder, Vec<String>) {
     use graviplex::prelude::AtlasBuilder;
     use image::GenericImageView;
     use std::fs;
@@ -76,7 +79,7 @@ fn build_atlas_from_assets() -> graviplex::prelude::AtlasBuilder {
     
     // Filter to only valid images and collect their sizes
     // Skip large sprite sheets that won't fit in atlas
-    let max_texture_size = 1024; // Skip textures larger than this (likely sprite sheets)
+    let max_texture_size = 512; // Reduced from 4092 to fit in atlas
     let valid_images: Vec<_> = images.into_iter()
         .filter_map(|(name, path)| {
             // Try to open the image to verify it's valid
@@ -99,6 +102,15 @@ fn build_atlas_from_assets() -> graviplex::prelude::AtlasBuilder {
     
     println!("[Atlas] Loading {} textures (filtered to max {}x{})...", valid_images.len(), max_texture_size, max_texture_size);
     
+    // Collect texture names for the editor
+    let texture_names: Vec<String> = valid_images.iter().map(|(name, _)| name.clone()).collect();
+    
+    // Debug: print first few texture names
+    println!("[Atlas] First 5 texture names:");
+    for name in texture_names.iter().take(5) {
+        println!("  - '{}'", name);
+    }
+    
     // Build the atlas with all valid images
     // Since we pre-validated with image::open(), add_image should never fail
     let mut builder = AtlasBuilder::new();
@@ -107,7 +119,7 @@ fn build_atlas_from_assets() -> graviplex::prelude::AtlasBuilder {
             .expect("Pre-validated image should load successfully");
     }
     
-    builder
+    (builder, texture_names)
 }
 
 /// Asset type selection for the configuration dialog
@@ -148,7 +160,7 @@ struct EditorDemo {
 
 #[cfg(feature = "gui")]
 impl EditorDemo {
-    fn new() -> Self {
+    fn new(available_textures: Vec<String>) -> Self {
         // Configure the editor
         let config = EditorConfig {
             enabled: true, // Start with editor enabled
@@ -164,7 +176,9 @@ impl EditorDemo {
         };
 
         // Create plugin with asset directory scanning
+        // Only show textures that are actually in the atlas
         let editor_plugin = MapEditorPlugin::with_config(config)
+            .with_available_textures(available_textures)
             .with_asset_dir("assets")
             .enabled();
 
@@ -747,7 +761,7 @@ impl GameLoop for EditorDemo {
         
         // Show help window
         egui::Window::new("📖 Help")
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 10.0))
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 20.0))
             .collapsible(true)
             .default_open(false)
             .show(ctx, |ui| {
