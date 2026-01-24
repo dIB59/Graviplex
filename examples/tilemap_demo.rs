@@ -331,6 +331,7 @@ fn main() {
         .title("Graviplex Tilemap Demo - Tiny Swords")
         .size(1280, 960)
         .camera(CameraConfig::centered().with_scale(1.0))
+        .add_plugin(FpsPlugin::detailed())
         .run()
         .unwrap();
 }

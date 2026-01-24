@@ -35,7 +35,12 @@ pub use crate::input::InputState;
 pub use crate::renderer::{Camera2D, CameraFollow};
 
 // Stats
-pub use crate::core::stats::AppStats;
+pub use crate::core::stats::{AppStats, FpsCounter, FpsDisplayConfig};
+
+// Plugins
+pub use crate::plugin::Plugin;
+#[cfg(feature = "gui")]
+pub use crate::plugin::FpsPlugin;
 
 // Graphics (renamed from GpuContext)
 pub use crate::renderer::Graphics;

@@ -9,6 +9,7 @@ use winit::window::{Window, WindowId};
 use crate::core::time::Time;
 use crate::ecs::{Resources, World};
 use crate::input::InputState;
+use crate::plugin::{Plugin, PluginRegistry};
 use crate::renderer::{
     Camera2D, CameraController, CirclePipeline, DrawContext, LinePipeline,
 };
@@ -45,8 +46,8 @@ impl Default for CameraConfig {
             scale: 10.0,
             zoom_speed: 1.1,
             move_speed: 250.0,
-            min_zoom: 0.0001,
-            max_zoom: 10.0,
+            min_zoom: 1.0,
+            max_zoom: 5.0,
         }
     }
 }
@@ -116,6 +117,7 @@ pub struct AppBuilder<T: GameLoop> {
     vsync: bool,
     camera_config: CameraConfig,
     exit_time: Option<f32>,
+    plugins: PluginRegistry,
     #[cfg(feature = "textures")]
     atlas_builder: Option<AtlasBuilder>,
     #[cfg(feature = "textures")]
@@ -133,6 +135,7 @@ impl<T: GameLoop> AppBuilder<T> {
             vsync: false,
             camera_config: CameraConfig::default(),
             exit_time: None,
+            plugins: PluginRegistry::new(),
             #[cfg(feature = "textures")]
             atlas_builder: None,
             #[cfg(feature = "textures")]
@@ -168,6 +171,26 @@ impl<T: GameLoop> AppBuilder<T> {
     /// Set an automatic exit time (useful for testing/benchmarking).
     pub fn exit_after(mut self, seconds: f32) -> Self {
         self.exit_time = Some(seconds);
+        self
+    }
+
+    /// Add a plugin to the application.
+    ///
+    /// Plugins can hook into the game loop to provide additional functionality.
+    /// Built-in plugins include `FpsPlugin` for displaying performance stats.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use graviplex::prelude::*;
+    /// use graviplex::plugin::FpsPlugin;
+    ///
+    /// App::build(MyGame::new())
+    ///     .add_plugin(FpsPlugin::default())
+    ///     .run()
+    /// ```
+    pub fn add_plugin<P: Plugin>(mut self, plugin: P) -> Self {
+        self.plugins.add(plugin);
         self
     }
 
@@ -220,6 +243,7 @@ impl<T: GameLoop> AppBuilder<T> {
                 .with_zoom_range(self.camera_config.min_zoom, self.camera_config.max_zoom),
             time: Time::new(),
             input: InputState::new(),
+            plugins: self.plugins,
             #[cfg(feature = "gui")]
             gui: None,
             #[cfg(feature = "gui")]
@@ -290,6 +314,7 @@ pub struct App<T: GameLoop> {
     camera_controller: CameraController,
     time: Time,
     input: InputState,
+    plugins: PluginRegistry,
     #[cfg(feature = "gui")]
     gui: Option<Gui>,
     #[cfg(feature = "gui")]
@@ -339,6 +364,7 @@ impl<T: GameLoop> App<T> {
             #[cfg(feature = "textures")]
             atlas_size: 2048,
             exit_time: None,
+            plugins: PluginRegistry::new(),
             config: AppConfig {
                 title: "Graviplex".to_string(),
                 width: 1200,
@@ -426,6 +452,9 @@ impl<T: GameLoop> App<T> {
 
         // Update game with world and resources
         self.game.update(&mut self.world, &resources);
+        
+        // Update plugins
+        self.plugins.update(&mut self.world, &self.time);
 
         let Ok(frame) = self.gpu.get_current_frame() else {
             return;
@@ -457,6 +486,9 @@ impl<T: GameLoop> App<T> {
             };
 
             self.game.render(&self.world, &mut draw);
+            
+            // Render plugins
+            self.plugins.render(&self.world, &mut draw);
 
             // Automatically flush at the end of the frame
             draw.flush();
@@ -480,7 +512,11 @@ impl<T: GameLoop> App<T> {
         // Let game add GUI elements
         gui.begin_frame(window);
         self.game.gui(gui.ctx());
-        let full = gui.end_frame(self.time.fps());
+        
+        // Let plugins add their GUI elements
+        self.plugins.gui(gui.ctx(), self.time.fps_counter());
+        
+        let full = gui.end_frame(self.time.fps_counter());
 
         ui_renderer.handle_textures(full.textures_delta);
         let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
@@ -564,6 +600,9 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
 
         // Initialize game with world and GPU context
         self.game.init(&mut self.world, &self.gpu);
+        
+        // Initialize plugins
+        self.plugins.init(&mut self.world);
 
         self.window = Some(window);
     }

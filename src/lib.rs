@@ -31,11 +31,13 @@
 //! - [`renderer`] - Drawing context, pipelines, camera
 //! - [`input`] - Keyboard and mouse input handling
 //! - [`gui`] - egui integration (feature-gated)
+//! - [`plugin`] - Plugin system for extensibility
 
 // Public modules
 pub mod core;
 pub mod ecs;
 pub mod input;
+pub mod plugin;
 pub mod prelude;
 pub mod renderer;
 

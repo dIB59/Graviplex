@@ -3,10 +3,13 @@
 //! This module is feature-gated behind the `gui` feature (enabled by default).
 //!
 //! Games can implement the `GameLoop::gui()` method to add custom UI elements.
+//! For FPS display, use the `FpsPlugin` from `graviplex::plugin`.
 
 pub mod gui_renderer;
 
 pub use gui_renderer::UiPipeline as EguiRenderer;
+
+use crate::core::stats::FpsCounter;
 
 /// Gui wrapper for egui integration.
 /// Games add their own UI via the GameLoop::gui() method.
@@ -59,14 +62,10 @@ impl Gui {
     }
 
     /// End a frame (call after GameLoop::gui).
-    pub fn end_frame(&mut self, fps: f32) -> GuiOutput {
-        // Show FPS in corner
-        egui::Area::new(egui::Id::new("fps_counter"))
-            .fixed_pos(egui::pos2(10.0, 10.0))
-            .show(&self.ctx, |ui| {
-                ui.label(format!("FPS: {:.1}", fps));
-            });
-
+    /// 
+    /// Note: FPS display is now handled by `FpsPlugin`. Add it via
+    /// `.add_plugin(FpsPlugin::default())` on your `AppBuilder`.
+    pub fn end_frame(&mut self, _fps_counter: &FpsCounter) -> GuiOutput {
         let output = self.ctx.end_pass();
         GuiOutput {
             shapes: output.shapes,
