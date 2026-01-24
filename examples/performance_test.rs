@@ -2,7 +2,6 @@
 
 use graviplex::prelude::*;
 use graviplex::advanced::CircleInstance;
-use wgpu::util::DeviceExt;
 
 struct PerfTestGame {
     particle_buffer: Option<wgpu::Buffer>,
@@ -24,13 +23,11 @@ impl GameLoop for PerfTestGame {
             ));
         }
 
-        let buffer = gfx
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("1M Particle Buffer"),
-                contents: bytemuck::cast_slice(&instances),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
-            });
+        let buffer = gfx.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("1M Particle Buffer"),
+            contents: bytemuck::cast_slice(&instances),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+        });
         self.particle_buffer = Some(buffer);
     }
 

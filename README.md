@@ -68,10 +68,10 @@ use graviplex::advanced::CircleInstance;
 
 fn init(&mut self, gfx: &Graphics) {
     let instances: Vec<CircleInstance> = /* generate particles */;
-    self.buffer = gfx.device.create_buffer_init(&BufferInitDescriptor {
+    self.buffer = gfx.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Particles"),
         contents: bytemuck::cast_slice(&instances),
-        usage: BufferUsages::VERTEX | BufferUsages::STORAGE,
-        ..Default::default()
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
     });
 }
 

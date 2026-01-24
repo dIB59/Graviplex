@@ -20,6 +20,9 @@ use crate::gui::gui_renderer::UiPipeline;
 #[cfg(feature = "gui")]
 use crate::gui::Gui;
 
+#[cfg(feature = "textures")]
+use crate::renderer::{SpritePipeline, TextureAtlas, AtlasBuilder};
+
 // =============================================================================
 // APP CONFIGURATION
 // =============================================================================
@@ -113,6 +116,10 @@ pub struct AppBuilder<T: GameLoop> {
     vsync: bool,
     camera_config: CameraConfig,
     exit_time: Option<f32>,
+    #[cfg(feature = "textures")]
+    atlas_builder: Option<AtlasBuilder>,
+    #[cfg(feature = "textures")]
+    atlas_size: u32,
 }
 
 impl<T: GameLoop> AppBuilder<T> {
@@ -126,6 +133,10 @@ impl<T: GameLoop> AppBuilder<T> {
             vsync: false,
             camera_config: CameraConfig::default(),
             exit_time: None,
+            #[cfg(feature = "textures")]
+            atlas_builder: None,
+            #[cfg(feature = "textures")]
+            atlas_size: 2048,
         }
     }
 
@@ -160,6 +171,37 @@ impl<T: GameLoop> AppBuilder<T> {
         self
     }
 
+    /// Register a texture atlas for automatic texture sprite rendering.
+    ///
+    /// When an atlas is registered, `draw.render_world(world)` will automatically
+    /// render texture sprites without any additional code.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// App::build(MyGame::new())
+    ///     .atlas(
+    ///         AtlasBuilder::new()
+    ///             .add_image("player", "assets/player.png")?
+    ///             .add_gradient("enemy", 32, 32, [255, 0, 0, 255], [128, 0, 0, 255])
+    ///     )
+    ///     .run()
+    /// ```
+    #[cfg(feature = "textures")]
+    pub fn atlas(mut self, builder: AtlasBuilder) -> Self {
+        self.atlas_builder = Some(builder);
+        self
+    }
+
+    /// Set the texture atlas size (default: 2048).
+    ///
+    /// Larger sizes allow more textures but use more GPU memory.
+    #[cfg(feature = "textures")]
+    pub fn atlas_size(mut self, size: u32) -> Self {
+        self.atlas_size = size;
+        self
+    }
+
     /// Build and run the application.
     pub fn run(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
         let app = App {
@@ -184,6 +226,14 @@ impl<T: GameLoop> AppBuilder<T> {
             gui_renderer: None,
             circle_pipeline: None,
             line_pipeline: None,
+            #[cfg(feature = "textures")]
+            sprite_pipeline: None,
+            #[cfg(feature = "textures")]
+            texture_atlas: None,
+            #[cfg(feature = "textures")]
+            pending_atlas_builder: self.atlas_builder,
+            #[cfg(feature = "textures")]
+            atlas_size: self.atlas_size,
             exit_time: self.exit_time,
             config: AppConfig {
                 title: self.title,
@@ -246,6 +296,14 @@ pub struct App<T: GameLoop> {
     gui_renderer: Option<UiPipeline>,
     circle_pipeline: Option<CirclePipeline>,
     line_pipeline: Option<LinePipeline>,
+    #[cfg(feature = "textures")]
+    sprite_pipeline: Option<SpritePipeline>,
+    #[cfg(feature = "textures")]
+    texture_atlas: Option<TextureAtlas>,
+    #[cfg(feature = "textures")]
+    pending_atlas_builder: Option<AtlasBuilder>,
+    #[cfg(feature = "textures")]
+    atlas_size: u32,
     exit_time: Option<f32>,
     config: AppConfig,
 }
@@ -272,6 +330,14 @@ impl<T: GameLoop> App<T> {
             gui_renderer: None,
             circle_pipeline: None,
             line_pipeline: None,
+            #[cfg(feature = "textures")]
+            sprite_pipeline: None,
+            #[cfg(feature = "textures")]
+            texture_atlas: None,
+            #[cfg(feature = "textures")]
+            pending_atlas_builder: None,
+            #[cfg(feature = "textures")]
+            atlas_size: 2048,
             exit_time: None,
             config: AppConfig {
                 title: "Graviplex".to_string(),
@@ -363,12 +429,24 @@ impl<T: GameLoop> App<T> {
         if let (Some(circle_pipeline), Some(line_pipeline)) =
             (&mut self.circle_pipeline, &mut self.line_pipeline)
         {
+            // Get optional sprite resources
+            #[cfg(feature = "textures")]
+            let (sprite_pipeline, texture_atlas) = {
+                let sp = self.sprite_pipeline.as_mut();
+                let ta = self.texture_atlas.as_ref();
+                (sp, ta)
+            };
+
             let mut draw = DrawContext {
                 gpu: &self.gpu,
                 view: &view,
                 camera: &self.camera,
                 circle_pipeline,
                 line_pipeline,
+                #[cfg(feature = "textures")]
+                sprite_pipeline,
+                #[cfg(feature = "textures")]
+                texture_atlas,
             };
 
             self.game.render(&self.world, &mut draw);
@@ -400,7 +478,7 @@ impl<T: GameLoop> App<T> {
         ui_renderer.handle_textures(full.textures_delta);
         let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
 
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let mut encoder = self.gpu.raw_device().create_command_encoder(&Default::default());
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
 
@@ -412,7 +490,7 @@ impl<T: GameLoop> App<T> {
             physical_size,
             scale_factor as f32,
         );
-        self.gpu.queue.submit(std::iter::once(encoder.finish()));
+        self.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
     }
 }
 
@@ -437,35 +515,45 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         let size = window.inner_size();
         self.camera.screen_size = [size.width as f32, size.height as f32];
 
-        let format = self
-            .gpu
-            .config
-            .as_ref()
-            .expect("Unable to get TextureFormat")
-            .format;
+        let format = self.gpu.surface_format();
 
         #[cfg(feature = "gui")]
         {
             let mut gui = Gui::new(event_loop);
             let initial_output = gui.run_empty(&window);
-            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
+            let mut ui_pipeline = UiPipeline::new(self.gpu.raw_device(), self.gpu.raw_queue(), format);
             ui_pipeline.handle_textures(initial_output.textures_delta);
             self.gui = Some(gui);
             self.gui_renderer = Some(ui_pipeline);
         }
 
         // Initialize standard pipelines
-        let circle_pipeline = CirclePipeline::new(&self.gpu.device, format, &self.camera);
+        let circle_pipeline = CirclePipeline::new(self.gpu.raw_device(), format, &self.camera);
         let line_pipeline = LinePipeline::new(
             "Default",
             wgpu::include_wgsl!("shaders/line_shader.wgsl"),
-            &self.gpu.device,
+            self.gpu.raw_device(),
             format,
             &self.camera,
         );
 
         self.circle_pipeline = Some(circle_pipeline);
         self.line_pipeline = Some(line_pipeline);
+
+        // Initialize texture atlas and sprite pipeline if configured
+        #[cfg(feature = "textures")]
+        if let Some(atlas_builder) = self.pending_atlas_builder.take() {
+            match self.gpu.build_atlas(atlas_builder, self.atlas_size) {
+                Ok(atlas) => {
+                    let sprite_pipeline = self.gpu.create_sprite_pipeline(&atlas);
+                    self.texture_atlas = Some(atlas);
+                    self.sprite_pipeline = Some(sprite_pipeline);
+                }
+                Err(e) => {
+                    log::error!("Failed to build texture atlas: {e}");
+                }
+            }
+        }
 
         // Initialize game with world and GPU context
         self.game.init(&mut self.world, &self.gpu);

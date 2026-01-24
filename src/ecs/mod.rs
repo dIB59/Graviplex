@@ -55,6 +55,10 @@ pub use resources::Resources;
 pub use systems::{despawn_system, lifetime_system, movement_system, run_systems};
 pub use world::{EntityBuilder, World};
 
+// Re-export hecs traits needed for queries and components
+// This allows users to write `use graviplex::ecs::Query` instead of importing hecs
+pub use hecs::{Component, Query, Ref, RefMut};
+
 /// Re-export systems module for namespaced access: `ecs::systems::movement()`
 pub mod prelude {
     pub use super::components::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};

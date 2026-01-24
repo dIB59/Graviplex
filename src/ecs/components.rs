@@ -212,6 +212,19 @@ impl Sprite {
         }
     }
 
+    /// Creates a textured sprite from an atlas region.
+    ///
+    /// The `region_name` must match a region in the texture atlas.
+    /// The `size` is the display size in world units.
+    /// The `tint` color is multiplied with the texture color (use WHITE for no tint).
+    pub fn texture(region_name: &'static str, size: Vec2, tint: Color) -> Self {
+        Self {
+            shape: SpriteShape::Texture { region_name, size },
+            color: tint,
+            z_order: 0,
+        }
+    }
+
     /// Sets the z-order (draw order).
     pub fn with_z_order(mut self, z_order: i32) -> Self {
         self.z_order = z_order;
@@ -240,6 +253,23 @@ pub enum SpriteShape {
     Rect { size: Vec2 },
     /// Line from entity position to position + end_offset.
     Line { end_offset: Vec2 },
+    /// Textured sprite from an atlas region.
+    ///
+    /// The `region_name` is an index or hash that maps to an [`AtlasRegion`].
+    /// Use with [`TextureAtlas`] for efficient batched rendering.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Create a textured sprite using the convenience constructor
+    /// let sprite = Sprite::texture("player", Vec2::new(32.0, 32.0), Color::WHITE);
+    /// ```
+    Texture {
+        /// Name of the region in the texture atlas.
+        region_name: &'static str,
+        /// Display size in world units.
+        size: Vec2,
+    },
 }
 
 // =============================================================================
@@ -362,6 +392,99 @@ mod tests {
 
         let rect = Sprite::rect(100.0, 50.0, Color::BLUE);
         assert!(matches!(rect.shape, SpriteShape::Rect { .. }));
+    }
+
+    #[test]
+    fn test_sprite_texture_shape() {
+        let texture_sprite = Sprite::texture("player", Vec2::new(64.0, 64.0), Color::WHITE);
+
+        assert!(matches!(
+            texture_sprite.shape,
+            SpriteShape::Texture {
+                region_name: "player",
+                ..
+            }
+        ));
+        assert_eq!(texture_sprite.color, Color::WHITE);
+        assert_eq!(texture_sprite.z_order, 0);
+    }
+
+    #[test]
+    fn test_sprite_texture_with_tint() {
+        let tinted = Sprite::texture("enemy", Vec2::new(32.0, 32.0), Color::RED);
+
+        assert_eq!(tinted.color, Color::RED);
+        if let SpriteShape::Texture { region_name, size } = tinted.shape {
+            assert_eq!(region_name, "enemy");
+            assert_eq!(size, Vec2::new(32.0, 32.0));
+        } else {
+            panic!("Expected Texture shape");
+        }
+    }
+
+    #[test]
+    fn test_sprite_texture_with_z_order() {
+        let sprite = Sprite::texture("bullet", Vec2::new(8.0, 8.0), Color::rgb(1.0, 1.0, 0.0)).with_z_order(100);
+
+        assert_eq!(sprite.z_order, 100);
+    }
+
+    #[test]
+    fn test_sprite_shape_all_variants() {
+        // Ensure all variants can be constructed and matched
+        let shapes = vec![
+            SpriteShape::Circle { radius: 10.0 },
+            SpriteShape::Rect {
+                size: Vec2::new(20.0, 30.0),
+            },
+            SpriteShape::Line {
+                end_offset: Vec2::new(50.0, 0.0),
+            },
+            SpriteShape::Texture {
+                region_name: "test",
+                size: Vec2::new(32.0, 32.0),
+            },
+        ];
+
+        assert_eq!(shapes.len(), 4);
+
+        for shape in shapes {
+            match shape {
+                SpriteShape::Circle { radius } => assert!(radius > 0.0),
+                SpriteShape::Rect { size } => assert!(size.x > 0.0 && size.y > 0.0),
+                SpriteShape::Line { end_offset } => assert!(end_offset.length() > 0.0),
+                SpriteShape::Texture { region_name, size } => {
+                    assert!(!region_name.is_empty());
+                    assert!(size.x > 0.0 && size.y > 0.0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_sprite_shape_partial_eq() {
+        let shape1 = SpriteShape::Circle { radius: 10.0 };
+        let shape2 = SpriteShape::Circle { radius: 10.0 };
+        let shape3 = SpriteShape::Circle { radius: 20.0 };
+
+        assert_eq!(shape1, shape2);
+        assert_ne!(shape1, shape3);
+
+        let tex1 = SpriteShape::Texture {
+            region_name: "player",
+            size: Vec2::new(32.0, 32.0),
+        };
+        let tex2 = SpriteShape::Texture {
+            region_name: "player",
+            size: Vec2::new(32.0, 32.0),
+        };
+        let tex3 = SpriteShape::Texture {
+            region_name: "enemy",
+            size: Vec2::new(32.0, 32.0),
+        };
+
+        assert_eq!(tex1, tex2);
+        assert_ne!(tex1, tex3);
     }
 
     #[test]

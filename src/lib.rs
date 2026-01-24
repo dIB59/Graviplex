@@ -100,6 +100,12 @@ pub mod advanced {
         ShaderPipeline, Vertex,
     };
 
+    #[cfg(feature = "textures")]
+    pub use crate::renderer::{
+        AtlasBuilder, AtlasError, AtlasRegion, SpriteInstance, SpriteInstanceGpu, SpritePipeline,
+        TextureAtlas,
+    };
+
     #[cfg(feature = "physics")]
     pub use crate::physics::PhysicsInstance;
 }

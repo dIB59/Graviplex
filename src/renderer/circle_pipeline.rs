@@ -116,7 +116,7 @@ impl CirclePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
+        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
 
         // Upload defaults if not done (though we could just do it once in new)
         let vertices = [
@@ -127,20 +127,14 @@ impl CirclePipeline {
             Vertex { pos: [1.0, -1.0] },
             Vertex { pos: [1.0, 1.0] },
         ];
-        state
-            .gpu
-            .queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        state.gpu.queue.write_buffer(
+        state.gpu.raw_queue().write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        state.gpu.raw_queue().write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&self.staging_instances),
         );
 
-        let mut encoder = state
-            .gpu
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Circle Batch Encoder"),
             });
 
@@ -168,7 +162,7 @@ impl CirclePipeline {
             rpass.draw(0..6, 0..self.staging_instances.len() as u32);
         }
 
-        state.gpu.queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
         self.staging_instances.clear();
     }
 
@@ -184,7 +178,7 @@ impl CirclePipeline {
             return;
         }
 
-        self.camera_gpu_data.update(&state.gpu.queue, state.camera);
+        self.camera_gpu_data.update(&state.gpu.raw_queue(), state.camera);
 
         let vertices = [
             Vertex { pos: [-1.0, -1.0] },
@@ -194,15 +188,9 @@ impl CirclePipeline {
             Vertex { pos: [1.0, -1.0] },
             Vertex { pos: [1.0, 1.0] },
         ];
-        state
-            .gpu
-            .queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        state.gpu.raw_queue().write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
-        let mut encoder = state
-            .gpu
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
+        let mut encoder = state.gpu.raw_device().create_command_encoder(&CommandEncoderDescriptor {
                 label: Some("Circle Render (External) Encoder"),
             });
 
@@ -230,7 +218,7 @@ impl CirclePipeline {
             rpass.draw(0..6, 0..instance_count);
         }
 
-        state.gpu.queue.submit(std::iter::once(encoder.finish()));
+        state.gpu.raw_queue().submit(std::iter::once(encoder.finish()));
     }
 
     pub fn camera_gpu_data(&self) -> &CameraGpuData {

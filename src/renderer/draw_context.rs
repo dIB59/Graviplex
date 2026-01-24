@@ -11,6 +11,9 @@ use wgpu::*;
 use super::gpu_context;
 use super::line_pipeline::LineInstance;
 
+#[cfg(feature = "textures")]
+use super::{SpritePipeline, TextureAtlas};
+
 // =============================================================================
 // CIRCLE DRAWING PARAMS - Flexible input types
 // =============================================================================
@@ -143,6 +146,10 @@ pub struct DrawContext<'a> {
     pub(crate) camera: &'a Camera2D,
     pub(crate) circle_pipeline: &'a mut CirclePipeline,
     pub(crate) line_pipeline: &'a mut LinePipeline,
+    #[cfg(feature = "textures")]
+    pub(crate) sprite_pipeline: Option<&'a mut SpritePipeline>,
+    #[cfg(feature = "textures")]
+    pub(crate) texture_atlas: Option<&'a TextureAtlas>,
 }
 
 impl<'a> DrawContext<'a> {
@@ -204,10 +211,11 @@ impl<'a> DrawContext<'a> {
     /// # Example
     ///
     /// ```ignore
-    /// let buffer = gfx.device.create_buffer_init(&BufferInitDescriptor {
+    /// use wgpu::util::DeviceExt;
+    /// let buffer = gfx.create_buffer_init(&wgpu::util::BufferInitDescriptor {
     ///     label: Some("Particles"),
     ///     contents: bytemuck::cast_slice(&instances),
-    ///     usage: BufferUsages::VERTEX | BufferUsages::STORAGE,
+    ///     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
     /// });
     /// draw.circles_from_buffer(&buffer, 1_000_000);
     /// ```
@@ -256,15 +264,28 @@ impl<'a> DrawContext<'a> {
     /// Render all visible entities from the ECS world.
     ///
     /// This method queries the world for all entities with [`Transform`], [`Sprite`],
-    /// and [`Visible`] components, then batches and renders them efficiently.
+    /// and [`Visible`] components, then renders them in z-order.
     ///
-    /// Entities are sorted by z_order (lower values rendered first, higher on top).
+    /// # Z-Ordering
+    ///
+    /// Entities are sorted by `z_order` (lower values rendered first = behind, higher = on top).
+    /// Z-ordering is respected across all sprite types - a circle with `z_order=5` will correctly
+    /// render behind a texture sprite with `z_order=10`, regardless of their types.
+    ///
+    /// Sprites with the same z-order are batched together for efficiency.
+    ///
+    /// # Texture Sprite Support
+    ///
+    /// When a texture atlas is registered via [`App::build().atlas()`], texture sprites
+    /// are rendered automatically. Without a registered atlas, texture sprites are skipped
+    /// with a warning.
     ///
     /// # Example
     ///
     /// ```ignore
     /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
-    ///     // Render all visible entities automatically
+    ///     // Render ALL visible entities automatically
+    ///     // (circles, rects, lines, AND texture sprites if atlas is registered)
     ///     draw.render_world(world);
     ///
     ///     // You can still draw additional shapes manually
@@ -282,11 +303,48 @@ impl<'a> DrawContext<'a> {
         // Sort by z_order (lower values first = rendered first = behind)
         renderables.sort_by_key(|(z, _, _)| *z);
 
-        // Batch by shape type for efficient rendering
+        // Track if we've warned about texture sprites (to avoid spam)
+        #[cfg(not(feature = "textures"))]
+        let mut texture_sprite_warning_shown = false;
+
+        // Build state for texture rendering (needed for flushing)
+        #[cfg(feature = "textures")]
+        let state = RenderState {
+            gpu: self.gpu,
+            view: self.view,
+            camera: self.camera,
+        };
+
+        // Batches for each primitive type
         let mut circle_batch: Vec<CircleInstance> = Vec::with_capacity(renderables.len());
         let mut line_batch: Vec<LineInstance> = Vec::with_capacity(renderables.len() / 4);
+        
+        // Track current z-order to know when to flush
+        let mut current_z: Option<i32> = None;
 
-        for (_, transform, sprite) in renderables {
+        for (z_order, transform, sprite) in &renderables {
+            // When z-order changes, flush all batches to maintain correct ordering
+            if current_z.is_some() && current_z != Some(*z_order) {
+                // Flush circles
+                if !circle_batch.is_empty() {
+                    self.circles(&circle_batch);
+                    circle_batch.clear();
+                }
+                // Flush lines
+                if !line_batch.is_empty() {
+                    self.lines(&line_batch);
+                    line_batch.clear();
+                }
+                // Flush texture sprites
+                #[cfg(feature = "textures")]
+                if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                    if sprite_pipeline.staging_count() > 0 {
+                        sprite_pipeline.flush(&state, atlas);
+                    }
+                }
+            }
+            current_z = Some(*z_order);
+
             match sprite.shape {
                 SpriteShape::Circle { radius } => {
                     // Apply transform scale to radius
@@ -321,16 +379,45 @@ impl<'a> DrawContext<'a> {
                         end: [end.x, end.y],
                         color: sprite.color.into(),
                     });
+                }   
+                SpriteShape::Texture { region_name, size } => {
+                    #[cfg(feature = "textures")]
+                    if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+                        if let Some(region) = atlas.get(region_name) {
+                            sprite_pipeline.draw(
+                                [transform.position.x, transform.position.y],
+                                [size.x * transform.scale.x, size.y * transform.scale.y],
+                                region.uv_rect(),
+                                sprite.color.into(),
+                                transform.rotation,
+                                *z_order,
+                            );
+                        }
+                    }
+                    #[cfg(not(feature = "textures"))]
+                    if !texture_sprite_warning_shown {
+                        log::warn!(
+                            "render_world() skips texture sprites - \
+                             enable the 'textures' feature and register an atlas via App::build().atlas()"
+                        );
+                        texture_sprite_warning_shown = true;
+                    }
                 }
             }
         }
 
-        // Flush batches
+        // Flush any remaining batches
         if !circle_batch.is_empty() {
             self.circles(&circle_batch);
         }
         if !line_batch.is_empty() {
             self.lines(&line_batch);
+        }
+        #[cfg(feature = "textures")]
+        if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
+            if sprite_pipeline.staging_count() > 0 {
+                sprite_pipeline.flush(&state, atlas);
+            }
         }
     }
 
@@ -376,6 +463,11 @@ impl<'a> DrawContext<'a> {
                     [end.x, end.y],
                     sprite.color.into(),
                 );
+            }
+            SpriteShape::Texture { .. } => {
+                // Texture sprites require SpritePipeline with atlas
+                // Use draw_sprite() or render_world_with_atlas() instead
+                log::warn!("Texture sprites not supported in render_entity(), use SpritePipeline");
             }
         }
     }
