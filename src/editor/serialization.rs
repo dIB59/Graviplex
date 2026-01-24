@@ -12,6 +12,76 @@ use crate::core::math::Vec2;
 
 use super::map_object::{PlacedObject, ObjectProperty, PropertyValue};
 
+/// Saved configuration for how an asset was imported.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub enum AssetConfig {
+    /// Single texture.
+    Texture,
+    /// Sprite sheet with frame count.
+    SpriteSheet { frames: u32 },
+    /// Tileset with columns, rows, and ignored tiles.
+    Tileset { columns: u32, rows: u32, ignored_tiles: Vec<u32> },
+    /// Skip this asset entirely.
+    Skip,
+}
+
+/// Saved asset configurations for a project.
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]
+pub struct AssetConfigFile {
+    /// Version for migration.
+    pub version: u32,
+    /// Map of file path -> configuration.
+    pub assets: HashMap<String, AssetConfig>,
+}
+
+impl AssetConfigFile {
+    /// Create a new empty config.
+    pub fn new() -> Self {
+        Self {
+            version: 1,
+            assets: HashMap::new(),
+        }
+    }
+    
+    /// Set configuration for an asset.
+    pub fn set(&mut self, path: impl Into<String>, config: AssetConfig) {
+        self.assets.insert(path.into(), config);
+    }
+    
+    /// Get configuration for an asset.
+    pub fn get(&self, path: &str) -> Option<&AssetConfig> {
+        self.assets.get(path)
+    }
+}
+
+/// Save asset configurations to a JSON file.
+#[cfg(feature = "serialize")]
+pub fn save_asset_config(path: impl AsRef<Path>, config: &AssetConfigFile) -> Result<(), MapError> {
+    let json = serde_json::to_string_pretty(config)?;
+    fs::write(path, json)?;
+    Ok(())
+}
+
+#[cfg(not(feature = "serialize"))]
+pub fn save_asset_config(_path: impl AsRef<Path>, _config: &AssetConfigFile) -> Result<(), MapError> {
+    Err(MapError::FeatureNotEnabled("serialize"))
+}
+
+/// Load asset configurations from a JSON file.
+#[cfg(feature = "serialize")]
+pub fn load_asset_config(path: impl AsRef<Path>) -> Result<AssetConfigFile, MapError> {
+    let json = fs::read_to_string(path)?;
+    let config = serde_json::from_str(&json)?;
+    Ok(config)
+}
+
+#[cfg(not(feature = "serialize"))]
+pub fn load_asset_config(_path: impl AsRef<Path>) -> Result<AssetConfigFile, MapError> {
+    Err(MapError::FeatureNotEnabled("serialize"))
+}
+
 /// Serializable map data format.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize, serde::Deserialize))]

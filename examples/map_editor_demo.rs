@@ -508,8 +508,8 @@ impl EditorDemo {
         
         // Handle dialog actions outside of the closure
         if skip {
-            // Remove from pending without registering
-            self.editor_plugin.pending_sprite_sheets.remove(0);
+            // Skip this asset and save that choice
+            self.editor_plugin.skip_sprite_sheet(0);
             self.sprite_sheet_dialog_index = None;
         } else if close_dialog {
             match self.dialog_asset_type {
@@ -569,6 +569,53 @@ impl GameLoop for EditorDemo {
         
         // Show sprite sheet configuration dialog if needed
         self.show_sprite_sheet_dialog(ctx);
+        
+        // File menu bar
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.menu_button("📁 File", |ui| {
+                    if ui.button("💾 Save Map...").clicked() {
+                        if let Err(e) = self.editor_plugin.editor_mut().save("map.json") {
+                            eprintln!("Failed to save map: {}", e);
+                        } else {
+                            println!("Map saved to map.json");
+                        }
+                        ui.close();
+                    }
+                    if ui.button("📂 Load Map...").clicked() {
+                        if let Err(e) = self.editor_plugin.editor_mut().load("map.json") {
+                            eprintln!("Failed to load map: {}", e);
+                        } else {
+                            println!("Map loaded from map.json");
+                        }
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui.button("🗑 Clear Map").clicked() {
+                        self.editor_plugin.editor_mut().clear();
+                        ui.close();
+                    }
+                });
+                
+                ui.menu_button("⚙️ Assets", |ui| {
+                    if ui.button("🔄 Reset Asset Config").clicked() {
+                        // Delete the asset config file to re-ask about all assets
+                        let _ = std::fs::remove_file("assets/.asset_config.json");
+                        println!("Asset config cleared. Restart to re-configure assets.");
+                        ui.close();
+                    }
+                    ui.separator();
+                    let pending_count = self.editor_plugin.pending_sprite_sheets.len();
+                    ui.label(format!("Pending: {} assets", pending_count));
+                });
+                
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if self.editor_plugin.editor().is_dirty() {
+                        ui.label("● Unsaved changes");
+                    }
+                });
+            });
+        });
         
         // Show help window
         egui::Window::new("📖 Help")

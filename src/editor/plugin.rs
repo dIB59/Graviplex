@@ -15,6 +15,7 @@ use crate::Time;
 
 use super::map_editor::{MapEditor, EditorConfig};
 use super::map_object::{MapObject, ObjectVisual};
+use super::serialization::{AssetConfig, AssetConfigFile, save_asset_config, load_asset_config};
 use super::tools::EditorTool;
 
 /// Map Editor Plugin - provides in-game level editing capabilities.
@@ -41,6 +42,10 @@ pub struct MapEditorPlugin {
     last_screen_size: [f32; 2],
     /// Pending sprite sheets that need user input for frame count.
     pub pending_sprite_sheets: Vec<PendingSpriteSheet>,
+    /// Saved asset configurations (to avoid re-configuring on each launch).
+    asset_config: AssetConfigFile,
+    /// Path to the asset config file.
+    asset_config_path: Option<String>,
 }
 
 /// Information about a potential sprite sheet that needs configuration.
@@ -77,6 +82,8 @@ impl MapEditorPlugin {
             assets_scanned: false,
             last_screen_size: [1280.0, 720.0],
             pending_sprite_sheets: Vec::new(),
+            asset_config: AssetConfigFile::new(),
+            asset_config_path: None,
         }
     }
 
@@ -88,12 +95,26 @@ impl MapEditorPlugin {
             assets_scanned: false,
             last_screen_size: [1280.0, 720.0],
             pending_sprite_sheets: Vec::new(),
+            asset_config: AssetConfigFile::new(),
+            asset_config_path: None,
         }
     }
 
     /// Set the asset directory to scan for textures.
     pub fn with_asset_dir(mut self, dir: impl Into<String>) -> Self {
-        self.asset_dir = Some(dir.into());
+        let dir_str = dir.into();
+        
+        // Set up the config file path
+        let config_path = format!("{}/.asset_config.json", dir_str);
+        
+        // Try to load existing config
+        if let Ok(config) = load_asset_config(&config_path) {
+            println!("[MapEditor] Loaded asset configuration ({} saved assets)", config.assets.len());
+            self.asset_config = config;
+        }
+        
+        self.asset_config_path = Some(config_path);
+        self.asset_dir = Some(dir_str);
         self
     }
 
@@ -191,6 +212,13 @@ impl MapEditorPlugin {
                             .replace('_', " ")
                             .replace('-', " ");
 
+                        // Check if we have saved config for this asset
+                        if let Some(saved_config) = self.asset_config.get(&texture_path) {
+                            // Use saved configuration
+                            self.apply_saved_asset_config(&texture_path, &display_name, category, saved_config.clone());
+                            continue;
+                        }
+
                         // Try to read image dimensions to detect sprite sheets
                         if let Ok(img) = image::open(&entry_path) {
                             let (width, height) = img.dimensions();
@@ -239,6 +267,59 @@ impl MapEditorPlugin {
         }
     }
     
+    /// Apply a saved asset configuration.
+    fn apply_saved_asset_config(&mut self, texture_path: &str, display_name: &str, category: &str, config: AssetConfig) {
+        // Read image dimensions
+        let Ok(img) = image::open(texture_path) else {
+            return;
+        };
+        let (width, height) = img.dimensions();
+        
+        match config {
+            AssetConfig::Texture => {
+                let size = Vec2::new(width as f32, height as f32);
+                let object = MapObject::texture(display_name, texture_path, size)
+                    .with_category(category);
+                println!("[MapEditor] Auto-loaded texture: {} ({})", display_name, category);
+                self.editor.register_object(object);
+            }
+            AssetConfig::SpriteSheet { frames } => {
+                let frame_width = width / frames;
+                let size = Vec2::new(frame_width as f32, height as f32);
+                let object = MapObject::sprite_sheet(display_name, texture_path, frames, size)
+                    .with_category(category);
+                println!("[MapEditor] Auto-loaded sprite sheet: {} ({} frames, {})", display_name, frames, category);
+                self.editor.register_object(object);
+            }
+            AssetConfig::Tileset { columns, rows, ignored_tiles } => {
+                let tile_width = width / columns;
+                let tile_height = height / rows;
+                let tile_size = Vec2::new(tile_width as f32, tile_height as f32);
+                let mut object = MapObject::tileset(display_name, texture_path, columns, rows, tile_size)
+                    .with_category(category);
+                if let ObjectVisual::Tileset { ignored_tiles: ref mut tiles, .. } = object.visual {
+                    *tiles = ignored_tiles;
+                }
+                println!("[MapEditor] Auto-loaded tileset: {} ({}x{}, {})", display_name, columns, rows, category);
+                self.editor.register_object(object);
+            }
+            AssetConfig::Skip => {
+                println!("[MapEditor] Skipped: {} (configured to skip)", display_name);
+            }
+        }
+    }
+    
+    /// Save the current asset configuration.
+    pub fn save_asset_config(&self) {
+        if let Some(ref path) = self.asset_config_path {
+            if let Err(e) = save_asset_config(path, &self.asset_config) {
+                eprintln!("[MapEditor] Failed to save asset config: {}", e);
+            } else {
+                println!("[MapEditor] Saved asset configuration to {}", path);
+            }
+        }
+    }
+    
     /// Process a pending sprite sheet with the user's frame count decision.
     pub fn resolve_sprite_sheet(&mut self, index: usize, frame_count: Option<u32>) {
         if index >= self.pending_sprite_sheets.len() {
@@ -246,6 +327,7 @@ impl MapEditorPlugin {
         }
         
         let pending = self.pending_sprite_sheets.remove(index);
+        let file_path = pending.file_path.clone();
         
         match frame_count {
             Some(0) | None => {
@@ -256,6 +338,10 @@ impl MapEditorPlugin {
                 
                 println!("[MapEditor] Registered as texture: {} ({})", pending.display_name, pending.category);
                 self.editor.register_object(object);
+                
+                // Save config
+                self.asset_config.set(&file_path, AssetConfig::Texture);
+                self.save_asset_config();
             }
             Some(frames) if frames > 0 => {
                 // User specified frame count - register as sprite sheet
@@ -267,9 +353,27 @@ impl MapEditorPlugin {
                 println!("[MapEditor] Registered as sprite sheet: {} ({} frames, {})", 
                     pending.display_name, frames, pending.category);
                 self.editor.register_object(object);
+                
+                // Save config
+                self.asset_config.set(&file_path, AssetConfig::SpriteSheet { frames });
+                self.save_asset_config();
             }
             _ => {}
         }
+    }
+    
+    /// Skip a pending sprite sheet (don't import it).
+    pub fn skip_sprite_sheet(&mut self, index: usize) {
+        if index >= self.pending_sprite_sheets.len() {
+            return;
+        }
+        
+        let pending = self.pending_sprite_sheets.remove(index);
+        println!("[MapEditor] Skipped: {}", pending.display_name);
+        
+        // Save skip config so we don't ask again
+        self.asset_config.set(&pending.file_path, AssetConfig::Skip);
+        self.save_asset_config();
     }
     
     /// Process a pending sprite sheet as a tileset with the user's column/row configuration.
@@ -279,6 +383,7 @@ impl MapEditorPlugin {
         }
         
         let pending = self.pending_sprite_sheets.remove(index);
+        let file_path = pending.file_path.clone();
         
         let tile_width = pending.width / columns;
         let tile_height = pending.height / rows;
@@ -290,6 +395,7 @@ impl MapEditorPlugin {
             .with_category(&pending.category);
         
         // Set ignored tiles
+        let ignored_tiles_clone = ignored_tiles.clone();
         if let ObjectVisual::Tileset { ignored_tiles: ref mut tiles, .. } = object.visual {
             *tiles = ignored_tiles;
         }
@@ -297,6 +403,10 @@ impl MapEditorPlugin {
         println!("[MapEditor] Registered as tileset: {} ({}x{} = {} tiles, {} usable, {})", 
             pending.display_name, columns, rows, total_tiles, usable_tiles, pending.category);
         self.editor.register_object(object);
+        
+        // Save config
+        self.asset_config.set(&file_path, AssetConfig::Tileset { columns, rows, ignored_tiles: ignored_tiles_clone });
+        self.save_asset_config();
     }
     
     /// Check if there are pending sprite sheets that need configuration.
