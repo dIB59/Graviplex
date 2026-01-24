@@ -258,6 +258,99 @@ impl<'a> DrawContext<'a> {
     }
 
     // =========================================================================
+    // TEXTURE DRAWING
+    // =========================================================================
+
+    /// Draw a texture at the specified position.
+    ///
+    /// Requires the `textures` feature and a registered texture atlas.
+    ///
+    /// # Arguments
+    /// * `texture_name` - Name of the texture region in the atlas
+    /// * `position` - World position (center of the texture)
+    /// * `size` - Size to render (or None to use the texture's original size)
+    /// * `tint` - Color tint to apply (use Color::WHITE for no tint)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// draw.texture("player", Vec2::new(100.0, 50.0), None, Color::WHITE);
+    /// draw.texture("enemy", Vec2::ZERO, Some(Vec2::new(64.0, 64.0)), Color::RED);
+    /// ```
+    #[cfg(feature = "textures")]
+    pub fn texture(
+        &mut self,
+        texture_name: &str,
+        position: impl Into<[f32; 2]>,
+        size: Option<impl Into<[f32; 2]>>,
+        tint: impl Into<[f32; 4]>,
+    ) {
+        let Some(sprite_pipeline) = &mut self.sprite_pipeline else {
+            return;
+        };
+        let Some(atlas) = &self.texture_atlas else {
+            return;
+        };
+        let Some(region) = atlas.get(texture_name) else {
+            return;
+        };
+
+        let pos = position.into();
+        let size = size.map(|s| s.into()).unwrap_or(region.size_f32());
+        let tint = tint.into();
+
+        sprite_pipeline.draw(pos, size, region.uv_rect(), tint, 0.0, 0);
+    }
+
+    /// Draw a texture with full control over parameters.
+    ///
+    /// # Arguments
+    /// * `texture_name` - Name of the texture region in the atlas
+    /// * `position` - World position (center of the texture)
+    /// * `size` - Size to render
+    /// * `tint` - Color tint
+    /// * `rotation` - Rotation in radians
+    /// * `z_order` - Draw order (lower values drawn first)
+    #[cfg(feature = "textures")]
+    pub fn texture_ex(
+        &mut self,
+        texture_name: &str,
+        position: impl Into<[f32; 2]>,
+        size: impl Into<[f32; 2]>,
+        tint: impl Into<[f32; 4]>,
+        rotation: f32,
+        z_order: i32,
+    ) {
+        let Some(sprite_pipeline) = &mut self.sprite_pipeline else {
+            return;
+        };
+        let Some(atlas) = &self.texture_atlas else {
+            return;
+        };
+        let Some(region) = atlas.get(texture_name) else {
+            return;
+        };
+
+        sprite_pipeline.draw(
+            position.into(),
+            size.into(),
+            region.uv_rect(),
+            tint.into(),
+            rotation,
+            z_order,
+        );
+    }
+
+    /// Check if a texture exists in the atlas.
+    #[cfg(feature = "textures")]
+    pub fn has_texture(&self, texture_name: &str) -> bool {
+        self.texture_atlas
+            .as_ref()
+            .map(|atlas| atlas.get(texture_name).is_some())
+            .unwrap_or(false)
+    }
+
+    // =========================================================================
     // ECS RENDERING
     // =========================================================================
 

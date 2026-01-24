@@ -608,6 +608,7 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         if let Some(atlas_builder) = self.textures.pending_atlas_builder.take() {
             match self.gpu.build_atlas(atlas_builder, self.textures.atlas_size) {
                 Ok(atlas) => {
+                    log::info!("Texture atlas built with {} regions", atlas.region_count());
                     let sprite_pipeline = self.gpu.create_sprite_pipeline(&atlas);
                     self.textures.texture_atlas = Some(atlas);
                     self.textures.sprite_pipeline = Some(sprite_pipeline);

@@ -326,35 +326,43 @@ impl MapEditorPlugin {
                             object_def.size.y * obj.scale.y,
                         );
                         
-                        // Draw a visible placeholder for textures
-                        let base_color = if is_selected {
-                            Color::rgba(0.4, 0.6, 1.0, 0.9)
+                        // Apply selection/hover tint
+                        let render_tint = if is_selected {
+                            Color::rgba(
+                                (tint.r * 1.3).min(1.0),
+                                (tint.g * 1.3).min(1.0),
+                                (tint.b * 1.3).min(1.0),
+                                tint.a,
+                            )
                         } else if is_hovered {
-                            Color::rgba(0.3, 0.5, 0.8, 0.8)
+                            Color::rgba(tint.r, tint.g, tint.b, tint.a * 0.8)
                         } else {
-                            Color::rgba(0.2, 0.4, 0.6, 0.7)
+                            *tint
                         };
                         
-                        // Filled background
-                        self.draw_filled_rect(draw, obj.position, scaled_size, base_color);
+                        // Try to render the actual texture
+                        #[cfg(feature = "textures")]
+                        {
+                            if draw.has_texture(texture_name) {
+                                draw.texture_ex(
+                                    texture_name,
+                                    obj.position,
+                                    scaled_size,
+                                    render_tint,
+                                    obj.rotation,
+                                    0,
+                                );
+                            } else {
+                                // Texture not in atlas - draw placeholder
+                                self.draw_texture_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
+                            }
+                        }
                         
-                        // Border
-                        let border_color = Color::rgba(0.6, 0.8, 1.0, 0.9);
-                        self.draw_rect_outline(draw, obj.position, scaled_size, border_color);
-                        
-                        // Draw an X to indicate it's a texture placeholder
-                        let half = scaled_size * 0.5;
-                        let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.5);
-                        draw.line((
-                            obj.position - half,
-                            obj.position + half,
-                            cross_color,
-                        ));
-                        draw.line((
-                            Vec2::new(obj.position.x - half.x, obj.position.y + half.y),
-                            Vec2::new(obj.position.x + half.x, obj.position.y - half.y),
-                            cross_color,
-                        ));
+                        #[cfg(not(feature = "textures"))]
+                        {
+                            // No texture support - draw placeholder
+                            self.draw_texture_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
+                        }
                         
                         if is_selected {
                             self.draw_rect_outline(draw, obj.position, scaled_size + Vec2::splat(6.0), self.editor.config.selection_color);
@@ -399,25 +407,58 @@ impl MapEditorPlugin {
                 self.draw_filled_rect(draw, preview_pos, object_def.size, c);
                 self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.8));
             }
-            ObjectVisual::Texture { .. } => {
-                // Draw a visible preview for texture placeholders
-                let c = Color::rgba(0.3, 0.5, 0.8, preview_alpha);
-                self.draw_filled_rect(draw, preview_pos, object_def.size, c);
-                self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(0.6, 0.8, 1.0, 0.9));
+            ObjectVisual::Texture { tint, texture_name } => {
+                let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
                 
-                // Draw X pattern
-                let half = object_def.size * 0.5;
-                let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
-                draw.line((
-                    preview_pos - half,
-                    preview_pos + half,
-                    cross_color,
-                ));
-                draw.line((
-                    Vec2::new(preview_pos.x - half.x, preview_pos.y + half.y),
-                    Vec2::new(preview_pos.x + half.x, preview_pos.y - half.y),
-                    cross_color,
-                ));
+                // Try to render the actual texture
+                #[cfg(feature = "textures")]
+                {
+                    if draw.has_texture(texture_name) {
+                        draw.texture_ex(
+                            texture_name,
+                            preview_pos,
+                            object_def.size,
+                            preview_tint,
+                            0.0,
+                            0,
+                        );
+                        // Outline for preview visibility
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
+                    } else {
+                        // Texture not in atlas - draw placeholder
+                        let c = Color::rgba(0.3, 0.5, 0.8, preview_alpha);
+                        self.draw_filled_rect(draw, preview_pos, object_def.size, c);
+                        self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(0.6, 0.8, 1.0, 0.9));
+                        
+                        // Draw X pattern
+                        let half = object_def.size * 0.5;
+                        let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
+                        draw.line((preview_pos - half, preview_pos + half, cross_color));
+                        draw.line((
+                            Vec2::new(preview_pos.x - half.x, preview_pos.y + half.y),
+                            Vec2::new(preview_pos.x + half.x, preview_pos.y - half.y),
+                            cross_color,
+                        ));
+                    }
+                }
+                
+                #[cfg(not(feature = "textures"))]
+                {
+                    // No texture support - draw placeholder
+                    let c = Color::rgba(0.3, 0.5, 0.8, preview_alpha);
+                    self.draw_filled_rect(draw, preview_pos, object_def.size, c);
+                    self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(0.6, 0.8, 1.0, 0.9));
+                    
+                    // Draw X pattern
+                    let half = object_def.size * 0.5;
+                    let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.4);
+                    draw.line((preview_pos - half, preview_pos + half, cross_color));
+                    draw.line((
+                        Vec2::new(preview_pos.x - half.x, preview_pos.y + half.y),
+                        Vec2::new(preview_pos.x + half.x, preview_pos.y - half.y),
+                        cross_color,
+                    ));
+                }
             }
             ObjectVisual::Line { color, .. } => {
                 let c = Color::rgba(color.r, color.g, color.b, preview_alpha);
@@ -481,6 +522,38 @@ impl MapEditorPlugin {
             
             draw.line((p1, p2, color));
         }
+    }
+
+    fn draw_texture_placeholder(&self, draw: &mut DrawContext, center: Vec2, size: Vec2, is_selected: bool, is_hovered: bool) {
+        // Draw a visible placeholder for textures not in atlas
+        let base_color = if is_selected {
+            Color::rgba(0.4, 0.6, 1.0, 0.9)
+        } else if is_hovered {
+            Color::rgba(0.3, 0.5, 0.8, 0.8)
+        } else {
+            Color::rgba(0.2, 0.4, 0.6, 0.7)
+        };
+        
+        // Filled background
+        self.draw_filled_rect(draw, center, size, base_color);
+        
+        // Border
+        let border_color = Color::rgba(0.6, 0.8, 1.0, 0.9);
+        self.draw_rect_outline(draw, center, size, border_color);
+        
+        // Draw an X to indicate it's a texture placeholder
+        let half = size * 0.5;
+        let cross_color = Color::rgba(1.0, 1.0, 1.0, 0.5);
+        draw.line((
+            center - half,
+            center + half,
+            cross_color,
+        ));
+        draw.line((
+            Vec2::new(center.x - half.x, center.y + half.y),
+            Vec2::new(center.x + half.x, center.y - half.y),
+            cross_color,
+        ));
     }
 }
 
