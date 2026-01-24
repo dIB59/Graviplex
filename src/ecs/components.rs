@@ -261,15 +261,8 @@ pub enum SpriteShape {
     /// # Example
     ///
     /// ```ignore
-    /// // Create a textured sprite (region_name "player" from atlas.get("player"))
-    /// let sprite = Sprite {
-    ///     shape: SpriteShape::Texture {
-    ///         region_name: "player",
-    ///         size: Vec2::new(32.0, 32.0),
-    ///     },
-    ///     color: Color::WHITE, // tint
-    ///     z_order: 0,
-    /// };
+    /// // Create a textured sprite using the convenience constructor
+    /// let sprite = Sprite::texture("player", Vec2::new(32.0, 32.0), Color::WHITE);
     /// ```
     Texture {
         /// Name of the region in the texture atlas.
