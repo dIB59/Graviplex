@@ -50,6 +50,9 @@ pub mod state_machine;
 #[cfg(feature = "gui")]
 pub mod gui;
 
+#[cfg(feature = "gui")]
+pub mod editor;
+
 // Private modules (implementation details)
 mod app;
 mod game_loop;
@@ -117,6 +120,17 @@ pub use state_machine::{SimpleState, StateId, StateMachine};
 
 // Audio (placeholder)
 pub use audio::{AudioClip, AudioListener, AudioManager, AudioSource, PlaybackState};
+
+// Map Editor (requires `gui` feature)
+#[cfg(feature = "gui")]
+pub use editor::{
+    MapEditor, EditorConfig, EditorState,
+    MapObject, MapObjectId, PlacedObject, ObjectVisual, PropertyValue, CollisionShape,
+    AssetEntry, AssetPalette,
+    EditorTool, ToolState, GridConfig,
+    MapData, MapError, save_map, load_map, save_map_to_string, load_map_from_string,
+    MapEditorPlugin,
+};
 
 /// Built-in ECS systems.
 pub mod systems {
