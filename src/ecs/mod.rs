@@ -46,13 +46,15 @@ mod components;
 mod entity;
 mod resources;
 pub mod systems;
+pub mod tilemap;
 mod world;
 
 // Primary exports
-pub use components::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};
+pub use components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
 pub use entity::Entity;
 pub use resources::Resources;
-pub use systems::{despawn_system, lifetime_system, movement_system, run_systems};
+pub use systems::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
+pub use tilemap::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
 pub use world::{EntityBuilder, World};
 
 // Re-export hecs traits needed for queries and components
@@ -61,10 +63,11 @@ pub use hecs::{Component, Query, Ref, RefMut};
 
 /// Re-export systems module for namespaced access: `ecs::systems::movement()`
 pub mod prelude {
-    pub use super::components::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};
+    pub use super::components::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
     pub use super::entity::Entity;
     pub use super::resources::Resources;
     pub use super::systems;
+    pub use super::tilemap::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
     pub use super::world::{EntityBuilder, World};
 }
 

@@ -32,10 +32,15 @@ pub use crate::core::time::Time;
 pub use crate::input::InputState;
 
 // Camera
-pub use crate::renderer::Camera2D;
+pub use crate::renderer::{Camera2D, CameraFollow};
 
 // Stats
-pub use crate::core::stats::AppStats;
+pub use crate::core::stats::{AppStats, FpsCounter, FpsDisplayConfig};
+
+// Plugins
+pub use crate::plugin::Plugin;
+#[cfg(feature = "gui")]
+pub use crate::plugin::FpsPlugin;
 
 // Graphics (renamed from GpuContext)
 pub use crate::renderer::Graphics;
@@ -48,15 +53,18 @@ pub use crate::renderer::AtlasBuilder;
 pub use crate::ecs::{Entity, Resources, World};
 
 // ECS - Built-in components
-pub use crate::ecs::{Despawn, Lifetime, Sprite, SpriteShape, Transform, Velocity, Visible};
+pub use crate::ecs::{Despawn, Lifetime, PlayerController, Sprite, SpriteAnimation, SpriteShape, Transform, Velocity, Visible};
+
+// ECS - Tilemap support
+pub use crate::ecs::{AutoTileConfig, NeighborFlags, Tile, TileAnimation, TileCollision, TileFlip, TileLayer, Tilemap};
 
 // ECS - Traits for queries and components (re-exported from hecs)
 pub use crate::ecs::{Component, Query, Ref, RefMut};
 
 // ECS - Built-in systems (namespaced)
-pub use crate::ecs::{despawn_system, lifetime_system, movement_system};
+pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system};
 
 /// Convenient access to all built-in systems.
 pub mod systems {
-    pub use crate::ecs::{despawn_system, lifetime_system, movement_system, run_systems};
+    pub use crate::ecs::{animation_system, despawn_system, lifetime_system, movement_system, player_input_system, run_systems};
 }

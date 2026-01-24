@@ -297,7 +297,7 @@ impl<'a> DrawContext<'a> {
         let mut renderables: Vec<(i32, Transform, Sprite)> = world
             .query::<(&Transform, &Sprite, &Visible)>()
             .iter()
-            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, *sprite))
+            .map(|(_, (transform, sprite, _))| (sprite.z_order, *transform, sprite.clone()))
             .collect();
 
         // Sort by z_order (lower values first = rendered first = behind)
@@ -380,7 +380,7 @@ impl<'a> DrawContext<'a> {
                         color: sprite.color.into(),
                     });
                 }   
-                SpriteShape::Texture { region_name, size } => {
+                SpriteShape::Texture { ref region_name, size } => {
                     #[cfg(feature = "textures")]
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
                         if let Some(region) = atlas.get(region_name) {
@@ -418,6 +418,160 @@ impl<'a> DrawContext<'a> {
             if sprite_pipeline.staging_count() > 0 {
                 sprite_pipeline.flush(&state, atlas);
             }
+        }
+    }
+
+    // =========================================================================
+    // TILEMAP RENDERING
+    // =========================================================================
+
+    /// Render a tilemap at the given position.
+    ///
+    /// This method efficiently renders all visible tiles from the tilemap,
+    /// culling tiles outside the camera view for performance.
+    ///
+    /// # Arguments
+    ///
+    /// * `tilemap` - The tilemap to render
+    /// * `position` - World position of the tilemap's origin (top-left corner)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
+    ///     // Render tilemap entities
+    ///     for (_, (transform, tilemap, _)) in world.query::<(&Transform, &Tilemap, &Visible)>().iter() {
+    ///         draw.tilemap(tilemap, transform.position);
+    ///     }
+    ///     
+    ///     // Then render other entities on top
+    ///     draw.render_world(world);
+    /// }
+    /// ```
+    #[cfg(feature = "textures")]
+    pub fn tilemap(&mut self, tilemap: &crate::ecs::tilemap::Tilemap, position: Vec2) {
+        use crate::ecs::tilemap::TileFlip;
+
+        let Some(sprite_pipeline) = &mut self.sprite_pipeline else {
+            log::warn!("tilemap() requires a sprite pipeline with texture atlas");
+            return;
+        };
+        let Some(atlas) = &self.texture_atlas else {
+            log::warn!("tilemap() requires a texture atlas to be registered");
+            return;
+        };
+
+        let state = RenderState {
+            gpu: self.gpu,
+            view: self.view,
+            camera: self.camera,
+        };
+
+        // Calculate visible tile range based on camera view
+        let camera_bounds = self.camera.visible_bounds();
+        let tile_size = tilemap.tile_size();
+
+        // Convert camera bounds to tile coordinates (with padding)
+        let min_tx = ((camera_bounds.0.x - position.x) / tile_size.x).floor().max(0.0) as u32;
+        let min_ty = ((camera_bounds.0.y - position.y) / tile_size.y).floor().max(0.0) as u32;
+        let max_tx = ((camera_bounds.1.x - position.x) / tile_size.x).ceil().min(tilemap.width as f32) as u32;
+        let max_ty = ((camera_bounds.1.y - position.y) / tile_size.y).ceil().min(tilemap.height as f32) as u32;
+
+        // Render layers in z-order
+        for layer in tilemap.layers_sorted() {
+            if !layer.visible || layer.opacity <= 0.0 {
+                continue;
+            }
+
+            let layer_tint_alpha = layer.opacity;
+
+            // Render visible tiles
+            for ty in min_ty..max_ty {
+                for tx in min_tx..max_tx {
+                    if let Some(tile) = layer.get(tx, ty) {
+                        if tile.is_empty() {
+                            continue;
+                        }
+
+                        // Get the current region (may be animated)
+                        let region_name = if let Some(anim) = &tile.animation {
+                            anim.current_region().unwrap_or(&tile.region_name)
+                        } else {
+                            &tile.region_name
+                        };
+
+                        if let Some(region) = atlas.get(region_name) {
+                            // Calculate world position (tile center)
+                            let world_x = position.x + (tx as f32 + 0.5) * tile_size.x;
+                            let world_y = position.y + (ty as f32 + 0.5) * tile_size.y;
+
+                            // Apply flip to UV coordinates
+                            let uv = region.uv_rect();
+                            let uv_rect = match tile.flip {
+                                TileFlip::None => uv,
+                                TileFlip::Horizontal => [uv[2], uv[1], uv[0], uv[3]], // swap u
+                                TileFlip::Vertical => [uv[0], uv[3], uv[2], uv[1]], // swap v
+                                TileFlip::Both => [uv[2], uv[3], uv[0], uv[1]], // swap both
+                            };
+
+                            sprite_pipeline.draw(
+                                [world_x, world_y],
+                                [tile_size.x, tile_size.y],
+                                uv_rect,
+                                [1.0, 1.0, 1.0, layer_tint_alpha],
+                                0.0, // Tiles don't rotate individually
+                                layer.z_order,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Flush after rendering all layers
+        if sprite_pipeline.staging_count() > 0 {
+            sprite_pipeline.flush(&state, atlas);
+        }
+    }
+
+    /// Render all visible tilemap entities from the ECS world.
+    ///
+    /// This automatically queries for entities with `Transform`, `Tilemap`, and `Visible`
+    /// components and renders them. Tilemaps are rendered before other entities.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// fn render(&mut self, world: &World, draw: &mut DrawContext) {
+    ///     // Render all tilemaps first (background)
+    ///     draw.render_tilemaps(world);
+    ///     
+    ///     // Then render sprites/entities on top
+    ///     draw.render_world(world);
+    /// }
+    /// ```
+    #[cfg(feature = "textures")]
+    pub fn render_tilemaps(&mut self, world: &World) {
+        use crate::ecs::tilemap::Tilemap;
+        
+        // Collect tilemap data first to avoid borrow issues
+        let mut tilemap_data: Vec<(i32, Vec2, Tilemap)> = Vec::new();
+        
+        {
+            let mut query = world.query::<(&Transform, &Tilemap, &Visible)>();
+            for (_, (transform, tilemap, _)) in query.iter() {
+                // Use the tilemap's minimum layer z-order for sorting tilemaps against each other
+                let min_z = tilemap.layers().map(|l| l.z_order).min().unwrap_or(0);
+                tilemap_data.push((min_z, transform.position, tilemap.clone()));
+            }
+        }
+
+        // Sort tilemaps by their minimum z-order
+        tilemap_data.sort_by_key(|(z, _, _)| *z);
+
+        // Render each tilemap
+        for (_, position, tilemap) in &tilemap_data {
+            self.tilemap(tilemap, *position);
         }
     }
 

@@ -61,9 +61,10 @@ fn vs_main(
     // Interpolate UV coordinates based on vertex position
     // vertex_pos goes from (-0.5,-0.5) to (0.5,0.5), normalize to (0,0)-(1,1)
     let uv_lerp = vertex.vertex_pos + 0.5;
+    // Flip V coordinate because images have origin at top-left but we render with Y-up
     out.uv = vec2<f32>(
         mix(instance.uv_rect.x, instance.uv_rect.z, uv_lerp.x),
-        mix(instance.uv_rect.y, instance.uv_rect.w, uv_lerp.y)
+        mix(instance.uv_rect.w, instance.uv_rect.y, uv_lerp.y)  // Swapped y/w to flip V
     );
     
     out.tint = instance.tint;
