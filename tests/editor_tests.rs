@@ -151,6 +151,86 @@ mod tests {
     }
 
     #[test]
+    fn test_place_tinted_texture_selection() {
+        use graviplex::ecs::{Transform, Sprite, Visible, SpriteShape};
+
+        let config = EditorConfig {
+            grid: GridConfig {
+                enabled: false,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut editor = MapEditor::with_config(config);
+
+        // Register two buildings that share the same texture but different tint
+        let size = Vec2::new(64.0, 64.0);
+        let mut blue = MapObject::texture("BuildingBlue", "assets/building.png", size);
+        // tint the sprite blue via visual tint
+        if let ObjectVisual::Texture { ref mut tint, .. } = blue.visual {
+            *tint = Color::rgba(0.2, 0.4, 1.0, 1.0);
+        }
+        editor.register_object(blue);
+
+        let mut purple = MapObject::texture("BuildingPurple", "assets/building.png", size);
+        if let ObjectVisual::Texture { ref mut tint, .. } = purple.visual {
+            *tint = Color::rgba(0.6, 0.2, 0.9, 1.0);
+        }
+        editor.register_object(purple);
+
+        // Select the blue building and place it
+        editor.palette.select("BuildingBlue");
+        let pos = Vec2::new(10.0, 20.0);
+        let id = editor.place_object("BuildingBlue", pos).unwrap();
+
+        // Sync to world and inspect spawned sprite tint
+        let mut world = World::new();
+        editor.sync_to_world(&mut world);
+
+        // Query for sprites and assert the placed sprite's tint is correct
+        let mut found = false;
+        let mut q = world.query::<(&Transform, &Sprite, &Visible)>();
+        for (_entity, (_transform, sprite, _visible)) in q.iter() {
+            match &sprite.shape {
+                SpriteShape::Texture { region_name, size: s } => {
+                    if region_name == "assets/building.png" {
+                        found = true;
+                        assert_eq!(sprite.color, Color::rgba(0.2, 0.4, 1.0, 1.0));
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(found, "Placed sprite not found in world");
+    }
+
+    #[test]
+    fn test_asset_registration_name_collision() {
+        let mut editor = MapEditor::new();
+        let size = Vec2::new(64.0, 64.0);
+
+        // Simulate two files with the same file name but different paths
+        let obj1 = MapObject::texture("assets/Buildings/house.png", "assets/Buildings/house.png", size)
+            .with_display_name("House")
+            .with_category("Buildings");
+        let obj2 = MapObject::texture("assets/Other/house.png", "assets/Other/house.png", size)
+            .with_display_name("House")
+            .with_category("Buildings");
+
+        editor.register_object(obj1);
+        editor.register_object(obj2);
+
+        // Both internal names should be present and distinct
+        assert!(editor.palette.get_object("assets/Buildings/house.png").is_some());
+        assert!(editor.palette.get_object("assets/Other/house.png").is_some());
+
+        // Category should include both entries (by unique internal name)
+        let assets_in_cat = editor.palette.assets_in_category("Buildings").unwrap();
+        assert!(assets_in_cat.contains(&"assets/Buildings/house.png".to_string()));
+        assert!(assets_in_cat.contains(&"assets/Other/house.png".to_string()));
+    }
+
+    #[test]
     fn test_delete_object() {
         let mut editor = MapEditor::new();
         

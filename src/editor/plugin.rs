@@ -268,7 +268,9 @@ impl MapEditorPlugin {
                                     display_name, width, height, suggested_frames);
                             } else {
                                 // Regular single texture
-                                let object = MapObject::texture(&display_name, &texture_path, size)
+                                // Use the full texture path as the internal name to avoid collisions
+                                let object = MapObject::texture(&texture_path, &texture_path, size)
+                                    .with_display_name(display_name.clone())
                                     .with_category(category);
                                 
                                 println!("[MapEditor] Registered: {} ({})", display_name, category);
@@ -277,7 +279,9 @@ impl MapEditorPlugin {
                         } else {
                             // Couldn't read dimensions, register with default size
                             let size = Vec2::new(64.0, 64.0);
-                            let object = MapObject::texture(&display_name, &texture_path, size)
+                            // Use full path as internal name and keep a friendly display name
+                            let object = MapObject::texture(&texture_path, &texture_path, size)
+                                .with_display_name(display_name.clone())
                                 .with_category(category);
                             
                             println!("[MapEditor] Registered: {} ({})", display_name, category);
@@ -300,7 +304,8 @@ impl MapEditorPlugin {
         match config {
             AssetConfig::Texture => {
                 let size = Vec2::new(width as f32, height as f32);
-                let object = MapObject::texture(display_name, texture_path, size)
+                let object = MapObject::texture(texture_path, texture_path, size)
+                    .with_display_name(display_name)
                     .with_category(category);
                 println!("[MapEditor] Auto-loaded texture: {} ({})", display_name, category);
                 self.editor.register_object(object);
@@ -308,7 +313,8 @@ impl MapEditorPlugin {
             AssetConfig::SpriteSheet { frames } => {
                 let frame_width = width / frames;
                 let size = Vec2::new(frame_width as f32, height as f32);
-                let object = MapObject::sprite_sheet(display_name, texture_path, frames, size)
+                let object = MapObject::sprite_sheet(texture_path, texture_path, frames, size)
+                    .with_display_name(display_name)
                     .with_category(category);
                 println!("[MapEditor] Auto-loaded sprite sheet: {} ({} frames, {})", display_name, frames, category);
                 self.editor.register_object(object);
@@ -317,7 +323,8 @@ impl MapEditorPlugin {
                 let tile_width = width / columns;
                 let tile_height = height / rows;
                 let tile_size = Vec2::new(tile_width as f32, tile_height as f32);
-                let mut object = MapObject::tileset(display_name, texture_path, columns, rows, tile_size)
+                let mut object = MapObject::tileset(texture_path, texture_path, columns, rows, tile_size)
+                    .with_display_name(display_name)
                     .with_category(category);
                 if let ObjectVisual::Tileset { ignored_tiles: ref mut tiles, .. } = object.visual {
                     *tiles = ignored_tiles;
@@ -327,7 +334,8 @@ impl MapEditorPlugin {
             }
             AssetConfig::NineSlice { left, right, top, bottom } => {
                 let size = Vec2::new(width as f32, height as f32);
-                let object = MapObject::nine_slice(display_name, texture_path, size, left, right, top, bottom)
+                let object = MapObject::nine_slice(texture_path, texture_path, size, left, right, top, bottom)
+                    .with_display_name(display_name)
                     .with_category("UI");
                 println!("[MapEditor] Auto-loaded 9-slice UI: {} (margins: L={}, R={}, T={}, B={})", 
                     display_name, left, right, top, bottom);
@@ -363,7 +371,8 @@ impl MapEditorPlugin {
             Some(0) | None => {
                 // User chose "Not a sprite sheet" - register as single texture
                 let size = Vec2::new(pending.width as f32, pending.height as f32);
-                let object = MapObject::texture(&pending.display_name, &pending.file_path, size)
+                let object = MapObject::texture(&pending.file_path, &pending.file_path, size)
+                    .with_display_name(pending.display_name.clone())
                     .with_category(&pending.category);
                 
                 println!("[MapEditor] Registered as texture: {} ({})", pending.display_name, pending.category);
@@ -377,7 +386,8 @@ impl MapEditorPlugin {
                 // User specified frame count - register as sprite sheet
                 let frame_width = pending.width / frames;
                 let size = Vec2::new(frame_width as f32, pending.height as f32);
-                let object = MapObject::sprite_sheet(&pending.display_name, &pending.file_path, frames, size)
+                let object = MapObject::sprite_sheet(&pending.file_path, &pending.file_path, frames, size)
+                    .with_display_name(pending.display_name.clone())
                     .with_category(&pending.category);
                 
                 println!("[MapEditor] Registered as sprite sheet: {} ({} frames, {})", 
@@ -421,7 +431,8 @@ impl MapEditorPlugin {
         let total_tiles = columns * rows;
         let usable_tiles = total_tiles - ignored_tiles.len() as u32;
         
-        let mut object = MapObject::tileset(&pending.display_name, &pending.file_path, columns, rows, tile_size)
+        let mut object = MapObject::tileset(&pending.file_path, &pending.file_path, columns, rows, tile_size)
+            .with_display_name(pending.display_name.clone())
             .with_category(&pending.category);
         
         // Set ignored tiles
