@@ -546,6 +546,14 @@ impl AtlasBuilder {
         self
     }
 
+    /// Return image names in a deterministic (sorted) order.
+    #[allow(dead_code)]
+    fn sorted_image_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.images.keys().cloned().collect();
+        names.sort();
+        names
+    }
+
     /// Add a solid color rectangle.
     ///
     /// # Example
@@ -743,8 +751,12 @@ impl AtlasBuilder {
         };
 
         // Prepare rectangles for packing (with 1px padding to avoid bleeding)
+        // Use a deterministic order of image names (sorted) to ensure reproducible packing.
+        let mut names: Vec<String> = self.images.keys().cloned().collect();
+        names.sort();
         let mut rects_to_place: GroupedRectsToPlace<String, ()> = GroupedRectsToPlace::new();
-        for (name, img) in &self.images {
+        for name in &names {
+            let img = &self.images[name];
             rects_to_place.push_rect(
                 name.clone(),
                 None,
@@ -756,7 +768,7 @@ impl AtlasBuilder {
         let mut target_bins = std::collections::BTreeMap::new();
         target_bins.insert(0, TargetBin::new(max_size, max_size, 1));
 
-        // Pack rectangles
+        // Pack rectangles deterministically (input order stable)
         let packed = pack_rects(
             &rects_to_place,
             &mut target_bins,
@@ -793,7 +805,10 @@ impl AtlasBuilder {
         let mut regions_by_id: Vec<AtlasRegion> = Vec::with_capacity(self.images.len());
         let mut name_to_id: HashMap<String, RegionId> = HashMap::with_capacity(self.images.len());
 
-        for (name, (_, loc)) in packed.packed_locations() {
+        // Iterate in the same deterministic order used for packing so IDs are stable.
+        for name in &names {
+            let entry = packed.packed_locations().get(name).expect("packed location missing");
+            let (_rect, loc) = entry;
             let img = &self.images[name];
 
             // Account for 1px padding
@@ -1058,6 +1073,66 @@ mod tests {
             assert!(builder.images.contains_key("red"));
             assert!(builder.images.contains_key("green"));
             assert!(builder.images.contains_key("blue"));
+        }
+
+        #[test]
+        fn test_atlas_builder_sorted_names() {
+            // Insert in non-sorted order and ensure sorting is stable and deterministic
+            let img = image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 0, 0, 255]));
+            let builder = AtlasBuilder::new()
+                .add_rgba_image("zeta", img.clone())
+                .add_rgba_image("alpha", img.clone())
+                .add_rgba_image("gamma", img.clone());
+
+            let names = builder.sorted_image_names();
+            assert_eq!(names, vec!["alpha".to_string(), "gamma".to_string(), "zeta".to_string()]);
+        }
+
+        #[test]
+        fn test_atlas_packing_deterministic() {
+            use rectangle_pack::{pack_rects, contains_smallest_box, volume_heuristic, GroupedRectsToPlace, RectToInsert, TargetBin};
+            use std::collections::BTreeMap;
+
+            let red = image::RgbaImage::from_pixel(32, 32, image::Rgba([255, 0, 0, 255]));
+            let green = image::RgbaImage::from_pixel(64, 64, image::Rgba([0, 255, 0, 255]));
+            let blue = image::RgbaImage::from_pixel(16, 16, image::Rgba([0, 0, 255, 255]));
+
+            let builder = AtlasBuilder::new()
+                .add_rgba_image("b", blue)
+                .add_rgba_image("a", red)
+                .add_rgba_image("c", green);
+
+            let names = builder.sorted_image_names();
+
+            let mut rects1: GroupedRectsToPlace<String, ()> = GroupedRectsToPlace::new();
+            for name in &names {
+                let img = &builder.images[name.as_str()];
+                rects1.push_rect(name.clone(), None, RectToInsert::new(img.width() + 2, img.height() + 2, 1));
+            }
+
+            let mut bins1 = BTreeMap::new();
+            bins1.insert(0, TargetBin::new(1024, 1024, 1));
+            let packed1 = pack_rects(&rects1, &mut bins1, &volume_heuristic, &contains_smallest_box).expect("pack1");
+
+            // Repeat packing the same way - should produce identical locations
+            let mut rects2: GroupedRectsToPlace<String, ()> = GroupedRectsToPlace::new();
+            for name in &names {
+                let img = &builder.images[name.as_str()];
+                rects2.push_rect(name.clone(), None, RectToInsert::new(img.width() + 2, img.height() + 2, 1));
+            }
+
+            let mut bins2 = BTreeMap::new();
+            bins2.insert(0, TargetBin::new(1024, 1024, 1));
+            let packed2 = pack_rects(&rects2, &mut bins2, &volume_heuristic, &contains_smallest_box).expect("pack2");
+
+            for name in &names {
+                let entry1 = packed1.packed_locations().get(name).expect("missing1");
+                let entry2 = packed2.packed_locations().get(name).expect("missing2");
+                assert_eq!(entry1.1.x(), entry2.1.x());
+                assert_eq!(entry1.1.y(), entry2.1.y());
+                assert_eq!(entry1.1.width(), entry2.1.width());
+                assert_eq!(entry1.1.height(), entry2.1.height());
+            }
         }
 
         #[test]
