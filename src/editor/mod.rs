@@ -64,7 +64,7 @@ mod plugin;
 mod serialization;
 mod tools;
 
-pub use asset_palette::{AssetEntry, AssetPalette};
+pub use asset_palette::{AssetEntry, AssetPalette, AssetKind};
 pub use map_editor::{MapEditor, EditorConfig, EditorState};
 pub use map_object::{MapObject, MapObjectId, PlacedObject, ObjectVisual, PropertyValue, CollisionShape};
 pub use plugin::{MapEditorPlugin, PendingSpriteSheet};

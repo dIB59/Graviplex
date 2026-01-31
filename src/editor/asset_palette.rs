@@ -46,6 +46,17 @@ pub struct AssetPalette {
     expanded_categories: HashMap<String, bool>,
 }
 
+/// Kinds of asset visuals you can convert to via the context menu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetKind {
+    Texture,
+    SpriteSheet,
+    Tileset,
+    NineSlice,
+    Circle,
+    Rect,
+}
+
 impl AssetPalette {
     /// Create a new empty asset palette.
     pub fn new() -> Self {
@@ -196,6 +207,46 @@ impl AssetPalette {
         &mut self.search_filter
     }
 
+    /// Convert an asset to a different visual type.
+    pub fn convert_asset_to(&mut self, name: &str, kind: AssetKind) {
+        use super::map_object::ObjectVisual;
+        use crate::core::color::Color;
+
+        if let Some(entry) = self.assets.get_mut(name) {
+            let obj = &mut entry.object;
+            match kind {
+                AssetKind::Texture => {
+                    let texture_name = obj.name.clone();
+                    obj.visual = ObjectVisual::Texture { texture_name, tint: Color::WHITE };
+                    // Keep size unchanged
+                }
+                AssetKind::SpriteSheet => {
+                    let texture_name = obj.name.clone();
+                    obj.visual = ObjectVisual::SpriteSheet { texture_name, frame_count: 1, current_frame: 0, fps: 10.0, tint: Color::WHITE };
+                }
+                AssetKind::Tileset => {
+                    let texture_name = obj.name.clone();
+                    obj.visual = ObjectVisual::Tileset { texture_name, columns: 1, rows: 1, selected_tile: 0, ignored_tiles: Vec::new(), tint: Color::WHITE };
+                }
+                AssetKind::NineSlice => {
+                    let texture_name = obj.name.clone();
+                    obj.visual = ObjectVisual::NineSlice { texture_name, left: 8, right: 8, top: 8, bottom: 8, tint: Color::WHITE };
+                }
+                AssetKind::Circle => {
+                    let radius = (obj.size.x.max(obj.size.y)) * 0.5;
+                    obj.visual = ObjectVisual::Circle { radius, color: Color::WHITE };
+                    obj.size = crate::core::math::Vec2::new(radius * 2.0, radius * 2.0);
+                }
+                AssetKind::Rect => {
+                    obj.visual = ObjectVisual::Rect { color: Color::WHITE };
+                    // size stays as-is
+                }
+            }
+        }
+    }
+
+
+
     /// Render the palette UI.
     #[cfg(feature = "gui")]
     pub fn ui(&mut self, ui: &mut egui::Ui) {
@@ -239,6 +290,8 @@ impl AssetPalette {
         let categories: Vec<String> = self.categories.keys().cloned().collect();
         let mut clicked_asset: Option<String> = None;
         let mut toggled_category: Option<String> = None;
+        // Deferred conversion request set via context menu
+        let mut conversion_request: Option<(String, AssetKind)> = None;
         let search_filter = self.search_filter.clone();
 
         // Category tree
@@ -292,6 +345,34 @@ impl AssetPalette {
                                         clicked_asset = Some(asset_name.clone());
                                     }
 
+                                    // Context menu for conversion / extra options
+                                    response.context_menu(|ui| {
+                                        if ui.button("Convert → Texture").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::Texture));
+                                        }
+                                        if ui.button("Convert → SpriteSheet").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::SpriteSheet));
+                                        }
+                                        if ui.button("Convert → Tileset").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::Tileset));
+                                        }
+                                        if ui.button("Convert → Circle").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::Circle));
+                                        }
+                                        if ui.button("Convert → Rect").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::Rect));
+                                        }
+                                        if ui.button("Convert → 9-Slice").clicked() {
+                                            ui.close();
+                                            conversion_request = Some((asset_name.clone(), AssetKind::NineSlice));
+                                        }
+                                    });
+
                                     // Tooltip with more info
                                     response.on_hover_ui(|ui| {
                                         ui.strong(&display_name);
@@ -319,6 +400,11 @@ impl AssetPalette {
             if let Some(expanded) = self.expanded_categories.get_mut(&cat) {
                 *expanded = !*expanded;
             }
+        }
+
+        // Handle conversion requests (from context menu)
+        if let Some((name, kind)) = conversion_request {
+            self.convert_asset_to(&name, kind);
         }
     }
     

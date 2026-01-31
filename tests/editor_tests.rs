@@ -6,7 +6,7 @@
 #[cfg(feature = "gui")]
 mod tests {
     use graviplex::prelude::*;
-    use graviplex::editor::{MapEditor, MapObject, EditorConfig, GridConfig, ObjectVisual};
+    use graviplex::editor::{MapEditor, MapObject, EditorConfig, GridConfig, ObjectVisual, AssetKind};
     
     // =========================================================================
     // OBJECT REGISTRATION TESTS
@@ -228,6 +228,37 @@ mod tests {
         let assets_in_cat = editor.palette.assets_in_category("Buildings").unwrap();
         assert!(assets_in_cat.contains(&"assets/Buildings/house.png".to_string()));
         assert!(assets_in_cat.contains(&"assets/Other/house.png".to_string()));
+    }
+
+    #[test]
+    fn test_convert_asset_kind() {
+        let mut editor = MapEditor::new();
+        let size = Vec2::new(64.0, 64.0);
+
+        // Start as a texture
+        let obj = MapObject::texture("TestTex", "assets/foo.png", size);
+        editor.register_object(obj);
+
+        // Convert to Circle
+        editor.palette.convert_asset_to("TestTex", AssetKind::Circle);
+        let obj_def = editor.palette.get_object("TestTex").unwrap();
+        match &obj_def.visual {
+            ObjectVisual::Circle { radius, color: _ } => {
+                assert!(*radius > 0.0);
+                assert_eq!(obj_def.size.x, obj_def.size.y);
+            }
+            _ => panic!("Expected Circle visual after conversion"),
+        }
+
+        // Convert to TileSet
+        editor.palette.convert_asset_to("TestTex", AssetKind::Tileset);
+        let obj_def = editor.palette.get_object("TestTex").unwrap();
+        match &obj_def.visual {
+            ObjectVisual::Tileset { columns, rows, .. } => {
+                assert_eq!((*columns, *rows), (1, 1));
+            }
+            _ => panic!("Expected Tileset visual after conversion"),
+        }
     }
 
     #[test]
