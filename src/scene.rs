@@ -67,7 +67,6 @@
 use crate::ecs::{Resources, World};
 use crate::renderer::DrawContext;
 
-#[cfg(feature = "gui")]
 use crate::gui::EguiRenderer;
 
 // =============================================================================
@@ -155,7 +154,6 @@ pub trait Scene: Send {
     fn render(&mut self, world: &World, draw: &mut DrawContext);
 
     /// Render GUI elements (requires `gui` feature).
-    #[cfg(feature = "gui")]
     fn gui(&mut self, _world: &mut World, _gui: &mut EguiRenderer) {}
 
     /// Whether scenes below this one should still be rendered.
@@ -291,7 +289,6 @@ impl SceneManager {
     }
 
     /// Render GUI for the active scene.
-    #[cfg(feature = "gui")]
     pub fn gui(&mut self, world: &mut World, gui: &mut EguiRenderer) {
         if let Some(scene) = self.stack.last_mut() {
             scene.gui(world, gui);

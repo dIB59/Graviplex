@@ -15,8 +15,6 @@ use crate::renderer::render_frame::RenderFrame;
 use crate::renderer::vertex_data::{SpriteInstance, SpriteInstanceGpu, Vertex};
 use crate::renderer::{Camera2D, RenderState};
 use wgpu::*;
-
-#[cfg(feature = "textures")]
 use super::texture_atlas::TextureAtlas;
 
 /// Size of the instance buffer in bytes (128MB).
@@ -30,7 +28,6 @@ const MAX_SPRITES_PER_BATCH: usize = (INSTANCE_BUFFER_SIZE as usize) / std::mem:
 ///
 /// Sprites are batched and sorted by z-order before rendering.
 /// Uses instanced rendering for efficiency.
-#[cfg(feature = "textures")]
 pub struct SpritePipeline {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: Buffer,
@@ -38,8 +35,6 @@ pub struct SpritePipeline {
     camera_gpu_data: CameraGpuData,
     staging_instances: Vec<SpriteInstance>,
 }
-
-#[cfg(feature = "textures")]
 impl SpritePipeline {
     /// Create a new sprite pipeline.
     ///
@@ -568,7 +563,6 @@ mod tests {
     #[test]
     fn test_max_sprites_per_batch_public_accessor() {
         // Verify the public accessor returns the same value
-        #[cfg(feature = "textures")]
         assert_eq!(SpritePipeline::max_sprites_per_batch(), MAX_SPRITES_PER_BATCH);
     }
 }

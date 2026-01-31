@@ -10,8 +10,6 @@ use wgpu::*;
 
 use super::gpu_context;
 use super::line_pipeline::LineInstance;
-
-#[cfg(feature = "textures")]
 use super::{SpritePipeline, TextureAtlas};
 
 // =============================================================================
@@ -146,9 +144,7 @@ pub struct DrawContext<'a> {
     pub(crate) camera: &'a Camera2D,
     pub(crate) circle_pipeline: &'a mut CirclePipeline,
     pub(crate) line_pipeline: &'a mut LinePipeline,
-    #[cfg(feature = "textures")]
     pub(crate) sprite_pipeline: Option<&'a mut SpritePipeline>,
-    #[cfg(feature = "textures")]
     pub(crate) texture_atlas: Option<&'a TextureAtlas>,
 }
 
@@ -277,7 +273,6 @@ impl<'a> DrawContext<'a> {
     /// draw.texture("player", Vec2::new(100.0, 50.0), None, Color::WHITE);
     /// draw.texture("enemy", Vec2::ZERO, Some(Vec2::new(64.0, 64.0)), Color::RED);
     /// ```
-    #[cfg(feature = "textures")]
     pub fn texture(
         &mut self,
         texture_name: &str,
@@ -311,7 +306,6 @@ impl<'a> DrawContext<'a> {
     /// * `tint` - Color tint
     /// * `rotation` - Rotation in radians
     /// * `z_order` - Draw order (lower values drawn first)
-    #[cfg(feature = "textures")]
     pub fn texture_ex(
         &mut self,
         texture_name: &str,
@@ -342,7 +336,6 @@ impl<'a> DrawContext<'a> {
     }
 
     /// Check if a texture exists in the atlas.
-    #[cfg(feature = "textures")]
     pub fn has_texture(&self, texture_name: &str) -> bool {
         self.texture_atlas
             .as_ref()
@@ -403,7 +396,6 @@ impl<'a> DrawContext<'a> {
                 SpriteShape::Rect { .. } => SpriteType::Rect,
                 SpriteShape::Line { .. } => SpriteType::Line,
                 SpriteShape::Texture { .. } => SpriteType::Texture,
-                #[cfg(feature = "textures")]
                 SpriteShape::TextureId { .. } => SpriteType::TextureId,
             }
         }
@@ -424,11 +416,9 @@ impl<'a> DrawContext<'a> {
         });
 
         // Track if we've warned about texture sprites (to avoid spam)
-        #[cfg(not(feature = "textures"))]
         let mut texture_sprite_warning_shown = false;
 
         // Build state for texture rendering (needed for flushing)
-        #[cfg(feature = "textures")]
         let state = RenderState {
             gpu: self.gpu,
             view: self.view,
@@ -463,7 +453,6 @@ impl<'a> DrawContext<'a> {
                         self.lines(&line_batch);
                         line_batch.clear();
                     }
-                    #[cfg(feature = "textures")]
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
                         if sprite_pipeline.staging_count() > 0 {
                             sprite_pipeline.flush(&state, atlas);
@@ -505,7 +494,6 @@ impl<'a> DrawContext<'a> {
                     });
                 }   
                 SpriteShape::Texture { region_name, size } => {
-                    #[cfg(feature = "textures")]
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
                         if let Some(region) = atlas.get(region_name.as_str()) {
                             sprite_pipeline.draw(
@@ -518,7 +506,6 @@ impl<'a> DrawContext<'a> {
                             );
                         }
                     }
-                    #[cfg(not(feature = "textures"))]
                     if !texture_sprite_warning_shown {
                         log::warn!(
                             "render_world() skips texture sprites - \
@@ -527,7 +514,6 @@ impl<'a> DrawContext<'a> {
                         texture_sprite_warning_shown = true;
                     }
                 }
-                #[cfg(feature = "textures")]
                 SpriteShape::TextureId { region, size } => {
                     if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
                         let atlas_region = atlas.get_by_id(*region);
@@ -551,7 +537,6 @@ impl<'a> DrawContext<'a> {
         if !line_batch.is_empty() {
             self.lines(&line_batch);
         }
-        #[cfg(feature = "textures")]
         if let (Some(sprite_pipeline), Some(atlas)) = (&mut self.sprite_pipeline, &self.texture_atlas) {
             if sprite_pipeline.staging_count() > 0 {
                 sprite_pipeline.flush(&state, atlas);
@@ -586,7 +571,6 @@ impl<'a> DrawContext<'a> {
     ///     draw.render_world(world);
     /// }
     /// ```
-    #[cfg(feature = "textures")]
     pub fn tilemap(&mut self, tilemap: &crate::ecs::tilemap::Tilemap, position: Vec2) {
         use crate::ecs::tilemap::TileFlip;
 
@@ -688,7 +672,6 @@ impl<'a> DrawContext<'a> {
     ///     draw.render_world(world);
     /// }
     /// ```
-    #[cfg(feature = "textures")]
     pub fn render_tilemaps(&mut self, world: &World) {
         use crate::ecs::tilemap::Tilemap;
         
@@ -761,7 +744,6 @@ impl<'a> DrawContext<'a> {
                 // Use draw_sprite() or render_world_with_atlas() instead
                 log::warn!("Texture sprites not supported in render_entity(), use SpritePipeline");
             }
-            #[cfg(feature = "textures")]
             SpriteShape::TextureId { .. } => {
                 // TextureId sprites require SpritePipeline with atlas
                 // Use draw_sprite() or render_world() instead
@@ -840,8 +822,6 @@ impl<'a> DrawContext<'a> {
         // Flush all pipelines to the shared encoder
         self.circle_pipeline.flush_to_frame(&mut frame);
         self.line_pipeline.flush_to_frame(&mut frame);
-
-        #[cfg(feature = "textures")]
         if let (Some(sprite_pipeline), Some(atlas)) =
             (&mut self.sprite_pipeline, &self.texture_atlas)
         {

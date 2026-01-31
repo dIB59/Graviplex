@@ -195,8 +195,6 @@ impl GpuContext {
 // =============================================================================
 // Texture Atlas Integration (feature-gated)
 // =============================================================================
-
-#[cfg(feature = "textures")]
 impl GpuContext {
     /// Build a texture atlas from an AtlasBuilder.
     ///

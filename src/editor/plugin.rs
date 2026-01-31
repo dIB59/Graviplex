@@ -639,26 +639,16 @@ impl MapEditorPlugin {
                         };
                         
                         // Try to render the actual texture
-                        #[cfg(feature = "textures")]
-                        {
-                            if draw.has_texture(texture_name) {
-                                draw.texture_ex(
-                                    texture_name,
-                                    obj.position,
-                                    scaled_size,
-                                    render_tint,
-                                    obj.rotation,
-                                    0,
-                                );
-                            } else {
-                                // Texture not in atlas - draw placeholder
-                                self.draw_texture_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
-                            }
-                        }
-                        
-                        #[cfg(not(feature = "textures"))]
-                        {
-                            // No texture support - draw placeholder
+                        if draw.has_texture(texture_name) {
+                            draw.texture_ex(
+                                texture_name,
+                                obj.position,
+                                scaled_size,
+                                render_tint,
+                                obj.rotation,
+                                0,
+                            );
+                        } else {
                             self.draw_texture_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
                         }
                         
@@ -694,27 +684,18 @@ impl MapEditorPlugin {
                         };
                         
                         // Try to render the first frame of the sprite sheet
-                        #[cfg(feature = "textures")]
-                        {
-                            let frame_texture_name = format!("{}_0", texture_name);
-                            if draw.has_texture(&frame_texture_name) {
-                                draw.texture_ex(
-                                    &frame_texture_name,
-                                    obj.position,
-                                    scaled_size,
-                                    render_tint,
-                                    obj.rotation,
-                                    0,
-                                );
-                            } else {
-                                // Sprite sheet not in atlas - draw placeholder with frame count
-                                self.draw_spritesheet_placeholder(draw, obj.position, scaled_size, *frame_count, is_selected, is_hovered);
-                            }
-                        }
-                        
-                        #[cfg(not(feature = "textures"))]
-                        {
-                            // No texture support - draw placeholder
+                        let frame_texture_name = format!("{}_0", texture_name);
+                        if draw.has_texture(&frame_texture_name) {
+                            draw.texture_ex(
+                                &frame_texture_name,
+                                obj.position,
+                                scaled_size,
+                                render_tint,
+                                obj.rotation,
+                                0,
+                            );
+                        } else {
+                            // Sprite sheet not in atlas - draw placeholder with frame count
                             self.draw_spritesheet_placeholder(draw, obj.position, scaled_size, *frame_count, is_selected, is_hovered);
                         }
                         
@@ -743,27 +724,18 @@ impl MapEditorPlugin {
                         };
                         
                         // Try to render the selected tile
-                        #[cfg(feature = "textures")]
-                        {
-                            let tile_texture_name = format!("{}_{}", texture_name, selected_tile);
-                            if draw.has_texture(&tile_texture_name) {
-                                draw.texture_ex(
-                                    &tile_texture_name,
-                                    obj.position,
-                                    scaled_size,
-                                    render_tint,
-                                    obj.rotation,
-                                    0,
-                                );
-                            } else {
-                                // Tileset not in atlas - draw placeholder
-                                self.draw_tileset_placeholder(draw, obj.position, scaled_size, *columns, *rows, is_selected, is_hovered);
-                            }
-                        }
-                        
-                        #[cfg(not(feature = "textures"))]
-                        {
-                            // No texture support - draw placeholder
+                        let tile_texture_name = format!("{}_{}", texture_name, selected_tile);
+                        if draw.has_texture(&tile_texture_name) {
+                            draw.texture_ex(
+                                &tile_texture_name,
+                                obj.position,
+                                scaled_size,
+                                render_tint,
+                                obj.rotation,
+                                0,
+                            );
+                        } else {
+                            // Tileset not in atlas - draw placeholder
                             self.draw_tileset_placeholder(draw, obj.position, scaled_size, *columns, *rows, is_selected, is_hovered);
                         }
                         
@@ -793,7 +765,6 @@ impl MapEditorPlugin {
                         
                         // Try to render the 9-slice texture (full texture for now)
                         // TODO: Implement proper 9-slice rendering with stretching
-                        #[cfg(feature = "textures")]
                         {
                             if draw.has_texture(texture_name) {
                                 draw.texture_ex(
@@ -809,8 +780,6 @@ impl MapEditorPlugin {
                                 self.draw_nine_slice_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
                             }
                         }
-                        
-                        #[cfg(not(feature = "textures"))]
                         {
                             // No texture support - draw placeholder
                             self.draw_nine_slice_placeholder(draw, obj.position, scaled_size, is_selected, is_hovered);
@@ -856,7 +825,6 @@ impl MapEditorPlugin {
                 let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
                 
                 // Try to render the actual texture
-                #[cfg(feature = "textures")]
                 {
                     if draw.has_texture(texture_name) {
                         draw.texture_ex(
@@ -886,8 +854,6 @@ impl MapEditorPlugin {
                         ));
                     }
                 }
-                
-                #[cfg(not(feature = "textures"))]
                 {
                     // No texture support - draw placeholder
                     let c = Color::rgba(0.3, 0.5, 0.8, preview_alpha);
@@ -913,7 +879,6 @@ impl MapEditorPlugin {
                 let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
                 
                 // Try to render the first frame of the sprite sheet
-                #[cfg(feature = "textures")]
                 {
                     let frame_texture_name = format!("{}_0", texture_name);
                     if draw.has_texture(&frame_texture_name) {
@@ -933,8 +898,6 @@ impl MapEditorPlugin {
                         self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
                     }
                 }
-                
-                #[cfg(not(feature = "textures"))]
                 {
                     // No texture support - draw placeholder
                     self.draw_spritesheet_placeholder(draw, preview_pos, object_def.size, *frame_count, false, false);
@@ -945,7 +908,6 @@ impl MapEditorPlugin {
                 let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
                 
                 // Try to render the selected tile
-                #[cfg(feature = "textures")]
                 {
                     let tile_texture_name = format!("{}_{}", texture_name, selected_tile);
                     if draw.has_texture(&tile_texture_name) {
@@ -965,8 +927,6 @@ impl MapEditorPlugin {
                         self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
                     }
                 }
-                
-                #[cfg(not(feature = "textures"))]
                 {
                     // No texture support - draw placeholder
                     self.draw_tileset_placeholder(draw, preview_pos, object_def.size, *columns, *rows, false, false);
@@ -977,7 +937,6 @@ impl MapEditorPlugin {
                 let preview_tint = Color::rgba(tint.r, tint.g, tint.b, preview_alpha);
                 
                 // Try to render the 9-slice texture
-                #[cfg(feature = "textures")]
                 {
                     if draw.has_texture(texture_name) {
                         draw.texture_ex(
@@ -996,8 +955,6 @@ impl MapEditorPlugin {
                         self.draw_rect_outline(draw, preview_pos, object_def.size, Color::rgba(1.0, 1.0, 1.0, 0.6));
                     }
                 }
-                
-                #[cfg(not(feature = "textures"))]
                 {
                     // No texture support - draw placeholder
                     self.draw_nine_slice_placeholder(draw, preview_pos, object_def.size, false, false);
@@ -1307,8 +1264,6 @@ impl Plugin for MapEditorPlugin {
     fn render(&self, _world: &World, draw: &mut DrawContext) {
         self.render_editor(draw);
     }
-
-    #[cfg(feature = "gui")]
     fn gui(&self, ctx: &egui::Context, _fps: &FpsCounter) {
         if !self.editor.is_enabled() {
             return;

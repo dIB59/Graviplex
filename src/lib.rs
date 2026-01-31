@@ -47,10 +47,7 @@ pub mod scene;
 pub mod state_machine;
 
 // Feature-gated modules
-#[cfg(feature = "gui")]
 pub mod gui;
-
-#[cfg(feature = "gui")]
 pub mod editor;
 
 // Private modules (implementation details)
@@ -122,7 +119,6 @@ pub use state_machine::{SimpleState, StateId, StateMachine};
 pub use audio::{AudioClip, AudioListener, AudioManager, AudioSource, PlaybackState};
 
 // Map Editor (requires `gui` feature)
-#[cfg(feature = "gui")]
 pub use editor::{
     MapEditor, EditorConfig, EditorState,
     MapObject, MapObjectId, PlacedObject, ObjectVisual, PropertyValue, CollisionShape,
@@ -154,14 +150,10 @@ pub mod advanced {
         CameraGpuData, CircleInstance, CirclePipeline, LineInstance, LinePipeline, RenderState,
         ShaderPipeline, Vertex,
     };
-
-    #[cfg(feature = "textures")]
     pub use crate::renderer::{
         AtlasBuilder, AtlasError, AtlasRegion, SpriteInstance, SpriteInstanceGpu, SpritePipeline,
         TextureAtlas,
     };
-
-    #[cfg(feature = "physics")]
     pub use crate::physics::PhysicsInstance;
 }
 
@@ -170,7 +162,6 @@ pub mod advanced {
 // =============================================================================
 
 /// Physics simulation types (requires `physics` feature).
-#[cfg(feature = "physics")]
 pub mod physics;
 
 // =============================================================================
@@ -178,7 +169,6 @@ pub mod physics;
 // =============================================================================
 
 /// Re-exported egui for GUI (requires `gui` feature).
-#[cfg(feature = "gui")]
 pub use egui;
 
 /// Re-exported wgpu for advanced GPU programming.

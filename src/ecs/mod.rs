@@ -82,7 +82,6 @@ pub use components::{
     Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody, Sprite,
     SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
 };
-#[cfg(feature = "textures")]
 pub use components::SpriteAnimationId;
 
 // Primary exports - Legacy system context (for backwards compatibility)
@@ -98,7 +97,6 @@ pub use systems::{
     acceleration_system, animation_system, despawn_system, drag_system, gravity_system,
     lifetime_system, movement_system, physics_system, player_input_system, run_systems,
 };
-#[cfg(feature = "textures")]
 pub use systems::animation_id_system;
 
 // Primary exports - Tilemap
@@ -130,7 +128,6 @@ pub mod prelude {
         Acceleration, BodyType, Despawn, Gravity, Health, Lifetime, Name, PlayerController, RigidBody, Sprite,
         SpriteAnimation, SpriteShape, Tags, Transform, Velocity, Visible,
     };
-    #[cfg(feature = "textures")]
     pub use super::components::SpriteAnimationId;
     
     // Legacy context

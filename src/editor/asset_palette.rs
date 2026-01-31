@@ -248,7 +248,6 @@ impl AssetPalette {
 
 
     /// Render the palette UI.
-    #[cfg(feature = "gui")]
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         // Search bar
         ui.horizontal(|ui| {
@@ -409,7 +408,6 @@ impl AssetPalette {
     }
     
     /// Draw a preview of the asset (static version to avoid borrow issues).
-    #[cfg(feature = "gui")]
     fn draw_preview_static(ui: &mut egui::Ui, visual: &super::map_object::ObjectVisual, obj_size: crate::core::math::Vec2, size: f32) {
         use super::map_object::ObjectVisual;
         
@@ -613,7 +611,6 @@ impl AssetPalette {
     }
     
     /// Create a button for an asset with preview (static version).
-    #[cfg(feature = "gui")]
     fn asset_button_static(ui: &mut egui::Ui, visual: &super::map_object::ObjectVisual, obj_size: crate::core::math::Vec2, selected: bool) -> egui::Response {
         let button_size = 56.0;
         let (rect, response) = ui.allocate_exact_size(
@@ -647,7 +644,6 @@ impl AssetPalette {
     }
     
     /// Draw asset preview at a specific rect.
-    #[cfg(feature = "gui")]
     fn draw_preview_at_rect(painter: &egui::Painter, rect: egui::Rect, visual: &super::map_object::ObjectVisual, obj_size: crate::core::math::Vec2) {
         use super::map_object::ObjectVisual;
         

@@ -71,7 +71,6 @@ pub trait Plugin: 'static {
     /// Called to render plugin GUI elements (requires `gui` feature).
     ///
     /// The FPS counter and fps display info are provided for convenience.
-    #[cfg(feature = "gui")]
     fn gui(&self, _ctx: &egui::Context, _fps: &FpsCounter) {}
 }
 
@@ -106,15 +105,10 @@ pub trait Plugin: 'static {
 ///     ))
 ///     .run();
 /// ```
-#[cfg(feature = "gui")]
 #[derive(Default)]
 pub struct FpsPlugin {
     config: FpsDisplayConfig,
 }
-
-#[cfg(feature = "gui")]
-
-#[cfg(feature = "gui")]
 impl FpsPlugin {
     /// Create an FPS plugin with custom configuration.
     pub fn new(config: FpsDisplayConfig) -> Self {
@@ -142,8 +136,6 @@ impl FpsPlugin {
         }
     }
 }
-
-#[cfg(feature = "gui")]
 impl Plugin for FpsPlugin {
     fn name(&self) -> &'static str {
         "FpsPlugin"
@@ -208,7 +200,6 @@ impl Plugin for FpsPlugin {
 }
 
 /// Get a color for the FPS value (green = good, yellow = ok, red = bad).
-#[cfg(feature = "gui")]
 fn fps_color(fps: f32) -> egui::Color32 {
     if fps >= 55.0 {
         egui::Color32::from_rgb(100, 255, 100) // Green
@@ -265,7 +256,6 @@ impl PluginRegistry {
     }
 
     /// Render GUI for all plugins.
-    #[cfg(feature = "gui")]
     pub fn gui(&self, ctx: &egui::Context, fps: &FpsCounter) {
         for plugin in &self.plugins {
             plugin.gui(ctx, fps);

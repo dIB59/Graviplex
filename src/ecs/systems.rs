@@ -25,7 +25,6 @@ use super::components::{
     Acceleration, BodyType, Despawn, Gravity, Lifetime, PlayerController, RigidBody, Sprite,
     SpriteAnimation, SpriteShape, Transform, Velocity,
 };
-#[cfg(feature = "textures")]
 use super::components::SpriteAnimationId;
 use super::world::World;
 use super::Entity;
@@ -152,7 +151,6 @@ pub fn animation_system(world: &mut World, dt: f32) {
 /// // In your game's update method:
 /// animation_id_system(&mut world, res.time.delta());
 /// ```
-#[cfg(feature = "textures")]
 pub fn animation_id_system(world: &mut World, dt: f32) {
     for (_, (sprite, animation)) in world.query::<(&mut Sprite, &mut SpriteAnimationId)>().iter() {
         // Update animation timing

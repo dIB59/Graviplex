@@ -3,8 +3,6 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
-
-#[cfg(feature = "serialize")]
 use std::fs;
 
 use crate::core::color::Color;
@@ -59,30 +57,20 @@ impl AssetConfigFile {
 }
 
 /// Save asset configurations to a JSON file.
-#[cfg(feature = "serialize")]
 pub fn save_asset_config(path: impl AsRef<Path>, config: &AssetConfigFile) -> Result<(), MapError> {
     let json = serde_json::to_string_pretty(config)?;
     fs::write(path, json)?;
     Ok(())
 }
 
-#[cfg(not(feature = "serialize"))]
-pub fn save_asset_config(_path: impl AsRef<Path>, _config: &AssetConfigFile) -> Result<(), MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
 
 /// Load asset configurations from a JSON file.
-#[cfg(feature = "serialize")]
 pub fn load_asset_config(path: impl AsRef<Path>) -> Result<AssetConfigFile, MapError> {
     let json = fs::read_to_string(path)?;
     let config = serde_json::from_str(&json)?;
     Ok(config)
 }
 
-#[cfg(not(feature = "serialize"))]
-pub fn load_asset_config(_path: impl AsRef<Path>) -> Result<AssetConfigFile, MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
 
 /// Serializable map data format.
 #[derive(Debug, Clone)]
@@ -259,7 +247,6 @@ pub enum MapError {
     /// IO error.
     Io(io::Error),
     /// Serialization error.
-    #[cfg(feature = "serialize")]
     Serialize(serde_json::Error),
     /// Feature not enabled.
     FeatureNotEnabled(&'static str),
@@ -269,7 +256,6 @@ impl std::fmt::Display for MapError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MapError::Io(e) => write!(f, "IO error: {}", e),
-            #[cfg(feature = "serialize")]
             MapError::Serialize(e) => write!(f, "Serialization error: {}", e),
             MapError::FeatureNotEnabled(feature) => {
                 write!(f, "Feature '{}' not enabled", feature)
@@ -285,8 +271,6 @@ impl From<io::Error> for MapError {
         MapError::Io(e)
     }
 }
-
-#[cfg(feature = "serialize")]
 impl From<serde_json::Error> for MapError {
     fn from(e: serde_json::Error) -> Self {
         MapError::Serialize(e)
@@ -296,55 +280,35 @@ impl From<serde_json::Error> for MapError {
 /// Save a map to a JSON file.
 ///
 /// Requires the `serialize` feature.
-#[cfg(feature = "serialize")]
 pub fn save_map(path: impl AsRef<Path>, data: &MapData) -> Result<(), MapError> {
     let json = serde_json::to_string_pretty(data)?;
     fs::write(path, json)?;
     Ok(())
 }
 
-/// Save a map to a JSON file (stub when serialize feature is disabled).
-#[cfg(not(feature = "serialize"))]
-pub fn save_map(_path: impl AsRef<Path>, _data: &MapData) -> Result<(), MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
+
 
 /// Load a map from a JSON file.
 ///
 /// Requires the `serialize` feature.
-#[cfg(feature = "serialize")]
 pub fn load_map(path: impl AsRef<Path>) -> Result<MapData, MapError> {
     let json = fs::read_to_string(path)?;
     let data = serde_json::from_str(&json)?;
     Ok(data)
 }
 
-/// Load a map from a JSON file (stub when serialize feature is disabled).
-#[cfg(not(feature = "serialize"))]
-pub fn load_map(_path: impl AsRef<Path>) -> Result<MapData, MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
+
 
 /// Save map data to a string.
-#[cfg(feature = "serialize")]
 pub fn save_map_to_string(data: &MapData) -> Result<String, MapError> {
     Ok(serde_json::to_string_pretty(data)?)
 }
 
-/// Save map data to a string (stub).
-#[cfg(not(feature = "serialize"))]
-pub fn save_map_to_string(_data: &MapData) -> Result<String, MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
+
 
 /// Load map data from a string.
-#[cfg(feature = "serialize")]
 pub fn load_map_from_string(json: &str) -> Result<MapData, MapError> {
     Ok(serde_json::from_str(json)?)
 }
 
-/// Load map data from a string (stub).
-#[cfg(not(feature = "serialize"))]
-pub fn load_map_from_string(_json: &str) -> Result<MapData, MapError> {
-    Err(MapError::FeatureNotEnabled("serialize"))
-}
+

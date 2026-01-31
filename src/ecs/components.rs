@@ -15,8 +15,6 @@
 
 use crate::core::color::Color;
 use crate::core::math::Vec2;
-
-#[cfg(feature = "textures")]
 use crate::renderer::texture_atlas::RegionId;
 
 // =============================================================================
@@ -501,7 +499,6 @@ impl Sprite {
     /// // Use in hot loop with zero allocation
     /// let sprite = Sprite::texture_id(player_id, Vec2::new(32.0, 32.0), Color::WHITE);
     /// ```
-    #[cfg(feature = "textures")]
     pub fn texture_id(region: RegionId, size: Vec2, tint: Color) -> Self {
         Self {
             shape: SpriteShape::TextureId { region, size },
@@ -573,7 +570,6 @@ pub enum SpriteShape {
     /// // Create sprites with zero-allocation lookup
     /// let sprite = Sprite::texture_id(player_id, Vec2::new(32.0, 32.0), Color::WHITE);
     /// ```
-    #[cfg(feature = "textures")]
     TextureId {
         /// Pre-resolved region ID for O(1) lookup.
         region: RegionId,
@@ -905,7 +901,6 @@ impl SpriteAnimation {
 ///     Visible,
 /// ));
 /// ```
-#[cfg(feature = "textures")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SpriteAnimationId {
     /// Pre-resolved frame IDs for O(1) lookup
@@ -921,8 +916,6 @@ pub struct SpriteAnimationId {
     /// Whether the animation is playing
     pub playing: bool,
 }
-
-#[cfg(feature = "textures")]
 impl SpriteAnimationId {
     /// Create a new animation from pre-resolved frame IDs.
     ///
@@ -1380,7 +1373,6 @@ mod tests {
                     assert!(!region_name.is_empty());
                     assert!(size.x > 0.0 && size.y > 0.0);
                 }
-                #[cfg(feature = "textures")]
                 SpriteShape::TextureId { region, size } => {
                     assert!(region.is_valid());
                     assert!(size.x > 0.0 && size.y > 0.0);

@@ -320,13 +320,10 @@ impl std::error::Error for AtlasError {}
 ///     .add_image("enemy", "assets/enemy.png")?
 ///     .build(&gpu, 2048)?;
 /// ```
-#[cfg(feature = "textures")]
 #[derive(Debug)]
 pub struct AtlasBuilder {
     pub(crate) images: HashMap<String, image::RgbaImage>,
 }
-
-#[cfg(feature = "textures")]
 impl AtlasBuilder {
     /// Create a new empty atlas builder.
     pub fn new() -> Self {
@@ -937,8 +934,6 @@ impl AtlasBuilder {
         })
     }
 }
-
-#[cfg(feature = "textures")]
 impl Default for AtlasBuilder {
     fn default() -> Self {
         Self::new()
@@ -1026,8 +1021,6 @@ mod tests {
     // =========================================================================
     // UNIT TESTS - AtlasBuilder (feature-gated)
     // =========================================================================
-
-    #[cfg(feature = "textures")]
     mod builder_tests {
         use super::*;
 

@@ -16,30 +16,15 @@
 
 use graviplex::prelude::*;
 use std::collections::HashSet;
-
-#[cfg(feature = "gui")]
 use graviplex::editor::{MapEditorPlugin, EditorConfig, GridConfig, MapObject};
-
-#[cfg(not(feature = "gui"))]
-fn main() {
-    eprintln!("This example requires the 'gui' feature. Run with:");
-    eprintln!("  cargo run --example map_editor_demo --features gui");
-}
-
-#[cfg(feature = "gui")]
 fn main() {
     // Build atlas with sprites from assets folder
-    #[cfg(feature = "textures")]
     let (atlas, texture_names) = build_atlas_from_assets();
-    
-    #[cfg(not(feature = "textures"))]
     let texture_names: Vec<String> = Vec::new();
     
     let mut app = App::build(EditorDemo::new(texture_names))
         .title("Map Editor Demo - Press F1 or ` to toggle editor")
         .size(1280, 720);
-    
-    #[cfg(feature = "textures")]
     {
         // Use 4096 atlas - should be enough for filtered textures
         app = app.atlas(atlas).atlas_size(4096);
@@ -48,7 +33,6 @@ fn main() {
     app.run().unwrap();
 }
 
-#[cfg(all(feature = "gui", feature = "textures"))]
 fn build_atlas_from_assets() -> (graviplex::prelude::AtlasBuilder, Vec<String>) {
     use graviplex::prelude::AtlasBuilder;
     use image::GenericImageView;
@@ -117,7 +101,6 @@ fn build_atlas_from_assets() -> (graviplex::prelude::AtlasBuilder, Vec<String>) 
 }
 
 /// Asset type selection for the configuration dialog
-#[cfg(feature = "gui")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AssetType {
     SingleTexture,
@@ -125,8 +108,6 @@ enum AssetType {
     Tileset,
     NineSlice,
 }
-
-#[cfg(feature = "gui")]
 struct EditorDemo {
     editor_plugin: MapEditorPlugin,
     /// Index of current sprite sheet being configured in dialog
@@ -151,8 +132,6 @@ struct EditorDemo {
     /// Set of ignored tile indices for tileset configuration
     tileset_ignored_tiles: HashSet<u32>,
 }
-
-#[cfg(feature = "gui")]
 impl EditorDemo {
     fn new(available_textures: Vec<String>) -> Self {
         // Configure the editor
@@ -665,8 +644,6 @@ impl EditorDemo {
         }
     }
 }
-
-#[cfg(feature = "gui")]
 impl GameLoop for EditorDemo {
     fn init(&mut self, world: &mut World, _gfx: &Graphics) {
         // Initialize the plugin (scans assets directory)
@@ -696,8 +673,6 @@ impl GameLoop for EditorDemo {
         // Render editor overlays (grid, objects, preview)
         self.editor_plugin.render_editor(draw);
     }
-
-    #[cfg(feature = "gui")]
     fn gui(&mut self, ctx: &egui::Context) {
         // Render the editor UI panel
         let world = World::new();

@@ -3,7 +3,6 @@
 //! These tests ensure that the editor functionality works correctly,
 //! especially around texture/atlas integration which was a source of bugs.
 
-#[cfg(feature = "gui")]
 mod tests {
     use graviplex::prelude::*;
     use graviplex::editor::{MapEditor, MapObject, EditorConfig, GridConfig, ObjectVisual, AssetKind};
@@ -620,7 +619,6 @@ mod tests {
 // ATLAS BUILDER TESTS (Regression for atlas overflow bug)
 // =========================================================================
 
-#[cfg(feature = "textures")]
 mod atlas_tests {
     use graviplex::prelude::*;
     

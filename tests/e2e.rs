@@ -4,8 +4,6 @@
 
 use graviplex::prelude::*;
 use graviplex::advanced::CircleInstance;
-
-#[cfg(feature = "textures")]
 use graviplex::advanced::{AtlasBuilder, AtlasRegion, SpriteInstance};
 
 #[cfg(test)]
@@ -117,8 +115,6 @@ mod tests {
     // =========================================================================
     // SPRITE & TEXTURE TESTS (feature-gated)
     // =========================================================================
-
-    #[cfg(feature = "textures")]
     mod texture_tests {
         use super::*;
 
@@ -540,7 +536,6 @@ mod tests {
     }
 
     /// Regression test: Z-ordering with texture sprites (when textures feature enabled).
-    #[cfg(feature = "textures")]
     #[test]
     fn test_z_order_with_texture_sprites() {
         let mut world = World::new();

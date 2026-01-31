@@ -16,12 +16,9 @@ use crate::renderer::{
 use crate::renderer::gpu_context::GpuContext;
 use crate::GameLoop;
 
-#[cfg(feature = "gui")]
 use crate::gui::gui_renderer::UiPipeline;
-#[cfg(feature = "gui")]
 use crate::gui::Gui;
 
-#[cfg(feature = "textures")]
 use crate::renderer::{SpritePipeline, TextureAtlas, AtlasBuilder};
 
 // =============================================================================
@@ -29,7 +26,6 @@ use crate::renderer::{SpritePipeline, TextureAtlas, AtlasBuilder};
 // =============================================================================
 
 /// Encapsulates all texture-related state to reduce feature flag annotations.
-#[cfg(feature = "textures")]
 struct TextureState {
     sprite_pipeline: Option<SpritePipeline>,
     texture_atlas: Option<TextureAtlas>,
@@ -37,7 +33,6 @@ struct TextureState {
     atlas_size: u32,
 }
 
-#[cfg(feature = "textures")]
 impl TextureState {
     fn new() -> Self {
         Self {
@@ -152,9 +147,7 @@ pub struct AppBuilder<T: GameLoop> {
     camera_config: CameraConfig,
     exit_time: Option<f32>,
     plugins: PluginRegistry,
-    #[cfg(feature = "textures")]
     atlas_builder: Option<AtlasBuilder>,
-    #[cfg(feature = "textures")]
     atlas_size: u32,
 }
 
@@ -170,9 +163,7 @@ impl<T: GameLoop> AppBuilder<T> {
             camera_config: CameraConfig::default(),
             exit_time: None,
             plugins: PluginRegistry::new(),
-            #[cfg(feature = "textures")]
             atlas_builder: None,
-            #[cfg(feature = "textures")]
             atlas_size: 2048,
         }
     }
@@ -244,7 +235,6 @@ impl<T: GameLoop> AppBuilder<T> {
     ///     )
     ///     .run()
     /// ```
-    #[cfg(feature = "textures")]
     pub fn atlas(mut self, builder: AtlasBuilder) -> Self {
         self.atlas_builder = Some(builder);
         self
@@ -253,7 +243,6 @@ impl<T: GameLoop> AppBuilder<T> {
     /// Set the texture atlas size (default: 2048).
     ///
     /// Larger sizes allow more textures but use more GPU memory.
-    #[cfg(feature = "textures")]
     pub fn atlas_size(mut self, size: u32) -> Self {
         self.atlas_size = size;
         self
@@ -278,13 +267,10 @@ impl<T: GameLoop> AppBuilder<T> {
             time: Time::new(),
             input: InputState::new(),
             plugins: self.plugins,
-            #[cfg(feature = "gui")]
             gui: None,
-            #[cfg(feature = "gui")]
             gui_renderer: None,
             circle_pipeline: None,
             line_pipeline: None,
-            #[cfg(feature = "textures")]
             textures: TextureState::with_builder(self.atlas_builder, self.atlas_size),
             exit_time: self.exit_time,
             config: AppConfig {
@@ -343,13 +329,10 @@ pub struct App<T: GameLoop> {
     time: Time,
     input: InputState,
     plugins: PluginRegistry,
-    #[cfg(feature = "gui")]
     gui: Option<Gui>,
-    #[cfg(feature = "gui")]
     gui_renderer: Option<UiPipeline>,
     circle_pipeline: Option<CirclePipeline>,
     line_pipeline: Option<LinePipeline>,
-    #[cfg(feature = "textures")]
     textures: TextureState,
     exit_time: Option<f32>,
     config: AppConfig,
@@ -371,13 +354,10 @@ impl<T: GameLoop> App<T> {
                 .with_zoom_range(0.0001, 10.0),
             time: Time::new(),
             input: InputState::new(),
-            #[cfg(feature = "gui")]
             gui: None,
-            #[cfg(feature = "gui")]
             gui_renderer: None,
             circle_pipeline: None,
             line_pipeline: None,
-            #[cfg(feature = "textures")]
             textures: TextureState::new(),
             exit_time: None,
             plugins: PluginRegistry::new(),
@@ -482,7 +462,6 @@ impl<T: GameLoop> App<T> {
             (&mut self.circle_pipeline, &mut self.line_pipeline)
         {
             // Get optional sprite resources
-            #[cfg(feature = "textures")]
             let (sprite_pipeline, texture_atlas) = {
                 let sp = self.textures.sprite_pipeline.as_mut();
                 let ta = self.textures.texture_atlas.as_ref();
@@ -495,9 +474,7 @@ impl<T: GameLoop> App<T> {
                 camera: &self.camera,
                 circle_pipeline,
                 line_pipeline,
-                #[cfg(feature = "textures")]
                 sprite_pipeline,
-                #[cfg(feature = "textures")]
                 texture_atlas,
             };
 
@@ -511,7 +488,6 @@ impl<T: GameLoop> App<T> {
         }
 
         // Render GUI
-        #[cfg(feature = "gui")]
         self.render_gui(&view);
 
         frame.present();
@@ -520,8 +496,6 @@ impl<T: GameLoop> App<T> {
         // (after all input has been processed)
         self.input.begin_frame();
     }
-
-    #[cfg(feature = "gui")]
     fn render_gui(&mut self, view: &wgpu::TextureView) {
         let (Some(window), Some(ui_renderer), Some(gui)) =
             (&self.window, &mut self.gui_renderer, &mut self.gui)
@@ -579,8 +553,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         self.camera.screen_size = [size.width as f32, size.height as f32];
 
         let format = self.gpu.surface_format();
-
-        #[cfg(feature = "gui")]
         {
             let mut gui = Gui::new(event_loop);
             let initial_output = gui.run_empty(&window);
@@ -604,7 +576,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         self.line_pipeline = Some(line_pipeline);
 
         // Initialize texture atlas and sprite pipeline if configured
-        #[cfg(feature = "textures")]
         if let Some(atlas_builder) = self.textures.pending_atlas_builder.take() {
             match self.gpu.build_atlas(atlas_builder, self.textures.atlas_size) {
                 Ok(atlas) => {
@@ -635,15 +606,11 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         event: WindowEvent,
     ) {
         // Track if GUI consumed the event (for mouse events)
-        #[cfg(feature = "gui")]
         let gui_consumed = if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
             gui.handle_event(window, &event).consumed
         } else {
             false
         };
-        
-        #[cfg(not(feature = "gui"))]
-        let gui_consumed = false;
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),

@@ -785,7 +785,6 @@ impl MapEditor {
     // =========================================================================
 
     /// Render the editor UI.
-    #[cfg(feature = "gui")]
     pub fn ui(&mut self, ctx: &egui::Context, _world: &World) {
         if !self.config.enabled {
             return;

@@ -129,7 +129,6 @@ pub trait GameLoop: 'static {
     }
 
     /// Called to render game-specific GUI elements (requires `gui` feature).
-    #[cfg(feature = "gui")]
     fn gui(&mut self, ctx: &egui::Context) {
         let _ = ctx;
     }
