@@ -20,8 +20,7 @@ use graviplex::editor::{MapEditorPlugin, EditorConfig, GridConfig, MapObject};
 fn main() {
     // Build atlas with sprites from assets folder
     let (atlas, texture_names) = build_atlas_from_assets();
-    let texture_names: Vec<String> = Vec::new();
-    
+
     let mut app = App::build(EditorDemo::new(texture_names))
         .title("Map Editor Demo - Press F1 or ` to toggle editor")
         .size(1280, 720);
@@ -727,47 +726,6 @@ impl GameLoop for EditorDemo {
                 });
             });
         });
-        
-        // Show help window
-        egui::Window::new("📖 Help")
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 20.0))
-            .collapsible(true)
-            .default_open(false)
-            .show(ctx, |ui| {
-                if ui.ui_contains_pointer() {
-                    self.editor_plugin.editor.state.panel_focused = true;
-                }
-                
-                ui.heading("Map Editor Controls");
-                ui.separator();
-                
-                ui.label("🔧 Toggle Editor:");
-                ui.label("  F1 or ` (backtick)");
-                ui.add_space(8.0);
-                
-                ui.label("🛠 Tools:");
-                ui.label("  V - Select");
-                ui.label("  P - Place");
-                ui.label("  E - Erase");
-                ui.label("  B - Paint/Brush");
-                ui.add_space(8.0);
-                
-                ui.label("📐 Grid:");
-                ui.label("  G - Toggle snap");
-                ui.add_space(8.0);
-                
-                ui.label("🖱 Mouse:");
-                ui.label("  Click - Place/Select");
-                ui.label("  Shift+Click - Multi-select");
-                ui.label("  Drag - Move selected");
-                ui.add_space(8.0);
-                
-                ui.label("⌨ Keyboard:");
-                ui.label("  Del - Delete selected");
-                ui.label("  Ctrl+Z - Undo");
-                ui.label("  Ctrl+Shift+Z - Redo");
-                ui.label("  Ctrl+A - Select all");
-            });
     }
 }
 
