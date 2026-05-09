@@ -1,26 +1,13 @@
 //! GPU context management for wgpu resources.
 
-use pollster::FutureExt;
 use std::sync::Arc;
 use wgpu::*;
 use winit::window::Window;
 
+#[cfg(not(target_arch = "wasm32"))]
+use pollster::FutureExt;
+
 /// Graphics device wrapper managing wgpu resources.
-///
-/// This is the core GPU abstraction that provides access to the device and queue
-/// for creating buffers, pipelines, and other GPU resources.
-///
-/// # Example
-///
-/// ```ignore
-/// fn init(&mut self, gfx: &Graphics) {
-///     let buffer = gfx.device.create_buffer_init(&BufferInitDescriptor {
-///         label: Some("My Buffer"),
-///         contents: bytemuck::cast_slice(&data),
-///         usage: BufferUsages::VERTEX,
-///     });
-/// }
-/// ```
 pub struct GpuContext {
     pub device: Device,
     pub queue: Queue,
@@ -30,17 +17,28 @@ pub struct GpuContext {
 
 impl GpuContext {
     /// Create a new GPU context (device and queue only, no surface).
+    ///
+    /// On native this is fully synchronous via pollster. On WASM, blocking the
+    /// main thread is forbidden, so the async constructor `new_async` is the
+    /// only valid one — `new` will panic at runtime under wasm32.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new() -> Self {
+        Self::new_async().block_on()
+    }
+
+    pub async fn new_async() -> Self {
         let instance = Instance::new(&InstanceDescriptor::default());
 
-        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        }))
-        .expect("Unable to create adapter");
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptions {
+                power_preference: PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: None,
+            })
+            .await
+            .expect("Unable to create adapter");
 
-        let (device, queue) = Self::request_device(&adapter);
+        let (device, queue) = Self::request_device(&adapter).await;
 
         Self {
             device,
@@ -50,26 +48,29 @@ impl GpuContext {
         }
     }
 
-    /// Initialize the surface for window rendering.
-    ///
-    /// This should be called once when the window is created.
-    /// The vsync parameter controls whether vertical sync is enabled.
+    /// Initialize the surface for window rendering. Synchronous on native.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn init_surface(&mut self, window: Arc<Window>, vsync: bool) {
+        self.init_surface_async(window, vsync).block_on()
+    }
+
+    pub async fn init_surface_async(&mut self, window: Arc<Window>, vsync: bool) {
         let instance = Instance::new(&InstanceDescriptor::default());
 
         let surface = instance
             .create_surface(window.clone())
             .expect("Unable to create surface");
 
-        // Request a new adapter with surface compatibility
-        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            power_preference: PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        }))
-        .expect("Unable to create adapter");
+        let adapter = instance
+            .request_adapter(&RequestAdapterOptions {
+                power_preference: PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
+            })
+            .await
+            .expect("Unable to create adapter");
 
-        let (device, queue) = Self::request_device(&adapter);
+        let (device, queue) = Self::request_device(&adapter).await;
 
         let size = window.inner_size();
         let format = surface.get_capabilities(&adapter).formats[0];
@@ -116,25 +117,40 @@ impl GpuContext {
             .get_current_texture()
     }
 
-    fn request_device(adapter: &Adapter) -> (Device, Queue) {
-        #[cfg(target_os = "macos")]
+    async fn request_device(adapter: &Adapter) -> (Device, Queue) {
+        // SHADER_F16 and CONSERVATIVE_RASTERIZATION are Vulkan/Metal-only and
+        // unavailable through the WebGL backend. Request an empty feature set
+        // on WASM and fall back gracefully.
+        #[cfg(target_arch = "wasm32")]
+        let features = Features::empty();
+
+        #[cfg(all(not(target_arch = "wasm32"), target_os = "macos"))]
         let features = Features::SHADER_F16;
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "macos")))]
         let features = Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION;
+
+        // WebGL imposes tighter limits than the native default. Request the
+        // downlevel-webgl2 baseline on WASM so the device-creation request
+        // doesn't fail with "limits exceeded".
+        #[cfg(target_arch = "wasm32")]
+        let required_limits = Limits::downlevel_webgl2_defaults();
+        #[cfg(not(target_arch = "wasm32"))]
+        let required_limits = Limits::default();
 
         adapter
             .request_device(&DeviceDescriptor {
                 label: Some("Device Descriptor"),
-                required_limits: Limits::default(),
+                required_limits,
                 required_features: features,
                 ..Default::default()
             })
-            .block_on()
+            .await
             .expect("Unable to create device")
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Default for GpuContext {
     fn default() -> Self {
         Self::new()
