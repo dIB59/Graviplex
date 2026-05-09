@@ -118,9 +118,8 @@ impl GpuContext {
     }
 
     async fn request_device(adapter: &Adapter) -> (Device, Queue) {
-        // SHADER_F16 and CONSERVATIVE_RASTERIZATION are Vulkan/Metal-only and
-        // unavailable through the WebGL backend. Request an empty feature set
-        // on WASM and fall back gracefully.
+        // SHADER_F16 and CONSERVATIVE_RASTERIZATION are Vulkan/Metal-only.
+        // WebGPU exposes neither. Request an empty feature set on WASM.
         #[cfg(target_arch = "wasm32")]
         let features = Features::empty();
 
@@ -130,12 +129,6 @@ impl GpuContext {
         #[cfg(all(not(target_arch = "wasm32"), not(target_os = "macos")))]
         let features = Features::SHADER_F16 | Features::CONSERVATIVE_RASTERIZATION;
 
-        // WebGL imposes tighter limits than the native default. Request the
-        // downlevel-webgl2 baseline on WASM so the device-creation request
-        // doesn't fail with "limits exceeded".
-        #[cfg(target_arch = "wasm32")]
-        let required_limits = Limits::downlevel_webgl2_defaults();
-        #[cfg(not(target_arch = "wasm32"))]
         let required_limits = Limits::default();
 
         adapter

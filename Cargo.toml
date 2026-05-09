@@ -15,7 +15,10 @@ physics = []
 
 [dependencies]
 bytemuck = "1.22.0"
-wgpu = { version = "26.0.1", features = ["webgl"] }
+# Compute shaders require WebGPU on the wasm target — WebGL2 doesn't support
+# them. This excludes browsers that don't yet have WebGPU enabled (Firefox
+# stable as of 2026 still gates it behind a flag; Safari has it on 18+).
+wgpu = "26.0.1"
 winit = "0.30.7"
 egui = { version = "0.33.0", default-features = true, optional = true }
 egui-winit = { version = "0.33.0", default-features = false, optional = true }
