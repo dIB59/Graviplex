@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Window, WindowId};
 
 use crate::core::time::Time;
@@ -18,6 +18,23 @@ use crate::GameLoop;
 use crate::gui::gui_renderer::UiPipeline;
 #[cfg(feature = "gui")]
 use crate::gui::Gui;
+
+/// User event sent by the async GPU-init path on WASM. Native uses sync init
+/// and never produces this event.
+pub enum UserEvent {
+    GpuReady {
+        gpu: GpuContext,
+        window: Arc<Window>,
+    },
+}
+
+impl std::fmt::Debug for UserEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserEvent::GpuReady { .. } => f.write_str("UserEvent::GpuReady"),
+        }
+    }
+}
 
 // =============================================================================
 // APP CONFIGURATION
@@ -164,7 +181,7 @@ impl<T: GameLoop> AppBuilder<T> {
         let app = App {
             game: self.game,
             window: None,
-            gpu: GpuContext::new(),
+            gpu: None,
             camera: Camera2D::new(
                 self.camera_config.position,
                 self.camera_config.scale,
@@ -189,6 +206,7 @@ impl<T: GameLoop> AppBuilder<T> {
                 height: self.height,
                 vsync: self.vsync,
             },
+            event_loop_proxy: None,
         };
 
         app.run_internal()
@@ -232,7 +250,9 @@ struct AppConfig {
 pub struct App<T: GameLoop> {
     game: T,
     window: Option<Arc<Window>>,
-    gpu: GpuContext,
+    /// `None` until GPU init completes. On native that's instant inside
+    /// `resumed`; on WASM it happens asynchronously, gated on `UserEvent::GpuReady`.
+    gpu: Option<GpuContext>,
     camera: Camera2D,
     camera_controller: CameraController,
     time: Time,
@@ -245,6 +265,9 @@ pub struct App<T: GameLoop> {
     line_pipeline: Option<LinePipeline>,
     exit_time: Option<f32>,
     config: AppConfig,
+    /// Used by the async WASM init path to deliver the ready GpuContext back
+    /// into the main event-loop thread.
+    event_loop_proxy: Option<EventLoopProxy<UserEvent>>,
 }
 
 impl<T: GameLoop> App<T> {
@@ -255,7 +278,7 @@ impl<T: GameLoop> App<T> {
         Self {
             game,
             window: None,
-            gpu: GpuContext::new(),
+            gpu: None,
             camera: Camera2D::new([0.0, 0.0], 10.0, [1200.0, 800.0]),
             camera_controller: CameraController::new()
                 .with_move_speed(250.0)
@@ -275,6 +298,7 @@ impl<T: GameLoop> App<T> {
                 height: 800,
                 vsync: false,
             },
+            event_loop_proxy: None,
         }
     }
 
@@ -306,21 +330,81 @@ impl<T: GameLoop> App<T> {
         self.run_internal()
     }
 
-    fn run_internal(self) -> Result<crate::AppStats, winit::error::EventLoopError> {
-        let event_loop = EventLoop::new().unwrap();
+    fn run_internal(mut self) -> Result<crate::AppStats, winit::error::EventLoopError> {
+        let event_loop = EventLoop::<UserEvent>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
-        let mut app = self;
-        event_loop.run_app(&mut app)?;
+        self.event_loop_proxy = Some(event_loop.create_proxy());
 
-        Ok(crate::AppStats {
-            average_fps: app.time.average_fps(),
-            frame_count: app.time.frame_count(),
-            total_time: app.time.elapsed(),
-        })
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let mut app = self;
+            event_loop.run_app(&mut app)?;
+            Ok(crate::AppStats {
+                average_fps: app.time.average_fps(),
+                frame_count: app.time.frame_count(),
+                total_time: app.time.elapsed(),
+            })
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            // spawn_app returns immediately; callbacks fire via JS event loop.
+            // The AppStats native return is meaningless here.
+            use winit::platform::web::EventLoopExtWebSys;
+            event_loop.spawn_app(self);
+            Ok(crate::AppStats {
+                average_fps: 0.0,
+                frame_count: 0,
+                total_time: 0.0,
+            })
+        }
+    }
+
+    /// Finish post-GPU-init setup (pipelines, GUI, game.init) once the GpuContext
+    /// is in place. Called from `resumed` on native and from the `UserEvent::GpuReady`
+    /// handler on WASM.
+    fn finish_gpu_init(&mut self, event_loop: &ActiveEventLoop) {
+        let gpu = self.gpu.as_ref().expect("finish_gpu_init: gpu not set");
+        let window = self.window.as_ref().expect("finish_gpu_init: window not set").clone();
+
+        let size = window.inner_size();
+        self.camera.screen_size = [size.width as f32, size.height as f32];
+
+        let format = gpu
+            .config
+            .as_ref()
+            .expect("Unable to get TextureFormat")
+            .format;
+
+        #[cfg(feature = "gui")]
+        {
+            let mut gui = Gui::new(event_loop);
+            let initial_output = gui.run_empty(&window);
+            let mut ui_pipeline = UiPipeline::new(&gpu.device, &gpu.queue, format);
+            ui_pipeline.handle_textures(initial_output.textures_delta);
+            self.gui = Some(gui);
+            self.gui_renderer = Some(ui_pipeline);
+        }
+        #[cfg(not(feature = "gui"))]
+        let _ = event_loop; // suppress unused-arg warning when no gui feature.
+
+        let circle_pipeline = CirclePipeline::new(&gpu.device, format, &self.camera);
+        let line_pipeline = LinePipeline::new(
+            "Default",
+            wgpu::include_wgsl!("shaders/line_shader.wgsl"),
+            &gpu.device,
+            format,
+            &self.camera,
+        );
+
+        self.circle_pipeline = Some(circle_pipeline);
+        self.line_pipeline = Some(line_pipeline);
+
+        self.game.init(gpu);
     }
 
     fn render_frame(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
+        if self.window.is_none() || self.gpu.is_none() {
             return;
         }
 
@@ -334,30 +418,27 @@ impl<T: GameLoop> App<T> {
             }
         }
 
-        // Update camera
         self.camera_controller.update_movement(
             &mut self.camera,
             self.time.delta(),
             self.input.pressed_keys(),
         );
 
-        // Let game handle input
         self.game.handle_input(&self.input, &self.camera);
 
-        // Update game with Time reference instead of just dt
-        self.game.update(&self.time, &self.gpu);
+        let gpu = self.gpu.as_ref().unwrap();
+        self.game.update(&self.time, gpu);
 
-        let Ok(frame) = self.gpu.get_current_frame() else {
+        let Ok(frame) = gpu.get_current_frame() else {
             return;
         };
         let view = frame.texture.create_view(&Default::default());
 
-        // Let game render its content using DrawContext
         if let (Some(circle_pipeline), Some(line_pipeline)) =
             (&mut self.circle_pipeline, &mut self.line_pipeline)
         {
             let mut draw = DrawContext {
-                gpu: &self.gpu,
+                gpu,
                 view: &view,
                 camera: &self.camera,
                 circle_pipeline,
@@ -365,12 +446,9 @@ impl<T: GameLoop> App<T> {
             };
 
             self.game.render(&mut draw);
-
-            // Automatically flush at the end of the frame
             draw.flush();
         }
 
-        // Render GUI
         #[cfg(feature = "gui")]
         self.render_gui(&view);
 
@@ -379,13 +457,15 @@ impl<T: GameLoop> App<T> {
 
     #[cfg(feature = "gui")]
     fn render_gui(&mut self, view: &wgpu::TextureView) {
-        let (Some(window), Some(ui_renderer), Some(gui)) =
-            (&self.window, &mut self.gui_renderer, &mut self.gui)
-        else {
+        let (Some(window), Some(ui_renderer), Some(gui), Some(gpu)) = (
+            &self.window,
+            &mut self.gui_renderer,
+            &mut self.gui,
+            &self.gpu,
+        ) else {
             return;
         };
 
-        // Let game add GUI elements
         gui.begin_frame(window);
         self.game.gui(gui.ctx());
         let full = gui.end_frame(self.time.fps());
@@ -393,7 +473,7 @@ impl<T: GameLoop> App<T> {
         ui_renderer.handle_textures(full.textures_delta);
         let primitives = gui.tessellate(full.shapes, full.pixels_per_point);
 
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
 
@@ -405,19 +485,50 @@ impl<T: GameLoop> App<T> {
             physical_size,
             scale_factor as f32,
         );
-        self.gpu.queue.submit(std::iter::once(encoder.finish()));
+        gpu.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 
-impl<T: GameLoop> ApplicationHandler for App<T> {
+impl<T: GameLoop> ApplicationHandler<UserEvent> for App<T> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
         }
 
-        let window_attrs = Window::default_attributes()
+        let mut window_attrs = Window::default_attributes()
             .with_title(&self.config.title)
-            .with_inner_size(winit::dpi::LogicalSize::new(self.config.width, self.config.height));
+            .with_inner_size(winit::dpi::LogicalSize::new(
+                self.config.width,
+                self.config.height,
+            ));
+
+        // Attach to a <canvas id="graviplex-canvas"> element on the page if it
+        // exists; otherwise create one and append to <body>.
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            use wasm_bindgen::JsCast;
+            let canvas = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| {
+                    if let Some(existing) = d.get_element_by_id("graviplex-canvas") {
+                        existing.dyn_into::<web_sys::HtmlCanvasElement>().ok()
+                    } else {
+                        let canvas: web_sys::HtmlCanvasElement = d
+                            .create_element("canvas")
+                            .ok()?
+                            .dyn_into()
+                            .ok()?;
+                        canvas.set_id("graviplex-canvas");
+                        canvas.set_width(self.config.width);
+                        canvas.set_height(self.config.height);
+                        d.body()?.append_child(&canvas).ok()?;
+                        Some(canvas)
+                    }
+                })
+                .expect("could not obtain a canvas element");
+            window_attrs = window_attrs.with_canvas(Some(canvas));
+        }
 
         let window = Arc::new(
             event_loop
@@ -425,45 +536,45 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
                 .expect("Unable to create window"),
         );
 
-        self.gpu.init_surface(window.clone(), self.config.vsync);
+        self.window = Some(window.clone());
 
-        let size = window.inner_size();
-        self.camera.screen_size = [size.width as f32, size.height as f32];
-
-        let format = self
-            .gpu
-            .config
-            .as_ref()
-            .expect("Unable to get TextureFormat")
-            .format;
-
-        #[cfg(feature = "gui")]
+        // Native: do GPU init synchronously here.
+        #[cfg(not(target_arch = "wasm32"))]
         {
-            let mut gui = Gui::new(event_loop);
-            let initial_output = gui.run_empty(&window);
-            let mut ui_pipeline = UiPipeline::new(&self.gpu.device, &self.gpu.queue, format);
-            ui_pipeline.handle_textures(initial_output.textures_delta);
-            self.gui = Some(gui);
-            self.gui_renderer = Some(ui_pipeline);
+            let mut gpu = GpuContext::new();
+            gpu.init_surface(window.clone(), self.config.vsync);
+            self.gpu = Some(gpu);
+            self.finish_gpu_init(event_loop);
         }
 
-        // Initialize standard pipelines
-        let circle_pipeline = CirclePipeline::new(&self.gpu.device, format, &self.camera);
-        let line_pipeline = LinePipeline::new(
-            "Default",
-            wgpu::include_wgsl!("shaders/line_shader.wgsl"),
-            &self.gpu.device,
-            format,
-            &self.camera,
-        );
+        // WASM: spawn an async init that posts UserEvent::GpuReady when done.
+        #[cfg(target_arch = "wasm32")]
+        {
+            let proxy = self
+                .event_loop_proxy
+                .clone()
+                .expect("event_loop_proxy not set on App");
+            let vsync = self.config.vsync;
+            let window_async = window.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let mut gpu = GpuContext::new_async().await;
+                gpu.init_surface_async(window_async.clone(), vsync).await;
+                let _ = proxy.send_event(UserEvent::GpuReady {
+                    gpu,
+                    window: window_async,
+                });
+            });
+        }
+    }
 
-        self.circle_pipeline = Some(circle_pipeline);
-        self.line_pipeline = Some(line_pipeline);
-
-        // Initialize game
-        self.game.init(&self.gpu);
-
-        self.window = Some(window);
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        match event {
+            UserEvent::GpuReady { gpu, window } => {
+                self.gpu = Some(gpu);
+                self.window = Some(window);
+                self.finish_gpu_init(event_loop);
+            }
+        }
     }
 
     fn window_event(
@@ -472,7 +583,6 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Let GUI handle event first
         #[cfg(feature = "gui")]
         if let (Some(gui), Some(window)) = (&mut self.gui, &self.window) {
             if gui.handle_event(window, &event).consumed {
@@ -484,7 +594,9 @@ impl<T: GameLoop> ApplicationHandler for App<T> {
             WindowEvent::CloseRequested => event_loop.exit(),
 
             WindowEvent::Resized(size) => {
-                self.gpu.resize(size.width, size.height);
+                if let Some(gpu) = &mut self.gpu {
+                    gpu.resize(size.width, size.height);
+                }
                 self.camera.screen_size = [size.width as f32, size.height as f32];
             }
 
