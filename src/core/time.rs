@@ -4,7 +4,10 @@
 //! `GameLoop::update()` each frame.
 
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Instant;
+// `web_time::Instant` is a drop-in for `std::time::Instant` that works on
+// wasm32-unknown-unknown (uses `performance.now()`); native code uses the
+// standard clock unchanged.
+use web_time::Instant;
 
 static GLOBAL_FPS: AtomicU32 = AtomicU32::new(0);
 static GLOBAL_FRAME_TIME: AtomicU32 = AtomicU32::new(0);

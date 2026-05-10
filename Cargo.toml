@@ -19,6 +19,10 @@ bytemuck = "1.22.0"
 # them. This excludes browsers that don't yet have WebGPU enabled (Firefox
 # stable as of 2026 still gates it behind a flag; Safari has it on 18+).
 wgpu = "26.0.1"
+# std::time::Instant panics on wasm32-unknown-unknown (no clock impl). web_time
+# is a drop-in that uses performance.now() on the web and the standard clock
+# everywhere else.
+web-time = "1"
 winit = "0.30.7"
 egui = { version = "0.33.0", default-features = true, optional = true }
 egui-winit = { version = "0.33.0", default-features = false, optional = true }
